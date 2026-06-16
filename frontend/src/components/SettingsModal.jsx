@@ -332,7 +332,7 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
   const [termBgImage, setTermBgImage] = useState(localStorage.getItem('termBgImage') || '');
   const [termBgOpacity, setTermBgOpacity] = useState(parseFloat(localStorage.getItem('termBgOpacity') || '0.15'));
   const [terminalColorTheme, setTerminalColorTheme] = useState(localStorage.getItem('terminalColorTheme') || 'lumin');
-  const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') !== 'false');
+  const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') === 'true');
 
   const t = I18N[language] || I18N['zh-CN'];
 
@@ -924,7 +924,7 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
                       gap: 8
                     }}>
                       Lumin
-                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-4)', letterSpacing: '0' }}>by Angus</span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-4)', letterSpacing: '0' }}>by WuMing</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ fontSize: 14, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>
