@@ -560,25 +560,37 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     return () => window.removeEventListener('ssh-history-cleared', handler);
   }, [serverId]);
 
+  const scrollOnNextUpdate = useRef(false);
+
   // 弹窗打开或切换模式时加载历史数据
   useEffect(() => {
     if (!showHistory) return;
+    scrollOnNextUpdate.current = true;
     (async () => {
       try {
         const raw = historyMode === 'global'
           ? await AppGo.GetGlobalCommandHistory()
           : await AppGo.GetCommandHistory(historyServerId);
         const entries = JSON.parse(raw);
-        setHistoryList(Array.isArray(entries) ? entries : []);
-      } catch { setHistoryList([]); }
+        const arr = Array.isArray(entries) ? entries : [];
+        setHistoryList(arr);
+        // 数据为空则无需滚动，直接清空标记
+        if (arr.length === 0) scrollOnNextUpdate.current = false;
+      } catch {
+        setHistoryList([]);
+        scrollOnNextUpdate.current = false;
+      }
     })();
   }, [showHistory, historyMode]);
 
-  // 历史列表更新时自动滚到底部
+  // 数据渲染后滚到底部（仅首次打开时，删除条目不滚动）
   useEffect(() => {
-    if (!showHistory) return;
+    if (!showHistory || !scrollOnNextUpdate.current) return;
+    // 数据还没加载完（空状态），等待下一次更新
+    if (historyList.length === 0) return;
     const el = historyScrollRef.current;
     if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    scrollOnNextUpdate.current = false;
   }, [historyList, showHistory]);
 
   const filteredHistory = searchQuery
