@@ -14,6 +14,7 @@ import GlobalContextMenu from './components/GlobalContextMenu.jsx';
 import { clampPanelWidth } from './components/probeFormatting.js';
 import { useTranslation } from './i18n.js';
 import { APP_VERSION } from './config.js';
+import { useUpdateChecker } from './hooks/useUpdateChecker.js';
 import { Settings, House, Key, Minus, Square, X, RefreshCw, Wifi, Monitor, Eye, EyeOff } from 'lucide-react';
 
 import logoImg from './assets/logo.png';
@@ -45,7 +46,6 @@ export default function App() {
   
   // ── 新增自动检测更新状态 ──────────────────────────────
   const [startupUpdateInfo, setStartupUpdateInfo] = useState(null);
-  const [downloadProgress, setDownloadProgress] = useState(-1);
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
   
   // ── 新增分屏拖拽大小控制状态与逻辑 ──────────────────────
@@ -191,94 +191,30 @@ export default function App() {
   }, []);
 
   // ── 自动检测更新机制 ────────────────────────────────────
+  const { checkUpdate, applyUpdate, downloadProgress } = useUpdateChecker({
+    onResult: (result) => {
+      if (result.hasUpdate) {
+        setStartupUpdateInfo({
+          version: 'v' + result.latestVersion,
+          url: result.url,
+          filename: result.filename,
+        });
+        setIsUpdateModalVisible(true);
+      }
+    }
+  });
+
   useEffect(() => {
-    const checkUpdate = async () => {
-      try {
-        const res = await fetch('https://api.github.com/repos/wmwlwmwl/Lumin-SSH/releases/latest');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data && data.tag_name) {
-          let latest = data.tag_name.replace(/^v+/i, '');
-          const isNewer = (latestVer, currentVer) => {
-            if (latestVer === currentVer) return false;
-            const lParts = latestVer.split('.').map(Number);
-            const cParts = currentVer.split('.').map(Number);
-            for (let i = 0; i < Math.max(lParts.length, cParts.length); i++) {
-              const l = lParts[i] || 0;
-              const c = cParts[i] || 0;
-              if (l > c) return true;
-              if (l < c) return false;
-            }
-            return false;
-          };
-
-          if (isNewer(latest, APP_VERSION)) {
-            let isPortable = false;
-            if (window?.go?.main?.App?.IsPortableVersion) {
-                isPortable = await window.go.main.App.IsPortableVersion();
-            }
-            let downloadAssetUrl = '';
-            let downloadFilename = '';
-            if (data.assets && data.assets.length > 0) {
-               let targetAsset = null;
-               if (isPortable) {
-                  targetAsset = data.assets.find(a => a.name.toLowerCase().includes('portable') && a.name.endsWith('.exe'));
-               } else {
-                  targetAsset = data.assets.find(a => (a.name.toLowerCase().includes('setup') || a.name.toLowerCase().includes('installer')) && a.name.endsWith('.exe'));
-               }
-               
-               if (!targetAsset) {
-                  targetAsset = data.assets.find(a => a.name.endsWith('.exe'));
-               }
-
-               if (targetAsset) {
-                   downloadAssetUrl = targetAsset.browser_download_url;
-                   downloadFilename = targetAsset.name;
-               }
-            }
-            setStartupUpdateInfo({
-              version: 'v' + latest,
-              url: downloadAssetUrl || data.html_url,
-              filename: downloadFilename || 'update.exe',
-            });
-            setIsUpdateModalVisible(true);
-          }
-        }
-      } catch (err) {}
-    };
-    
     // 延迟 2.5 秒触发检测，避免阻塞应用首次极速渲染
     const timer = setTimeout(checkUpdate, 2500);
     return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    const handleProgress = (e) => {
-      if (typeof e.detail === 'number') {
-        setDownloadProgress(e.detail);
-      }
-    };
-    window.addEventListener('app-update-progress', handleProgress);
-    return () => window.removeEventListener('app-update-progress', handleProgress);
-  }, []);
+  }, [checkUpdate]);
 
   const handleApplyStartupUpdate = async () => {
-    if (!startupUpdateInfo || !startupUpdateInfo.url) return;
-    if (downloadProgress >= 0) return; // 正在下载中
-    
-    if (!startupUpdateInfo.url.endsWith('.exe')) {
-       window.runtime?.BrowserOpenURL(startupUpdateInfo.url);
-       setIsUpdateModalVisible(false);
-       return;
-    }
-
-    setDownloadProgress(0);
     try {
-      await AppGo.UpdateApp(startupUpdateInfo.url, startupUpdateInfo.filename);
-      // 后端成功后会自动重启应用
+      await applyUpdate(startupUpdateInfo);
     } catch (err) {
       addToast(`自动更新失败: ${err}`, 'error', 5000);
-      setDownloadProgress(-1);
     }
   };
 

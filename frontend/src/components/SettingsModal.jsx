@@ -3,6 +3,7 @@ import * as AppGo from '../../wailsjs/go/main/App.js';
 import { setLanguage as setGlobalLanguage } from '../i18n.js';
 import logoImg from '../assets/logo.png';
 import { APP_VERSION } from '../config.js';
+import { useUpdateChecker } from '../hooks/useUpdateChecker.js';
 
 const I18N = {
   'zh-CN': {
@@ -165,109 +166,232 @@ const defaultSFTPForm = {
   maxBackups: '',
 };
 
+const PROVIDERS = {
+  webdav: {
+    name: 'WebDAV',
+    icon: '☁️',
+    title: 'WebDAV 配置',
+    subtitle: '配置 WebDAV 端点用于加密同步服务器列表',
+    accent: 'var(--green)',
+    accentRgb: '16, 185, 129',
+    successMsg: '已成功绑定 WebDAV 服务',
+    defaultForm: defaultWebdavForm,
+    test: (f) => AppGo.TestWebdavConnection(f.url, f.username, f.password),
+    save: (f) => AppGo.SaveWebdavConfig(f),
+    sync: () => AppGo.SyncFromWebdav(),
+    backup: () => AppGo.BackupToWebdav(),
+    list: () => AppGo.ListWebdavBackups(),
+    restore: (name) => AppGo.RestoreFromWebdavFile(name),
+    getConfig: () => AppGo.GetWebdavConfig(),
+    isConfigured: (f) => !!f.username,
+    applyConfig: (data) => ({ url: data.url || '', username: data.username || '', password: data.password || '', remotePath: data.remotePath || '/Lumin/', maxBackups: data.maxBackups || '' }),
+    summaryFields: (f) => [
+      { label: '绑定账号', value: f.username, primary: true },
+      { label: '备份目录', value: f.remotePath },
+      { label: '保留份数', value: f.maxBackups || '不限' },
+      { label: '服务器地址', value: f.url, fullWidth: true },
+    ],
+  },
+  r2: {
+    name: 'R2',
+    icon: '🗄️',
+    title: 'R2 (S3 兼容) 配置',
+    subtitle: '配置 Cloudflare R2 或任意 S3 兼容对象存储用于加密同步',
+    accent: '#3b82f6',
+    accentRgb: '59, 130, 246',
+    successMsg: '已成功绑定 R2 对象存储',
+    defaultForm: defaultR2Form,
+    test: (f) => AppGo.TestR2Connection(f.accessKeyId, f.secretAccessKey, f.bucket, f.endpoint),
+    save: (f) => AppGo.SaveR2Config(f),
+    sync: () => AppGo.SyncFromR2(),
+    backup: () => AppGo.BackupToR2(),
+    list: () => AppGo.ListR2Backups(),
+    restore: (name) => AppGo.RestoreFromR2File(name),
+    getConfig: () => AppGo.GetR2Config(),
+    isConfigured: (f) => !!(f.bucket && f.endpoint),
+    applyConfig: (data) => ({ accessKeyId: data.accessKeyId || '', secretAccessKey: data.secretAccessKey || '', bucket: data.bucket || '', endpoint: data.endpoint || '', region: data.region || 'auto', prefix: data.prefix || 'Lumin/', maxBackups: data.maxBackups || '' }),
+    summaryFields: (f) => [
+      { label: 'Bucket', value: f.bucket, primary: true },
+      { label: '前缀目录', value: f.prefix },
+      { label: '端点地址', value: f.endpoint, fullWidth: true },
+      { label: '保留份数', value: f.maxBackups || '不限' },
+    ],
+  },
+  ftp: {
+    name: 'FTP',
+    icon: '📁',
+    title: 'FTP 配置',
+    subtitle: '配置 FTP 服务器用于加密同步服务器列表',
+    accent: '#f472b6',
+    accentRgb: '244, 114, 182',
+    successMsg: '已成功绑定 FTP 服务器',
+    defaultForm: defaultFTPForm,
+    test: (f) => AppGo.TestFTPConnection(f.host, f.port, f.username, f.password),
+    save: (f) => AppGo.SaveFTPConfig({ host: f.host, port: String(f.port), username: f.username, password: f.password, remoteDir: f.remoteDir, maxBackups: String(f.maxBackups || '') }),
+    sync: () => AppGo.SyncFromFTP(),
+    backup: () => AppGo.BackupToFTP(),
+    list: () => AppGo.ListFTPBackups(),
+    restore: (name) => AppGo.RestoreFromFTPFile(name),
+    getConfig: () => AppGo.GetFTPConfig(),
+    isConfigured: (f) => !!f.host,
+    applyConfig: (data) => ({ host: data.host || '', port: data.port || 21, username: data.username || '', password: data.password || '', remoteDir: data.remoteDir || '/Lumin/', maxBackups: data.maxBackups || '' }),
+    summaryFields: (f) => [
+      { label: '主机地址', value: f.host, primary: true },
+      { label: '端口', value: f.port },
+      { label: '用户名', value: f.username, primary: true },
+      { label: '远程目录', value: f.remoteDir },
+      { label: '保留份数', value: f.maxBackups || '不限' },
+    ],
+  },
+  sftp: {
+    name: 'SFTP',
+    icon: '🔒',
+    title: 'SFTP (SSH) 配置',
+    subtitle: '配置 SFTP 服务器用于加密同步服务器列表',
+    accent: '#22c55e',
+    accentRgb: '34, 197, 94',
+    successMsg: '已成功绑定 SFTP 服务器',
+    defaultForm: defaultSFTPForm,
+    test: (f) => AppGo.TestSFTPConnection(f.host, f.port, f.username, f.password, f.authMethod, f.privateKey),
+    save: (f) => AppGo.SaveSFTPConfig({ host: f.host, port: String(f.port), username: f.username, password: f.password, authMethod: f.authMethod, privateKey: f.privateKey, remoteDir: f.remoteDir, maxBackups: String(f.maxBackups || '') }),
+    sync: () => AppGo.SyncFromSFTP(),
+    backup: () => AppGo.BackupToSFTP(),
+    list: () => AppGo.ListSFTPBackups(),
+    restore: (name) => AppGo.RestoreFromSFTPFile(name),
+    getConfig: () => AppGo.GetSFTPConfig(),
+    isConfigured: (f) => !!f.host,
+    applyConfig: (data) => ({ host: data.host || '', port: data.port || 22, username: data.username || '', password: data.password || '', authMethod: data.authMethod || 'password', privateKey: data.privateKey || '', remoteDir: data.remoteDir || '/Lumin/', maxBackups: data.maxBackups || '' }),
+    summaryFields: (f) => [
+      { label: '主机地址', value: f.host, primary: true },
+      { label: '端口', value: f.port },
+      { label: '用户名', value: f.username, primary: true },
+      { label: '远程目录', value: f.remoteDir },
+      { label: '保留份数', value: f.maxBackups || '不限' },
+    ],
+  },
+};
+
+const PROVIDER_LIST = [
+  { id: 'webdav', icon: '☁️', label: 'WebDAV' },
+  { id: 'r2', icon: '🗄️', label: 'R2 (S3)' },
+  { id: 'ftp', icon: '📁', label: 'FTP' },
+  { id: 'sftp', icon: '🔒', label: 'SFTP' },
+];
+
+function ProviderCard({ provider, form, configured, editing, onEdit, onCancelEdit, testing, testResult, onTest, loading, onSave, children }) {
+  const accent = provider.accent;
+  const accentRgb = provider.accentRgb;
+  return (
+    <div style={{ background: 'var(--bg-2)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{provider.icon}</div>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-1)' }}>{provider.title}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-4)' }}>{provider.subtitle}</div>
+        </div>
+      </div>
+
+      {configured && !editing ? (
+        <div style={{
+          position: 'relative',
+          background: `linear-gradient(135deg, rgba(${accentRgb},0.05) 0%, var(--bg-1) 100%)`,
+          border: `1px solid rgba(${accentRgb}, 0.2)`,
+          borderRadius: 'var(--radius-lg)',
+          padding: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 20,
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: '4px', height: '100%',
+            background: accent,
+            boxShadow: `0 0 12px ${accent}`
+          }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: accent, boxShadow: `0 0 10px ${accent}` }}></div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '0.3px' }}>{provider.successMsg}</div>
+            </div>
+            <button onClick={onEdit} style={{
+              padding: '6px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 500,
+              background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-2)',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 6
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-3)'; e.currentTarget.style.color = 'var(--text-1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-2)'; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+              修改配置
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '4px' }}>
+            {provider.summaryFields(form).map((sf, i) => (
+              <div key={i} style={{
+                display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)',
+                padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                ...(sf.fullWidth ? { gridColumn: '1 / -1' } : {})
+              }}>
+                <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>{sf.label}</span>
+                <span style={{
+                  fontSize: 14, color: sf.primary ? 'var(--text-1)' : 'var(--text-2)',
+                  fontWeight: sf.primary ? 600 : 400, fontFamily: 'var(--font-mono)',
+                  ...(sf.fullWidth ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {})
+                }}>{sf.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {children}
+          <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
+            <button className="btn btn-secondary" onClick={onTest} disabled={testing}>
+              {testing ? '测试中...' : '🔌 测试连接'} {testResult === 'ok' && '✓'} {testResult === 'fail' && '✗'}
+            </button>
+            <button className="btn btn-primary" onClick={onSave} disabled={loading}>
+              {loading ? '保存中...' : '💾 保存配置'}
+            </button>
+            {editing && (
+              <button className="btn btn-ghost" onClick={onCancelEdit} style={{ marginLeft: 'auto' }}>取消</button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsModal({ onClose, addToast, onRestored }) {
   const CURRENT_VERSION = APP_VERSION;
   const [updateInfo, setUpdateInfo] = useState(null);
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(-1);
 
-  useEffect(() => {
-    const handleProgress = (e) => {
-      if (typeof e.detail === 'number') {
-        setDownloadProgress(e.detail);
+  const { checking: checkingUpdate, downloadProgress, checkUpdate, applyUpdate } = useUpdateChecker({
+    onResult: (result) => {
+      if (result.hasUpdate) {
+        setUpdateInfo({
+          hasUpdate: true,
+          latestVersion: 'v' + result.latestVersion,
+          url: result.url,
+          filename: result.filename,
+        });
+        addToast(language === 'zh-CN' ? '发现新版本: v' + result.latestVersion : 'New version found: v' + result.latestVersion, 'success');
+      } else {
+        addToast(language === 'zh-CN' ? '当前已是最新版本' : 'You are up to date', 'info');
       }
-    };
-    window.addEventListener('app-update-progress', handleProgress);
-    return () => window.removeEventListener('app-update-progress', handleProgress);
-  }, []);
+    },
+    onError: (err) => {
+      addToast((language === 'zh-CN' ? '检查更新失败: ' : 'Check failed: ') + (err?.message || err), 'error');
+    },
+  });
 
-  const handleCheckUpdate = async () => {
-    setCheckingUpdate(true);
-    try {
-      const res = await fetch('https://api.github.com/repos/wmwlwmwl/Lumin-SSH/releases/latest');
-      if (!res.ok) throw new Error('API request failed');
-      const data = await res.json();
-      if (data && data.tag_name) {
-        // Clean the v prefix thoroughly using regex
-        let latest = data.tag_name.replace(/^v+/i, '');
-        
-        let isPortable = false;
-        if (window?.go?.main?.App?.IsPortableVersion) {
-            isPortable = await window.go.main.App.IsPortableVersion();
-        }
-        
-        // Find exe asset
-        let downloadAssetUrl = '';
-        let downloadFilename = '';
-        if (data.assets && data.assets.length > 0) {
-           let targetAsset = null;
-           if (isPortable) {
-              targetAsset = data.assets.find(a => a.name.toLowerCase().includes('portable') && a.name.endsWith('.exe'));
-           } else {
-              targetAsset = data.assets.find(a => (a.name.toLowerCase().includes('setup') || a.name.toLowerCase().includes('installer')) && a.name.endsWith('.exe'));
-           }
-           
-           if (!targetAsset) {
-              targetAsset = data.assets.find(a => a.name.endsWith('.exe'));
-           }
+  const handleCheckUpdate = () => { checkUpdate(); };
 
-           if (targetAsset) {
-               downloadAssetUrl = targetAsset.browser_download_url;
-               downloadFilename = targetAsset.name;
-           }
-        }
-
-        // Semantic versioning comparison (e.g. 1.0.2 > 1.0.10 should be false)
-        const isNewer = (latestVer, currentVer) => {
-          if (latestVer === currentVer) return false;
-          const lParts = latestVer.split('.').map(Number);
-          const cParts = currentVer.split('.').map(Number);
-          for (let i = 0; i < Math.max(lParts.length, cParts.length); i++) {
-            const l = lParts[i] || 0;
-            const c = cParts[i] || 0;
-            if (l > c) return true;
-            if (l < c) return false;
-          }
-          return false;
-        };
-
-        if (isNewer(latest, CURRENT_VERSION)) {
-          setUpdateInfo({
-            hasUpdate: true,
-            latestVersion: 'v' + latest,
-            url: downloadAssetUrl || data.html_url,
-            filename: downloadFilename
-          });
-          addToast(language === 'zh-CN' ? '发现新版本: v' + latest : 'New version found: v' + latest, 'success');
-        } else {
-          addToast(language === 'zh-CN' ? '当前已是最新版本' : 'You are up to date', 'info');
-        }
-      }
-    } catch (err) {
-      addToast((language === 'zh-CN' ? '检查更新失败: ' : 'Check failed: ') + err.message, 'error');
-    } finally {
-      setCheckingUpdate(false);
-    }
-  };
-
-  const handleApplyUpdate = async () => {
-    if (!updateInfo || !updateInfo.url) return;
-    if (downloadProgress >= 0) return; // downloading
-    
-    if (!updateInfo.url.endsWith('.exe')) {
-       // Fallback to browser if no direct link
-       window.runtime?.BrowserOpenURL(updateInfo.url);
-       return;
-    }
-
-    setDownloadProgress(0);
-    try {
-      await AppGo.UpdateApp(updateInfo.url, updateInfo.filename || 'update.exe');
-      // Backend automatically exits process on success
-    } catch (err) {
+  const handleApplyUpdate = () => {
+    applyUpdate(updateInfo).catch((err) => {
       addToast((language === 'zh-CN' ? '更新失败: ' : 'Update failed: ') + err, 'error');
-      setDownloadProgress(-1);
-    }
+    });
   };
 
   const [activeTab, setActiveTab] = useState('network');
@@ -558,67 +682,82 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
   }, []);
 
   const setWebdav = (key) => (e) => setWebdavForm((f) => ({ ...f, [key]: e.target.value }));
+  const setR2 = (key) => (e) => setR2Form((f) => ({ ...f, [key]: e.target.value }));
+  const setFTP = (field) => (e) => setFtpForm({...ftpForm, [field]: e.target.value});
+  const setSFTP = (field) => (e) => setSftpForm({...sftpForm, [field]: e.target.value});
 
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
+  // ────────────────────── Cloud Sync Handlers ──────────────────────
+  const providerState = {
+    webdav: { form: webdavForm, setForm: setWebdavForm, configured: isConfigured, setConfigured: setIsConfigured, editing: isEditing, setEditing: setIsEditing, loading, setLoading, testing, setTesting, testResult, setTestResult },
+    r2: { form: r2Form, setForm: setR2Form, configured: r2Configured, setConfigured: setR2Configured, editing: r2Editing, setEditing: setR2Editing, loading: r2Loading, setLoading: setR2Loading, testing: r2Testing, setTesting: setR2Testing, testResult: r2TestResult, setTestResult: setR2TestResult },
+    ftp: { form: ftpForm, setForm: setFtpForm, configured: ftpConfigured, setConfigured: setFtpConfigured, editing: ftpEditing, setEditing: setFtpEditing, loading: ftpLoading, setLoading: setFtpLoading, testing: ftpTesting, setTesting: setFtpTesting, testResult: ftpTestResult, setTestResult: setFtpTestResult },
+    sftp: { form: sftpForm, setForm: setSftpForm, configured: sftpConfigured, setConfigured: setSftpConfigured, editing: sftpEditing, setEditing: setSftpEditing, loading: sftpLoading, setLoading: setSftpLoading, testing: sftpTesting, setTesting: setSftpTesting, testResult: sftpTestResult, setTestResult: setSftpTestResult },
+  };
+
+  const makeTestHandler = (key) => async () => {
+    const p = PROVIDERS[key];
+    const s = providerState[key];
+    s.setTesting(true);
+    s.setTestResult(null);
     try {
-      await AppGo.TestWebdavConnection(webdavForm.url, webdavForm.username, webdavForm.password);
-      setTestResult('ok');
-      addToast('WebDAV 连接测试成功 ✓', 'success');
+      await p.test(s.form);
+      s.setTestResult('ok');
+      addToast(`${p.name} 连接测试成功 ✓`, 'success');
     } catch (err) {
-      setTestResult('fail');
-      addToast(`WebDAV 连接失败: ${err}`, 'error');
+      s.setTestResult('fail');
+      addToast(`${p.name} 连接测试失败: ${err}`, 'error');
     } finally {
-      setTesting(false);
+      s.setTesting(false);
     }
   };
 
-  const handleSave = async () => {
-    setLoading(true);
+  const makeSaveHandler = (key) => async () => {
+    const p = PROVIDERS[key];
+    const s = providerState[key];
+    s.setLoading(true);
     try {
-      await AppGo.SaveWebdavConfig(webdavForm);
-      if (webdavForm.username) {
-        setIsConfigured(true);
-        setIsEditing(false);
-        // 保存后立即双向同步一次
+      await p.save(s.form);
+      if (p.isConfigured(s.form)) {
+        s.setConfigured(true);
+        s.setEditing(false);
         try {
-          const res = await AppGo.SyncFromWebdav();
+          const res = await p.sync();
           setLastBackup(res.backup?.time);
-          addToast(`WebDAV 同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
+          addToast(`${p.name} 同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
           onRestored?.();
         } catch (_) {
-          // 云端无备份则直接上传
           try {
-            const data = await AppGo.BackupToWebdav();
+            const data = await p.backup();
             setLastBackup(data.time);
-            addToast(`WebDAV 配置已保存，已上传 ${data.count} 个服务器`, 'success');
+            addToast(`${p.name} 配置已保存，已上传 ${data.count} 个服务器`, 'success');
           } catch (e) {
-            addToast('WebDAV 配置已保存，但同步失败，可稍后手动上传', 'warning');
+            addToast(`${p.name} 配置已保存，但同步失败，可稍后手动上传`, 'warning');
           }
         }
       } else {
-        addToast('WebDAV 配置已保存', 'success');
+        addToast(`${p.name} 配置已保存`, 'success');
       }
     } catch (err) {
       addToast(err, 'error');
     } finally {
-      setLoading(false);
+      s.setLoading(false);
     }
   };
+
+  const handleTest = makeTestHandler('webdav');
+  const handleSave = makeSaveHandler('webdav');
+  const handleR2Test = makeTestHandler('r2');
+  const handleR2Save = makeSaveHandler('r2');
+  const handleTestFTP = makeTestHandler('ftp');
+  const handleSaveFTP = makeSaveHandler('ftp');
+  const handleTestSFTP = makeTestHandler('sftp');
+  const handleSaveSFTP = makeSaveHandler('sftp');
 
   const handleRestore = async () => {
     setLoadingBackups(true);
     try {
-      let provider = 'webdav';
-      if (syncMode === 'r2') provider = 'r2';
-      else if (syncMode === 'ftp') provider = 'ftp';
-      else if (syncMode === 'sftp') provider = 'sftp';
-      let list;
-      if (provider === 'r2') list = await AppGo.ListR2Backups();
-      else if (provider === 'ftp') list = await AppGo.ListFTPBackups();
-      else if (provider === 'sftp') list = await AppGo.ListSFTPBackups();
-      else list = await AppGo.ListWebdavBackups();
+      const p = PROVIDERS[syncMode] || PROVIDERS.webdav;
+      const list = await p.list();
       if (!list || list.length === 0) {
         addToast('云端未找到任何备份文件', 'error');
         return;
@@ -638,23 +777,9 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
     if (!selectedBackup) return;
     setRestoring(true);
     try {
-      let provider = 'webdav';
-      if (syncMode === 'r2') provider = 'r2';
-      else if (syncMode === 'ftp') provider = 'ftp';
-      else if (syncMode === 'sftp') provider = 'sftp';
-      if (provider === 'r2') {
-        await AppGo.RestoreFromR2File(selectedBackup);
-        try { await AppGo.BackupToR2(); } catch (_) {}
-      } else if (provider === 'ftp') {
-        await AppGo.RestoreFromFTPFile(selectedBackup);
-        try { await AppGo.BackupToFTP(); } catch (_) {}
-      } else if (provider === 'sftp') {
-        await AppGo.RestoreFromSFTPFile(selectedBackup);
-        try { await AppGo.BackupToSFTP(); } catch (_) {}
-      } else {
-        await AppGo.RestoreFromWebdavFile(selectedBackup);
-        try { await AppGo.BackupToWebdav(); } catch (_) {}
-      }
+      const p = PROVIDERS[syncMode] || PROVIDERS.webdav;
+      await p.restore(selectedBackup);
+      try { await p.backup(); } catch (_) {}
       addToast('恢复成功', 'success');
       onRestored?.();
     } catch (err) {
@@ -669,43 +794,21 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
     setSyncing(true);
     try {
       if (syncMode === 'all') {
-        // 全部同步
-        let webdavOk = false, r2Ok = false, ftpOk = false, sftpOk = false;
-        try {
-          const res = await AppGo.SyncFromWebdav();
-          webdavOk = true;
-          addToast(`WebDAV 合并同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
-        } catch (e) {
-          addToast(`WebDAV 同步失败: ${e}`, 'error');
+        let anyOk = false;
+        for (const key of ['webdav', 'r2', 'ftp', 'sftp']) {
+          const p = PROVIDERS[key];
+          try {
+            const res = await p.sync();
+            anyOk = true;
+            addToast(`${p.name} 合并同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
+          } catch (e) {
+            addToast(`${p.name} 同步失败: ${e}`, 'error');
+          }
         }
-        try {
-          const res = await AppGo.SyncFromR2();
-          r2Ok = true;
-          addToast(`R2 合并同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
-        } catch (e) {
-          addToast(`R2 同步失败: ${e}`, 'error');
-        }
-        try {
-          const res = await AppGo.SyncFromFTP();
-          ftpOk = true;
-          addToast(`FTP 合并同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
-        } catch (e) {
-          addToast(`FTP 同步失败: ${e}`, 'error');
-        }
-        try {
-          const res = await AppGo.SyncFromSFTP();
-          sftpOk = true;
-          addToast(`SFTP 合并同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
-        } catch (e) {
-          addToast(`SFTP 同步失败: ${e}`, 'error');
-        }
-        if (webdavOk || r2Ok || ftpOk || sftpOk) onRestored?.();
+        if (anyOk) onRestored?.();
       } else {
-        let res;
-        if (syncMode === 'r2') res = await AppGo.SyncFromR2();
-        else if (syncMode === 'ftp') res = await AppGo.SyncFromFTP();
-        else if (syncMode === 'sftp') res = await AppGo.SyncFromSFTP();
-        else res = await AppGo.SyncFromWebdav();
+        const p = PROVIDERS[syncMode] || PROVIDERS.webdav;
+        const res = await p.sync();
         addToast(`合并同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
         onRestored?.();
       }
@@ -713,146 +816,6 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
       addToast(`合并同步失败: ${err}`, 'error');
     } finally {
       setSyncing(false);
-    }
-  };
-
-  // ────────────────────── R2 Handlers ──────────────────────
-  const setR2 = (key) => (e) => setR2Form((f) => ({ ...f, [key]: e.target.value }));
-
-  // FTP helpers
-  const setFTP = (field) => (e) => setFtpForm({...ftpForm, [field]: e.target.value});
-
-  const handleSaveFTP = async () => {
-    setFtpLoading(true);
-    try {
-      await AppGo.SaveFTPConfig({ host: ftpForm.host, port: String(ftpForm.port), username: ftpForm.username, password: ftpForm.password, remoteDir: ftpForm.remoteDir, maxBackups: String(ftpForm.maxBackups || '') });
-      setFtpConfigured(true);
-      setFtpEditing(false);
-      try {
-        const res = await AppGo.SyncFromFTP();
-        setLastBackup(res.backup?.time);
-        addToast(`FTP 同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
-        onRestored?.();
-      } catch (_) {
-        try {
-          const data = await AppGo.BackupToFTP();
-          setLastBackup(data.time);
-          addToast(`FTP 配置已保存，已上传 ${data.count} 个服务器`, 'success');
-        } catch (e) {
-          addToast('FTP 配置已保存，但同步失败，可稍后手动上传', 'warning');
-        }
-      }
-    } catch (err) {
-      addToast('保存 FTP 配置失败: ' + err, 'error');
-    } finally {
-      setFtpLoading(false);
-    }
-  };
-
-  const handleTestFTP = async () => {
-    setFtpTesting(true);
-    setFtpTestResult(null);
-    try {
-      await AppGo.TestFTPConnection(ftpForm.host, ftpForm.port, ftpForm.username, ftpForm.password);
-      setFtpTestResult('ok');
-      addToast('FTP 连接测试成功', 'success');
-    } catch (err) {
-      setFtpTestResult('fail');
-      addToast('FTP 连接测试失败: ' + err, 'error');
-    } finally {
-      setFtpTesting(false);
-    }
-  };
-
-  // SFTP helpers
-  const setSFTP = (field) => (e) => setSftpForm({...sftpForm, [field]: e.target.value});
-
-  const handleSaveSFTP = async () => {
-    setSftpLoading(true);
-    try {
-      await AppGo.SaveSFTPConfig({ host: sftpForm.host, port: String(sftpForm.port), username: sftpForm.username, password: sftpForm.password, authMethod: sftpForm.authMethod, privateKey: sftpForm.privateKey, remoteDir: sftpForm.remoteDir, maxBackups: String(sftpForm.maxBackups || '') });
-      setSftpConfigured(true);
-      setSftpEditing(false);
-      try {
-        const res = await AppGo.SyncFromSFTP();
-        setLastBackup(res.backup?.time);
-        addToast(`SFTP 同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
-        onRestored?.();
-      } catch (_) {
-        try {
-          const data = await AppGo.BackupToSFTP();
-          setLastBackup(data.time);
-          addToast(`SFTP 配置已保存，已上传 ${data.count} 个服务器`, 'success');
-        } catch (e) {
-          addToast('SFTP 配置已保存，但同步失败，可稍后手动上传', 'warning');
-        }
-      }
-    } catch (err) {
-      addToast('保存 SFTP 配置失败: ' + err, 'error');
-    } finally {
-      setSftpLoading(false);
-    }
-  };
-
-  const handleTestSFTP = async () => {
-    setSftpTesting(true);
-    setSftpTestResult(null);
-    try {
-      await AppGo.TestSFTPConnection(sftpForm.host, sftpForm.port, sftpForm.username, sftpForm.password, sftpForm.authMethod, sftpForm.privateKey);
-      setSftpTestResult('ok');
-      addToast('SFTP 连接测试成功', 'success');
-    } catch (err) {
-      setSftpTestResult('fail');
-      addToast('SFTP 连接测试失败: ' + err, 'error');
-    } finally {
-      setSftpTesting(false);
-    }
-  };
-
-  const handleR2Test = async () => {
-    setR2Testing(true);
-    setR2TestResult(null);
-    try {
-      await AppGo.TestR2Connection(r2Form.accessKeyId, r2Form.secretAccessKey, r2Form.bucket, r2Form.endpoint);
-      setR2TestResult('ok');
-      addToast('R2 连接测试成功 ✓', 'success');
-    } catch (err) {
-      setR2TestResult('fail');
-      addToast(`R2 连接失败: ${err}`, 'error');
-    } finally {
-      setR2Testing(false);
-    }
-  };
-
-  const handleR2Save = async () => {
-    setR2Loading(true);
-    try {
-      await AppGo.SaveR2Config(r2Form);
-      if (r2Form.bucket && r2Form.endpoint) {
-        setR2Configured(true);
-        setR2Editing(false);
-        // 保存后立即双向同步一次
-        try {
-          const res = await AppGo.SyncFromR2();
-          setLastBackup(res.backup?.time);
-          addToast(`R2 同步成功！本地 ${res.localCount} 个 + 云端 ${res.remoteCount} 个 = ${res.mergedCount} 个`, 'success');
-          onRestored?.();
-        } catch (_) {
-          try {
-            const data = await AppGo.BackupToR2();
-            setLastBackup(data.time);
-            addToast(`R2 配置已保存，已上传 ${data.count} 个服务器`, 'success');
-          } catch (e) {
-            addToast('R2 配置已保存，但同步失败，可稍后手动上传', 'warning');
-          }
-        }
-      } else {
-        addToast('R2 配置已保存', 'success');
-      }
-    } catch (err) {
-      addToast(err, 'error');
-    } finally {
-      setR2Loading(false);
     }
   };
 
@@ -1516,630 +1479,219 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
                 
                 {/* Provider Selector */}
                 <div style={{ display: 'flex', gap: 8, background: 'var(--bg-2)', padding: 8, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                  <button
-                    onClick={() => setSyncProvider('webdav')}
-                    style={{
-                      flex: 1, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-                      background: syncProvider === 'webdav' ? 'var(--bg-1)' : 'transparent',
-                      border: syncProvider === 'webdav' ? '1px solid var(--border)' : '1px solid transparent',
-                      color: syncProvider === 'webdav' ? 'var(--text-1)' : 'var(--text-3)',
-                      fontWeight: syncProvider === 'webdav' ? 600 : 400,
-                      cursor: 'pointer', fontSize: 14, transition: 'all 0.15s',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    }}
-                  >
-                    ☁️ WebDAV
-                  </button>
-                  <button
-                    onClick={() => setSyncProvider('r2')}
-                    style={{
-                      flex: 1, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-                      background: syncProvider === 'r2' ? 'var(--bg-1)' : 'transparent',
-                      border: syncProvider === 'r2' ? '1px solid var(--border)' : '1px solid transparent',
-                      color: syncProvider === 'r2' ? 'var(--text-1)' : 'var(--text-3)',
-                      fontWeight: syncProvider === 'r2' ? 600 : 400,
-                      cursor: 'pointer', fontSize: 14, transition: 'all 0.15s',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    }}
-                  >
-                    🗄️ R2 (S3)
-                  </button>
-                  <button
-                    onClick={() => setSyncProvider('ftp')}
-                    style={{
-                      flex: 1, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-                      background: syncProvider === 'ftp' ? 'var(--bg-1)' : 'transparent',
-                      border: syncProvider === 'ftp' ? '1px solid var(--border)' : '1px solid transparent',
-                      color: syncProvider === 'ftp' ? 'var(--text-1)' : 'var(--text-3)',
-                      fontWeight: syncProvider === 'ftp' ? 600 : 400,
-                      cursor: 'pointer', fontSize: 14, transition: 'all 0.15s',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    }}
-                  >
-                    📁 FTP
-                  </button>
-                  <button
-                    onClick={() => setSyncProvider('sftp')}
-                    style={{
-                      flex: 1, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-                      background: syncProvider === 'sftp' ? 'var(--bg-1)' : 'transparent',
-                      border: syncProvider === 'sftp' ? '1px solid var(--border)' : '1px solid transparent',
-                      color: syncProvider === 'sftp' ? 'var(--text-1)' : 'var(--text-3)',
-                      fontWeight: syncProvider === 'sftp' ? 600 : 400,
-                      cursor: 'pointer', fontSize: 14, transition: 'all 0.15s',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    }}
-                  >
-                    🔒 SFTP
-                  </button>
+                  {PROVIDER_LIST.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setSyncProvider(p.id)}
+                      style={{
+                        flex: 1, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
+                        background: syncProvider === p.id ? 'var(--bg-1)' : 'transparent',
+                        border: syncProvider === p.id ? '1px solid var(--border)' : '1px solid transparent',
+                        color: syncProvider === p.id ? 'var(--text-1)' : 'var(--text-3)',
+                        fontWeight: syncProvider === p.id ? 600 : 400,
+                        cursor: 'pointer', fontSize: 14, transition: 'all 0.15s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      }}
+                    >
+                      {p.icon} {p.label}
+                    </button>
+                  ))}
                 </div>
 
                 {/* WebDAV Config */}
                 {syncProvider === 'webdav' && (
-                  <div style={{ background: 'var(--bg-2)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>☁️</div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-1)' }}>WebDAV 配置</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-4)' }}>配置 WebDAV 端点用于加密同步服务器列表</div>
-                      </div>
+                  <ProviderCard
+                    provider={PROVIDERS.webdav}
+                    form={webdavForm}
+                    configured={isConfigured}
+                    editing={isEditing}
+                    onEdit={() => setIsEditing(true)}
+                    onCancelEdit={() => setIsEditing(false)}
+                    testing={testing}
+                    testResult={testResult}
+                    onTest={handleTest}
+                    loading={loading}
+                    onSave={handleSave}
+                  >
+                    <div className="form-group">
+                      <label className="form-label">端点地址 (URL)</label>
+                      <input className="input" value={webdavForm.url} onChange={setWebdav('url')} />
                     </div>
-
-                    {isConfigured && !isEditing ? (
-                      <div style={{ 
-                        position: 'relative',
-                        background: 'linear-gradient(135deg, rgba(16,185,129,0.05) 0%, var(--bg-1) 100%)', 
-                        border: '1px solid rgba(16, 185, 129, 0.2)', 
-                        borderRadius: 'var(--radius-lg)', 
-                        padding: '24px',
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: 20,
-                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{ 
-                          position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', 
-                          background: 'var(--green)',
-                          boxShadow: '0 0 12px var(--green)'
-                        }} />
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ 
-                              width: 10, height: 10, 
-                              borderRadius: '50%', 
-                              background: 'var(--green)',
-                              boxShadow: '0 0 10px var(--green)'
-                            }}></div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '0.3px' }}>已成功绑定 WebDAV 服务</div>
-                          </div>
-                          <button 
-                            onClick={() => setIsEditing(true)}
-                            style={{ 
-                              padding: '6px 14px', 
-                              borderRadius: 'var(--radius-sm)', 
-                              fontSize: 13,
-                              fontWeight: 500,
-                              background: 'rgba(255,255,255,0.05)',
-                              border: '1px solid var(--border)',
-                              color: 'var(--text-2)',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-3)'; e.currentTarget.style.color = 'var(--text-1)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-2)'; }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                            修改配置
-                          </button>
-                        </div>
-
-                        <div style={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: '1fr 1fr', 
-                          gap: '16px',
-                          marginTop: '4px'
-                        }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>绑定账号</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{webdavForm.username}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>备份目录</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{webdavForm.remotePath}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>保留份数</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{webdavForm.maxBackups || '不限'}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>服务器地址</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{webdavForm.url}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div className="form-group">
-                          <label className="form-label">端点地址 (URL)</label>
-                          <input className="input" value={webdavForm.url} onChange={setWebdav('url')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">用户名</label>
-                          <input className="input" value={webdavForm.username} onChange={setWebdav('username')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">密码 / 授权码</label>
-                          <input className="input" type="password" value={webdavForm.password} onChange={setWebdav('password')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">远程保存目录</label>
-                          <input className="input" value={webdavForm.remotePath} onChange={setWebdav('remotePath')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">保留份数 (0=不限)</label>
-                          <input className="input" type="number" min="0" value={webdavForm.maxBackups} onChange={setWebdav('maxBackups')} placeholder="0" />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
-                          <button className="btn btn-secondary" onClick={handleTest} disabled={testing}>
-                            {testing ? '测试中...' : '🔌 测试连接'} {testResult === 'ok' && '✓'} {testResult === 'fail' && '✗'}
-                          </button>
-                          <button className="btn btn-primary" onClick={handleSave} disabled={loading}>
-                            {loading ? '保存中...' : '💾 保存配置'}
-                          </button>
-                          {isEditing && (
-                            <button className="btn btn-ghost" onClick={() => setIsEditing(false)} style={{ marginLeft: 'auto' }}>
-                              取消
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    <div className="form-group">
+                      <label className="form-label">用户名</label>
+                      <input className="input" value={webdavForm.username} onChange={setWebdav('username')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">密码 / 授权码</label>
+                      <input className="input" type="password" value={webdavForm.password} onChange={setWebdav('password')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">远程保存目录</label>
+                      <input className="input" value={webdavForm.remotePath} onChange={setWebdav('remotePath')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">保留份数 (0=不限)</label>
+                      <input className="input" type="number" min="0" value={webdavForm.maxBackups} onChange={setWebdav('maxBackups')} placeholder="0" />
+                    </div>
+                  </ProviderCard>
                 )}
 
                 {/* R2 Config */}
                 {syncProvider === 'r2' && (
-                  <div style={{ background: 'var(--bg-2)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🗄️</div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-1)' }}>R2 (S3 兼容) 配置</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-4)' }}>配置 Cloudflare R2 或任意 S3 兼容对象存储用于加密同步</div>
-                      </div>
+                  <ProviderCard
+                    provider={PROVIDERS.r2}
+                    form={r2Form}
+                    configured={r2Configured}
+                    editing={r2Editing}
+                    onEdit={() => setR2Editing(true)}
+                    onCancelEdit={() => setR2Editing(false)}
+                    testing={r2Testing}
+                    testResult={r2TestResult}
+                    onTest={handleR2Test}
+                    loading={r2Loading}
+                    onSave={handleR2Save}
+                  >
+                    <div className="form-group">
+                      <label className="form-label">访问密钥 ID (Access Key ID)</label>
+                      <input className="input" value={r2Form.accessKeyId} onChange={setR2('accessKeyId')} />
                     </div>
-
-                    {r2Configured && !r2Editing ? (
-                      <div style={{ 
-                        position: 'relative',
-                        background: 'linear-gradient(135deg, rgba(59,130,246,0.05) 0%, var(--bg-1) 100%)', 
-                        border: '1px solid rgba(59, 130, 246, 0.2)', 
-                        borderRadius: 'var(--radius-lg)', 
-                        padding: '24px',
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: 20,
-                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{ 
-                          position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', 
-                          background: '#3b82f6',
-                          boxShadow: '0 0 12px #3b82f6'
-                        }} />
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ 
-                              width: 10, height: 10, 
-                              borderRadius: '50%', 
-                              background: '#3b82f6',
-                              boxShadow: '0 0 10px #3b82f6'
-                            }}></div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '0.3px' }}>已成功绑定 R2 对象存储</div>
-                          </div>
-                          <button 
-                            onClick={() => setR2Editing(true)}
-                            style={{ 
-                              padding: '6px 14px', 
-                              borderRadius: 'var(--radius-sm)', 
-                              fontSize: 13,
-                              fontWeight: 500,
-                              background: 'rgba(255,255,255,0.05)',
-                              border: '1px solid var(--border)',
-                              color: 'var(--text-2)',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-3)'; e.currentTarget.style.color = 'var(--text-1)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-2)'; }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                            修改配置
-                          </button>
-                        </div>
-
-                        <div style={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: '1fr 1fr', 
-                          gap: '16px',
-                          marginTop: '4px'
-                        }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>Bucket</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{r2Form.bucket}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>前缀目录</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{r2Form.prefix}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', gridColumn: '1 / -1' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>端点地址</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r2Form.endpoint}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>保留份数</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{r2Form.maxBackups || '不限'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div className="form-group">
-                          <label className="form-label">访问密钥 ID (Access Key ID)</label>
-                          <input className="input" value={r2Form.accessKeyId} onChange={setR2('accessKeyId')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">秘密访问密钥 (Secret Access Key)</label>
-                          <input className="input" type="password" value={r2Form.secretAccessKey} onChange={setR2('secretAccessKey')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">存储桶 (Bucket)</label>
-                          <input className="input" value={r2Form.bucket} onChange={setR2('bucket')} placeholder="your-bucket" />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">端点地址 (Endpoint)</label>
-                          <input className="input" value={r2Form.endpoint} onChange={setR2('endpoint')} placeholder="https://your-account.r2.cloudflarestorage.com" />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">区域 (Region)</label>
-                          <input className="input" value={r2Form.region} onChange={setR2('region')} placeholder="auto" />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">前缀 (Prefix)</label>
-                          <input className="input" value={r2Form.prefix} onChange={setR2('prefix')} placeholder="Lumin/" />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">保留份数 (0=不限)</label>
-                          <input className="input" type="number" min="0" value={r2Form.maxBackups} onChange={setR2('maxBackups')} placeholder="0" />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
-                          <button className="btn btn-secondary" onClick={handleR2Test} disabled={r2Testing}>
-                            {r2Testing ? '测试中...' : '🔌 测试连接'} {r2TestResult === 'ok' && '✓'} {r2TestResult === 'fail' && '✗'}
-                          </button>
-                          <button className="btn btn-primary" onClick={handleR2Save} disabled={r2Loading}>
-                            {r2Loading ? '保存中...' : '💾 保存配置'}
-                          </button>
-                          {r2Editing && (
-                            <button className="btn btn-ghost" onClick={() => setR2Editing(false)} style={{ marginLeft: 'auto' }}>
-                              取消
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    <div className="form-group">
+                      <label className="form-label">秘密访问密钥 (Secret Access Key)</label>
+                      <input className="input" type="password" value={r2Form.secretAccessKey} onChange={setR2('secretAccessKey')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">存储桶 (Bucket)</label>
+                      <input className="input" value={r2Form.bucket} onChange={setR2('bucket')} placeholder="your-bucket" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">端点地址 (Endpoint)</label>
+                      <input className="input" value={r2Form.endpoint} onChange={setR2('endpoint')} placeholder="https://your-account.r2.cloudflarestorage.com" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">区域 (Region)</label>
+                      <input className="input" value={r2Form.region} onChange={setR2('region')} placeholder="auto" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">前缀 (Prefix)</label>
+                      <input className="input" value={r2Form.prefix} onChange={setR2('prefix')} placeholder="Lumin/" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">保留份数 (0=不限)</label>
+                      <input className="input" type="number" min="0" value={r2Form.maxBackups} onChange={setR2('maxBackups')} placeholder="0" />
+                    </div>
+                  </ProviderCard>
                 )}
 
                 {/* FTP Config */}
                 {syncProvider === 'ftp' && (
-                  <div style={{ background: 'var(--bg-2)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📁</div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-1)' }}>FTP 配置</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-4)' }}>配置 FTP 服务器用于加密同步服务器列表</div>
-                      </div>
+                  <ProviderCard
+                    provider={PROVIDERS.ftp}
+                    form={ftpForm}
+                    configured={ftpConfigured}
+                    editing={ftpEditing}
+                    onEdit={() => setFtpEditing(true)}
+                    onCancelEdit={() => setFtpEditing(false)}
+                    testing={ftpTesting}
+                    testResult={ftpTestResult}
+                    onTest={handleTestFTP}
+                    loading={ftpLoading}
+                    onSave={handleSaveFTP}
+                  >
+                    <div className="form-group">
+                      <label className="form-label">主机地址</label>
+                      <input className="input" value={ftpForm.host} onChange={setFTP('host')} placeholder="ftp.example.com" />
                     </div>
-
-                    {ftpConfigured && !ftpEditing ? (
-                      <div style={{ 
-                        position: 'relative',
-                        background: 'linear-gradient(135deg, rgba(244,114,182,0.05) 0%, var(--bg-1) 100%)', 
-                        border: '1px solid rgba(244, 114, 182, 0.2)', 
-                        borderRadius: 'var(--radius-lg)', 
-                        padding: '24px',
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: 20,
-                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{ 
-                          position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', 
-                          background: '#f472b6',
-                          boxShadow: '0 0 12px #f472b6'
-                        }} />
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ 
-                              width: 10, height: 10, 
-                              borderRadius: '50%', 
-                              background: '#f472b6',
-                              boxShadow: '0 0 10px #f472b6'
-                            }}></div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '0.3px' }}>已成功绑定 FTP 服务器</div>
-                          </div>
-                          <button 
-                            onClick={() => setFtpEditing(true)}
-                            style={{ 
-                              padding: '6px 14px', 
-                              borderRadius: 'var(--radius-sm)', 
-                              fontSize: 13,
-                              fontWeight: 500,
-                              background: 'rgba(255,255,255,0.05)',
-                              border: '1px solid var(--border)',
-                              color: 'var(--text-2)',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-3)'; e.currentTarget.style.color = 'var(--text-1)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-2)'; }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                            修改配置
-                          </button>
-                        </div>
-
-                        <div style={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: '1fr 1fr', 
-                          gap: '16px',
-                          marginTop: '4px'
-                        }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>主机地址</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{ftpForm.host}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>端口</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{ftpForm.port}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>用户名</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{ftpForm.username}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>远程目录</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{ftpForm.remoteDir}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>保留份数</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{ftpForm.maxBackups || '不限'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div className="form-group">
-                          <label className="form-label">主机地址</label>
-                          <input className="input" value={ftpForm.host} onChange={setFTP('host')} placeholder="ftp.example.com" />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">端口</label>
-                          <input className="input" type="number" value={ftpForm.port} onChange={setFTP('port')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">用户名</label>
-                          <input className="input" value={ftpForm.username} onChange={setFTP('username')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">密码</label>
-                          <input className="input" type="password" value={ftpForm.password} onChange={setFTP('password')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">远程保存目录</label>
-                          <input className="input" value={ftpForm.remoteDir} onChange={setFTP('remoteDir')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">保留份数 (0=不限)</label>
-                          <input className="input" type="number" min="0" value={ftpForm.maxBackups} onChange={setFTP('maxBackups')} placeholder="0" />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
-                          <button className="btn btn-secondary" onClick={handleTestFTP} disabled={ftpTesting}>
-                            {ftpTesting ? '测试中...' : '🔌 测试连接'} {ftpTestResult === 'ok' && '✓'} {ftpTestResult === 'fail' && '✗'}
-                          </button>
-                          <button className="btn btn-primary" onClick={handleSaveFTP} disabled={ftpLoading}>
-                            {ftpLoading ? '保存中...' : '💾 保存配置'}
-                          </button>
-                          {ftpEditing && (
-                            <button className="btn btn-ghost" onClick={() => setFtpEditing(false)} style={{ marginLeft: 'auto' }}>
-                              取消
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    <div className="form-group">
+                      <label className="form-label">端口</label>
+                      <input className="input" type="number" value={ftpForm.port} onChange={setFTP('port')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">用户名</label>
+                      <input className="input" value={ftpForm.username} onChange={setFTP('username')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">密码</label>
+                      <input className="input" type="password" value={ftpForm.password} onChange={setFTP('password')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">远程保存目录</label>
+                      <input className="input" value={ftpForm.remoteDir} onChange={setFTP('remoteDir')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">保留份数 (0=不限)</label>
+                      <input className="input" type="number" min="0" value={ftpForm.maxBackups} onChange={setFTP('maxBackups')} placeholder="0" />
+                    </div>
+                  </ProviderCard>
                 )}
 
                 {/* SFTP Config */}
                 {syncProvider === 'sftp' && (
-                  <div style={{ background: 'var(--bg-2)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🔒</div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-1)' }}>SFTP (SSH) 配置</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-4)' }}>配置 SFTP 服务器用于加密同步服务器列表</div>
-                      </div>
+                  <ProviderCard
+                    provider={PROVIDERS.sftp}
+                    form={sftpForm}
+                    configured={sftpConfigured}
+                    editing={sftpEditing}
+                    onEdit={() => setSftpEditing(true)}
+                    onCancelEdit={() => setSftpEditing(false)}
+                    testing={sftpTesting}
+                    testResult={sftpTestResult}
+                    onTest={handleTestSFTP}
+                    loading={sftpLoading}
+                    onSave={handleSaveSFTP}
+                  >
+                    <div className="form-group">
+                      <label className="form-label">主机地址</label>
+                      <input className="input" value={sftpForm.host} onChange={setSFTP('host')} placeholder="sftp.example.com" />
                     </div>
-
-                    {sftpConfigured && !sftpEditing ? (
-                      <div style={{ 
-                        position: 'relative',
-                        background: 'linear-gradient(135deg, rgba(34,197,94,0.05) 0%, var(--bg-1) 100%)', 
-                        border: '1px solid rgba(34, 197, 94, 0.2)', 
-                        borderRadius: 'var(--radius-lg)', 
-                        padding: '24px',
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: 20,
-                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{ 
-                          position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', 
-                          background: '#22c55e',
-                          boxShadow: '0 0 12px #22c55e'
-                        }} />
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ 
-                              width: 10, height: 10, 
-                              borderRadius: '50%', 
-                              background: '#22c55e',
-                              boxShadow: '0 0 10px #22c55e'
-                            }}></div>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '0.3px' }}>已成功绑定 SFTP 服务器</div>
-                          </div>
-                          <button 
-                            onClick={() => setSftpEditing(true)}
-                            style={{ 
-                              padding: '6px 14px', 
-                              borderRadius: 'var(--radius-sm)', 
-                              fontSize: 13,
-                              fontWeight: 500,
-                              background: 'rgba(255,255,255,0.05)',
-                              border: '1px solid var(--border)',
-                              color: 'var(--text-2)',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-3)'; e.currentTarget.style.color = 'var(--text-1)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-2)'; }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                            修改配置
-                          </button>
-                        </div>
-
-                        <div style={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: '1fr 1fr', 
-                          gap: '16px',
-                          marginTop: '4px'
-                        }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>主机地址</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{sftpForm.host}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>端口</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{sftpForm.port}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>用户名</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-1)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{sftpForm.username}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>远程目录</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{sftpForm.remoteDir}</span>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-4)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.5px' }}>保留份数</span>
-                            <span style={{ fontSize: 14, color: 'var(--text-2)', fontFamily: 'var(--font-mono)' }}>{sftpForm.maxBackups || '不限'}</span>
-                          </div>
-                        </div>
+                    <div className="form-group">
+                      <label className="form-label">端口</label>
+                      <input className="input" type="number" value={sftpForm.port} onChange={setSFTP('port')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">用户名</label>
+                      <input className="input" value={sftpForm.username} onChange={setSFTP('username')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">认证方式</label>
+                      <select className="input" value={sftpForm.authMethod} onChange={setSFTP('authMethod')}>
+                        <option value="password">密码认证</option>
+                        <option value="key">密钥认证</option>
+                      </select>
+                    </div>
+                    {sftpForm.authMethod === 'password' ? (
+                      <div className="form-group">
+                        <label className="form-label">密码</label>
+                        <input className="input" type="password" value={sftpForm.password} onChange={setSFTP('password')} />
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <>
                         <div className="form-group">
-                          <label className="form-label">主机地址</label>
-                          <input className="input" value={sftpForm.host} onChange={setSFTP('host')} placeholder="sftp.example.com" />
+                          <label className="form-label">私钥内容</label>
+                          <textarea className="input" style={{ minHeight: 100, fontFamily: 'monospace', fontSize: 12 }} value={sftpForm.privateKey} onChange={setSFTP('privateKey')} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----" />
                         </div>
-                        <div className="form-group">
-                          <label className="form-label">端口</label>
-                          <input className="input" type="number" value={sftpForm.port} onChange={setSFTP('port')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">用户名</label>
-                          <input className="input" value={sftpForm.username} onChange={setSFTP('username')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">认证方式</label>
-                          <select className="input" value={sftpForm.authMethod} onChange={setSFTP('authMethod')}>
-                            <option value="password">密码认证</option>
-                            <option value="key">密钥认证</option>
-                          </select>
-                        </div>
-                        {sftpForm.authMethod === 'password' ? (
-                          <div className="form-group">
-                            <label className="form-label">密码</label>
-                            <input className="input" type="password" value={sftpForm.password} onChange={setSFTP('password')} />
-                          </div>
-                        ) : (
-                          <>
-                            <div className="form-group">
-                              <label className="form-label">私钥内容</label>
-                              <textarea className="input" style={{ minHeight: 100, fontFamily: 'monospace', fontSize: 12 }} value={sftpForm.privateKey} onChange={setSFTP('privateKey')} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----" />
-                            </div>
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                              <button className="btn btn-ghost" onClick={async () => {
-                                try {
-                                  const key = await AppGo.ReadPrivateKeyFile();
-                                  if (key) setSftpForm(prev => ({ ...prev, privateKey: key }));
-                                } catch (e) {
-                                  addToast('读取私钥文件失败: ' + e, 'error');
-                                }
-                              }} style={{ fontSize: 12 }}>
-                                📂 从文件加载私钥
-                              </button>
-                            </div>
-                          </>
-                        )}
-                        <div className="form-group">
-                          <label className="form-label">远程保存目录</label>
-                          <input className="input" value={sftpForm.remoteDir} onChange={setSFTP('remoteDir')} />
-                        </div>
-                        <div className="form-group">
-                          <label className="form-label">保留份数 (0=不限)</label>
-                          <input className="input" type="number" min="0" value={sftpForm.maxBackups} onChange={setSFTP('maxBackups')} placeholder="0" />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
-                          <button className="btn btn-secondary" onClick={handleTestSFTP} disabled={sftpTesting}>
-                            {sftpTesting ? '测试中...' : '🔌 测试连接'} {sftpTestResult === 'ok' && '✓'} {sftpTestResult === 'fail' && '✗'}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <button className="btn btn-ghost" onClick={async () => {
+                            try {
+                              const key = await AppGo.ReadPrivateKeyFile();
+                              if (key) setSftpForm(prev => ({ ...prev, privateKey: key }));
+                            } catch (e) {
+                              addToast('读取私钥文件失败: ' + e, 'error');
+                            }
+                          }} style={{ fontSize: 12 }}>
+                            📂 从文件加载私钥
                           </button>
-                          <button className="btn btn-primary" onClick={handleSaveSFTP} disabled={sftpLoading}>
-                            {sftpLoading ? '保存中...' : '💾 保存配置'}
-                          </button>
-                          {sftpEditing && (
-                            <button className="btn btn-ghost" onClick={() => setSftpEditing(false)} style={{ marginLeft: 'auto' }}>
-                              取消
-                            </button>
-                          )}
                         </div>
-                      </div>
+                      </>
                     )}
-                  </div>
+                    <div className="form-group">
+                      <label className="form-label">远程保存目录</label>
+                      <input className="input" value={sftpForm.remoteDir} onChange={setSFTP('remoteDir')} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">保留份数 (0=不限)</label>
+                      <input className="input" type="number" min="0" value={sftpForm.maxBackups} onChange={setSFTP('maxBackups')} placeholder="0" />
+                    </div>
+                  </ProviderCard>
                 )}
 
                 {/* 自动同步模式 */}

@@ -296,7 +296,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     if (!srcPath || srcPath === targetPath) { clearDrag(); return; }
     if (targetPath.startsWith(srcPath + '/')) { clearDrag(); return; }
 
-    const list = JSON.parse(JSON.stringify(commands));
+    const list = structuredClone(commands);
     const src = resolvePath(list, srcPath);
     const tgt = resolvePath(list, targetPath);
 
@@ -324,7 +324,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
   const handleDropToRoot = () => {
     const srcPath = dragSourceRef.current;
     if (!srcPath) { clearDrag(); return; }
-    const list = JSON.parse(JSON.stringify(commands));
+    const list = structuredClone(commands);
     const src = resolvePath(list, srcPath);
     if (!src.item) { clearDrag(); return; }
     const [moved] = src.parent.splice(src.idx, 1);
@@ -397,7 +397,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
   // ── 上移/下移 ──────────────────────────────────────
   const handleMove = (path, direction) => {
-    const list = JSON.parse(JSON.stringify(commands));
+    const list = structuredClone(commands);
     const { parent, idx } = resolvePath(list, path);
     const newIdx = idx + direction;
     if (newIdx < 0 || newIdx >= parent.length) return;
@@ -450,7 +450,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     const { item } = resolvePath(commands, path);
     // 点击分组：切换展开/折叠，并在右侧显示分组详情
     if (item?.type === 'group') {
-      const list = JSON.parse(JSON.stringify(commands));
+      const list = structuredClone(commands);
       const r = resolvePath(list, path);
       r.item.expanded = !r.item.expanded;
       save(list);
@@ -488,7 +488,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
       const { item } = resolvePath(commands, path);
       if (item?.type === 'group') {
         // 分组：切换展开/折叠，并在右侧显示分组详情
-        const list = JSON.parse(JSON.stringify(commands));
+        const list = structuredClone(commands);
         const r = resolvePath(list, path);
         r.item.expanded = !r.item.expanded;
         setCommands(list);
@@ -531,7 +531,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
       setCommands(data);
       if (currentItem?.type === 'group') {
         // 分组：切换展开/折叠，并在右侧显示分组详情
-        const list = JSON.parse(JSON.stringify(data));
+        const list = structuredClone(data);
         const r = resolvePath(list, path);
         if (r.item) r.item.expanded = !r.item.expanded;
         setCommands(list);
@@ -597,7 +597,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     }
 
     if (action === 'addCmd') {
-      const list = JSON.parse(JSON.stringify(commands));
+      const list = structuredClone(commands);
       // 用 resolvePath 找到目标分组
       const r = resolvePath(list, path);
       let targetChildren = list;
@@ -633,7 +633,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
     if (action === 'delete') {
       try {
-        const list = JSON.parse(JSON.stringify(commands));
+        const list = structuredClone(commands);
         const r = resolvePath(list, path);
         r.parent.splice(r.idx, 1);
         await AppGo.SaveQuickCommands(JSON.stringify(list));
@@ -664,7 +664,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     if (isGroup) {
       // 添加/编辑分组：只需要名称
       if (dialog.type === 'addGroup') {
-        const list = JSON.parse(JSON.stringify(dialog.parentList || commands));
+        const list = structuredClone(dialog.parentList || commands);
         const parts = (dialog.contextPath || '').split('/').map(Number);
         if (dialog.contextPath && parts.length === 1 && list[parts[0]]?.type === 'group') {
           list[parts[0]].children = [...(list[parts[0]].children || []), { type: 'group', name: dlgName.trim(), expanded: true, children: [] }];
@@ -677,7 +677,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
         }
         save(list);
       } else if (dialog.type === 'editGroup') {
-        const list = JSON.parse(JSON.stringify(commands));
+        const list = structuredClone(commands);
         const r = resolvePath(list, dialog.contextPath);
         r.parent[r.idx].name = dlgName.trim();
         save(list);
@@ -694,7 +694,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
       dialog.targetChildren.push(newItem);
       save(dialog.parentList);
     } else if (dialog.type === 'edit') {
-      const list = JSON.parse(JSON.stringify(commands));
+      const list = structuredClone(commands);
       const r = resolvePath(list, selectedPath);
       r.parent[r.idx] = { ...r.parent[r.idx], ...newItem };
       save(list);
@@ -785,7 +785,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
         <button
           onClick={() => {
             closeContextMenu();
-            const list = JSON.parse(JSON.stringify(commands));
+            const list = structuredClone(commands);
             const sel = selectedPath ? resolvePath(list, selectedPath) : null;
             if (sel?.item?.type === 'group') {
               if (!sel.item.children) sel.item.children = [];
@@ -896,7 +896,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                 <button
                   onClick={() => {
-                    const list = JSON.parse(JSON.stringify(commands));
+                    const list = structuredClone(commands);
                     const r = resolvePath(list, selectedPath);
                     r.parent[r.idx].name = editGroupName.trim() || selectedItem.name;
                     save(list);
@@ -905,7 +905,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 >💾 保存名称</button>
                 <button
                   onClick={() => {
-                    const list = JSON.parse(JSON.stringify(commands));
+                    const list = structuredClone(commands);
                     const r = resolvePath(list, selectedPath);
                     if (!r.item.children) r.item.children = [];
                     setDialog({ type: 'add', targetChildren: r.item.children, parentList: list, groupName: r.item.name });
@@ -928,7 +928,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                   type="text"
                   value={selectedItem.name}
                   onChange={(e) => {
-                    const list = JSON.parse(JSON.stringify(commands));
+                    const list = structuredClone(commands);
                     const r = resolvePath(list, selectedPath);
                     r.parent[r.idx].name = e.target.value;
                     setCommands(list);
@@ -947,7 +947,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                       <button
                         key={n}
                         onClick={() => {
-                          const list = JSON.parse(JSON.stringify(commands));
+                          const list = structuredClone(commands);
                           const r = resolvePath(list, selectedPath);
                           r.parent[r.idx].command = (r.parent[r.idx].command || '') + `[p#${n} 参数${n}]`;
                           setCommands(list);
@@ -965,7 +965,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 <textarea
                   value={selectedItem.command}
                   onChange={(e) => {
-                    const list = JSON.parse(JSON.stringify(commands));
+                    const list = structuredClone(commands);
                     const r = resolvePath(list, selectedPath);
                     r.parent[r.idx].command = e.target.value;
                     setCommands(list);
@@ -1167,7 +1167,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                       type="checkbox"
                       checked={selectedItem.addCR !== false}
                       onChange={(e) => {
-                        const list = JSON.parse(JSON.stringify(commands));
+                        const list = structuredClone(commands);
                         const r = resolvePath(list, selectedPath);
                         r.parent[r.idx].addCR = e.target.checked;
                         save(list);
@@ -1503,7 +1503,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                       key={i}
                       onClick={() => {
                         setDialog(prev => {
-                          const list = JSON.parse(JSON.stringify(prev.parentList));
+                          const list = structuredClone(prev.parentList);
                           const r = resolvePath(list, g.path);
                           if (r?.item?.type === 'group') {
                             if (!r.item.children) r.item.children = [];

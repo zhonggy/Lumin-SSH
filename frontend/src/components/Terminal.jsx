@@ -75,6 +75,8 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   const termRef        = useRef(null);
   const fitAddonRef    = useRef(null);
   const wsRef          = useRef(null);
+  const serverIdRef    = useRef(serverId);
+  serverIdRef.current  = serverId;
   const [contextMenu, setContextMenu]         = useState(null);
   const [contextHasSelection, setContextHasSelection] = useState(false);
   const [justConnected, setJustConnected]     = useState(false);
@@ -331,7 +333,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         const cmd = pendingCmdRef.current.trim();
         if (cmd.length > 1 && !/^\d+$/.test(cmd)) {
           window.dispatchEvent(new CustomEvent('ssh-command-history', {
-            detail: { sessionId: serverId, command: cmd, time: new Date().toISOString(), source: 'input' }
+            detail: { sessionId: serverIdRef.current, command: cmd, time: new Date().toISOString(), source: 'input' }
           }));
         }
         pendingCmdRef.current = '';
