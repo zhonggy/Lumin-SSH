@@ -339,7 +339,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       // ── 按键累计记录命令（仅跟踪可打印字符，方向键/控制序列自动放弃）──
       if (data === '\r' || data === '\n' || data === '\r\n') {
         const cmd = pendingCmdRef.current.trim();
-        if (cmd.length > 1) {
+        if (cmd.length > 1 && !/^\d+$/.test(cmd)) {
           window.dispatchEvent(new CustomEvent('ssh-command-history', {
             detail: { sessionId: serverId, command: cmd, time: new Date().toISOString(), source: 'input' }
           }));
