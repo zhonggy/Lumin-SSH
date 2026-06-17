@@ -71,32 +71,6 @@ function getXtermTheme() {
   return (TERMINAL_THEMES[key] || TERMINAL_THEMES['lumin']).theme;
 }
 
-// ── 从终端当前行提取命令（仅当有 shell 提示符标记时）──
-const PROMPT_MARKERS = ['# ', '$ ', '% ', '> '];
-function readDisplayedCommand(term) {
-  const buffer = term?.buffer?.active;
-  if (!buffer) return '';
-
-  let row = buffer.baseY + buffer.cursorY;
-  if (row < 0) return '';
-
-  const line = buffer.getLine(row);
-  if (!line) return '';
-
-  const text = line.translateToString(false).trim();
-  if (!text) return '';
-
-  // 只在有 shell 提示符标记时才提取命令（排除交互式输入如 y/n、fzf 等）
-  for (const marker of PROMPT_MARKERS) {
-    const idx = text.lastIndexOf(marker);
-    if (idx >= 0) {
-      const cmd = text.slice(idx + marker.length).trim();
-      return cmd;
-    }
-  }
-  return '';
-}
-
 export default function Terminal({ sessionId, serverId, historyServerId, status, isActive, serverName, connectedSessions = [] }) {
   const containerRef   = useRef(null);
   const termRef        = useRef(null);
@@ -118,6 +92,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   const [commandsPopupPos, setCommandsPopupPos] = useState(null);
   const commandsBtnRef                        = useRef(null);
   const quickCmdsRef                          = useRef(null);
+  const pendingCmdRef                         = useRef('');
 
   // ── 初始化 xterm + WebSocket 终端通道 ────────────────────────────────
   // xterm.js 通过 AttachAddon + WebSocket 直接连到本地 Go WebSocket 服务器
@@ -361,6 +336,23 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         wsRef.current.send(new TextEncoder().encode(data));
       }
 
+      // ── 按键累计记录命令（仅跟踪可打印字符，方向键/控制序列自动放弃）──
+      if (data === '\r' || data === '\n' || data === '\r\n') {
+        const cmd = pendingCmdRef.current.trim();
+        if (cmd.length > 1) {
+          window.dispatchEvent(new CustomEvent('ssh-command-history', {
+            detail: { sessionId: serverId, command: cmd, time: new Date().toISOString(), source: 'input' }
+          }));
+        }
+        pendingCmdRef.current = '';
+      } else if (data === '\x7F' || data === '\b') {
+        pendingCmdRef.current = pendingCmdRef.current.slice(0, -1);
+      } else if (!/[\x00-\x1F\x7F]/.test(data)) {
+        pendingCmdRef.current += data;
+      } else {
+        pendingCmdRef.current = '';
+      }
+
       // Local Echo 逻辑 (恢复默认开启)
       if (localStorage.getItem('terminalLocalEcho') !== 'false') {
         // 如果输入中不包含控制字符（如方向键、Esc、退格等），则视作常规可见输入（支持多字符连击或粘贴）
@@ -382,16 +374,6 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
           }
         } else if (data === '\r' || data === '\n' || data === '\r\n') {
           localInputLength = 0;
-          // 从终端当前行提取命令并记录历史（同步读取，xterm 尚未处理 \r）
-          const term = termRef.current;
-          if (term) {
-            const cmd = readDisplayedCommand(term);
-            if (cmd) {
-              window.dispatchEvent(new CustomEvent('ssh-command-history', {
-                detail: { sessionId: serverId, command: cmd, time: new Date().toISOString(), source: 'input' }
-              }));
-            }
-          }
         } else {
           // 遇到方向键、Ctrl快捷键（如 Ctrl+C/D/Z）等控制符，
           // 立刻清零预测输入长度，安全退回到服务器渲染模式
