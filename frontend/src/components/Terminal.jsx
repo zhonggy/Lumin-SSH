@@ -693,11 +693,14 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
   const executeCommand = (directCmd) => {
     const cmd = directCmd || cmdInput;
-    if (!cmd?.trim() || !isConnected) return;
-    AppGo.WriteTerminal(sessionId, cmd.trim() + '\r');
-    window.dispatchEvent(new CustomEvent('ssh-command-history', {
-      detail: { sessionId: serverId, command: cmd.trim(), time: new Date().toISOString(), source: 'input' }
-    }));
+    if (!isConnected) return;
+    const text = (cmd ?? '').trim();
+    AppGo.WriteTerminal(sessionId, text + '\r');
+    if (text) {
+      window.dispatchEvent(new CustomEvent('ssh-command-history', {
+        detail: { sessionId: serverId, command: text, time: new Date().toISOString(), source: 'input' }
+      }));
+    }
     setCmdInput('');
     setShowHistory(false);
     setHistoryPopupPos(null);
