@@ -104,6 +104,7 @@ export default function FileEditor({
   // 每个文件的编辑内容缓存：{ [path]: content }
   const [editedContents, setEditedContents] = useState({});
   const [saving, setSaving] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
 
   const activeFile = files.find(f => f.path === activePath) || files[0];
 
@@ -136,6 +137,41 @@ export default function FileEditor({
     if (!activeFile) return;
     setEditedContents(prev => ({ ...prev, [activeFile.path]: value }));
   }, [activeFile]);
+
+  // ── 右键菜单（复制/粘贴/剪切） ──
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const menuW = 160, menuH = 120;
+    const x = e.clientX + menuW > window.innerWidth ? e.clientX - menuW : e.clientX;
+    const y = e.clientY + menuH > window.innerHeight ? e.clientY - menuH : e.clientY;
+    setContextMenu({ x, y });
+  };
+
+  const handleMenuAction = (action) => {
+    setContextMenu(null);
+    switch (action) {
+      case 'copy':
+        document.execCommand('copy');
+        break;
+      case 'paste':
+        navigator.clipboard.readText().then(text => {
+          document.execCommand('insertText', false, text);
+        }).catch(() => {});
+        break;
+      case 'cut':
+        document.execCommand('cut');
+        break;
+    }
+  };
+
+  // 点击外部关闭右键菜单
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = () => setContextMenu(null);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [contextMenu]);
 
   const handleSave = async () => {
     if (!activeFile || !isModified) return;
@@ -540,6 +576,46 @@ export default function FileEditor({
         <span>{currentContent.split('\n').length} 行 · {byteSize} 字节</span>
         <span>UTF-8 · {lang ? ext.toUpperCase() : 'Text'}</span>
       </div>
+
+      {/* 右键菜单 */}
+      {contextMenu && createPortal(
+        <div
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            backgroundColor: '#161b22',
+            border: '1px solid rgba(48,54,61,0.9)',
+            borderRadius: '8px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            zIndex: 10000,
+            padding: '4px 0',
+            minWidth: '160px',
+            fontFamily: 'var(--font-ui)',
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {[
+            { label: '复制', action: 'copy', shortcut: 'Ctrl+C' },
+            { label: '粘贴', action: 'paste', shortcut: 'Ctrl+V' },
+            { label: '剪切', action: 'cut', shortcut: 'Ctrl+X' },
+          ].map((item) => (
+            <div
+              key={item.action}
+              className="context-menu-item"
+              style={{ padding: '6px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}
+              onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.08)'}
+              onMouseLeave={(e) => e.target.style.background = 'none'}
+              onClick={() => handleMenuAction(item.action)}
+            >
+              <span>{item.label}</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>{item.shortcut}</span>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </>
   );
 
@@ -562,6 +638,7 @@ export default function FileEditor({
           boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
           overflow: 'hidden',
         }}
+        onContextMenu={handleContextMenu}
       >
         {editorContent}
         {/* resize handle */}
@@ -592,7 +669,7 @@ export default function FileEditor({
     const host = document.getElementById('editor-split-host');
     if (!host) return null;
     return createPortal(
-      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }} onContextMenu={handleContextMenu}>
         {editorContent}
       </div>,
       host
@@ -601,7 +678,7 @@ export default function FileEditor({
 
   // modal mode (default)
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && handleCloseCurrent()}>
+    <div className="modal-overlay" onContextMenu={handleContextMenu}>
       <div className="modal modal-xl" style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
         {editorContent}
       </div>
