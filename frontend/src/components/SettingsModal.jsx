@@ -443,7 +443,7 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
 
   // Network/Ping state
   const [pingProtocol, setPingProtocol] = useState(localStorage.getItem('pingProtocol') || 'ssh');
-  const [probeInterval, setProbeInterval] = useState(parseInt(localStorage.getItem('probeInterval') || '5', 10));
+  const [probeInterval, setProbeInterval] = useState(parseInt(localStorage.getItem('probeInterval') || '3', 10));
   const [pingInterval, setPingInterval] = useState(parseInt(localStorage.getItem('pingInterval') || '2', 10));
 
   // Appearance state
@@ -1083,7 +1083,7 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{t.network.probeRefresh}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {[3, 5, 10, 30].map(s => (
+                        {[1, 3, 5, 10, 30].map(s => (
                           <button
                             key={s}
                             onClick={() => { setProbeInterval(s); localStorage.setItem('probeInterval', String(s)); window.dispatchEvent(new Event('probeIntervalChanged')); }}

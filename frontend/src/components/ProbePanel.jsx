@@ -200,9 +200,9 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
 
   const probeTimerRef = useRef(null);
 
-  // ── 读取探针刷新间隔（localStorage，默认 5s）────────────
+  // ── 读取探针刷新间隔（localStorage，默认 3s）────────────
   const getProbeInterval = () => {
-    const v = parseInt(localStorage.getItem('probeInterval') || '5', 10);
+    const v = parseInt(localStorage.getItem('probeInterval') || '3', 10);
     return v >= 1 ? v : 5;
   };
 

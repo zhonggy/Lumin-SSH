@@ -22,6 +22,7 @@ luminssh-go.exe
 /frontend/.next/
 
 # IDEs and editors configurations
+.trae/
 .idea/
 .vscode/
 *.suo
@@ -45,3 +46,4 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 run-dev.bat
+CLAUDE.md
