@@ -30,6 +30,7 @@ type R2Config struct {
 //  1. 输入包含访问密钥等高熵字段；
 //  2. 该密钥仅用于已加密配置数据的传输/静态保护；
 //  3. 主保护由 ConfigManager 的主密钥提供。
+//
 // 修改 KDF 会破坏与既有备份的向后兼容，故保持现状。
 func (c *ConfigManager) getR2Key() []byte {
 	conf := c.GetR2Config()

@@ -259,6 +259,14 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       ws.onmessage = (ev) => {
         if (!termRef.current) return;
 
+        // 检测密码提示，标记下一行输入为密码（不记入命令历史）
+        if (!awaitingPassword) {
+          const probeText = typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data);
+          if (/[Pp]assword|密码|passphrase/i.test(probeText)) {
+            awaitingPassword = true;
+          }
+        }
+
         // 如果没有正在预测的字符，直接使用原生 Uint8Array 交给 xterm.js 渲染（最快且无损，避免 TextDecoder 吃字符）
         if (!localEchoRef.current || pendingEchoes.length === 0) {
           termRef.current.write(typeof ev.data === 'string' ? ev.data : new Uint8Array(ev.data));
@@ -337,6 +345,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
     // ── 历史指令记录 + 输入直通 + Local Echo ────────────────────────
     let localInputLength = 0; // 用于保护提示符，防止退格越界
+    let awaitingPassword = false; // 检测到密码提示后，下一行输入不记入命令历史
 
     term.onData((data) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -345,12 +354,16 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
       // ── 按键累计记录命令（仅跟踪可打印字符，方向键/控制序列自动放弃）──
       if (data === '\r' || data === '\n' || data === '\r\n') {
-        const cmd = pendingCmdRef.current.trim();
-        if (cmd.length > 1 && !/^\d+$/.test(cmd)) {
-          window.dispatchEvent(new CustomEvent('ssh-command-history', {
-            detail: { sessionId: serverIdRef.current, command: cmd, time: new Date().toISOString(), source: 'input' }
-          }));
+        // 密码输入不记入命令历史
+        if (!awaitingPassword) {
+          const cmd = pendingCmdRef.current.trim();
+          if (cmd.length > 1 && !/^\d+$/.test(cmd)) {
+            window.dispatchEvent(new CustomEvent('ssh-command-history', {
+              detail: { sessionId: serverIdRef.current, command: cmd, time: new Date().toISOString(), source: 'input' }
+            }));
+          }
         }
+        awaitingPassword = false;
         pendingCmdRef.current = '';
       } else if (data === '\x7F' || data === '\b') {
         pendingCmdRef.current = pendingCmdRef.current.slice(0, -1);
