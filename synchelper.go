@@ -53,29 +53,6 @@ type SyncSnapshot struct {
 
 // ─── 共享解密/解析 ─────────────────────────────────────────
 
-// decryptAndParse 尝试用 key 解密 data，失败则降级用主密钥解密，并解析为连接列表（旧格式兼容）
-func (c *ConfigManager) decryptAndParse(data string, key []byte) ([]Connection, error) {
-	decrypted := c.decryptWithKey(data, key)
-	if decrypted == "" {
-		decrypted = c.decryptWithKey(data, c.key)
-		if decrypted == "" {
-			return nil, fmt.Errorf("解密失败：如果这是旧版本产生的备份，且您之前卸载清理了本地缓存(lumin.key)，则受 AES-256 高强加密保护，资料已永久无法恢复。")
-		}
-	}
-	// 先尝试新格式（快照）
-	var snap SyncSnapshot
-	if err := json.Unmarshal([]byte(decrypted), &snap); err == nil && snap.Connections != nil {
-		return snap.Connections, nil
-	}
-	// 回退旧格式（纯连接列表）
-	var conns []Connection
-	err := json.Unmarshal([]byte(decrypted), &conns)
-	if err != nil {
-		return nil, fmt.Errorf("解析备份文件出错：%v", err)
-	}
-	return conns, nil
-}
-
 // decryptAndParseSnapshot 解密并解析为完整快照（优先新格式，回退旧格式）
 func (c *ConfigManager) decryptAndParseSnapshot(data string, key []byte) (*SyncSnapshot, error) {
 	decrypted := c.decryptWithKey(data, key)
@@ -222,7 +199,8 @@ func (c *ConfigManager) backupConnections(s RemoteStorage, maxBackups int) (map[
 	data, _ := json.MarshalIndent(snap, "", "  ")
 	encrypted := c.encryptWithKey(string(data), s.EncryptKey())
 
-	timestamp := time.Now().Format("20060102_150405")
+	// 文件名精度到毫秒，避免自动同步与手动同步在同一秒触发时写入同一文件名导致覆盖
+	timestamp := time.Now().Format("20060102_150405.000")
 	fileName := fmt.Sprintf("connections_backup_%s.enc", timestamp)
 	if err := s.WriteFile(fileName, []byte(encrypted)); err != nil {
 		return nil, err

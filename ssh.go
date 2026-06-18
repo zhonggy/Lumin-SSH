@@ -899,6 +899,29 @@ func (m *SSHManager) deployProbeScript(sftpClient *sftp.Client, connKey string) 
 	return nil
 }
 
+// extractSection 从 lines 中提取 startMarker（不含）到 endMarker（不含）之间的内容。
+// startMarker 为空时从开头开始收集；endMarker 为空时收集到末尾。
+// GetSystemInfo 与 GetServerStaticInfo 共用此实现，避免重复定义。
+func extractSection(lines []string, startMarker, endMarker string) []string {
+	var out []string
+	// BUG FIX: if startMarker is empty, strings.Contains(l,"") is always true
+	// causing every line to be skipped via `continue`. Fix: start collecting immediately.
+	inside := (startMarker == "")
+	for _, l := range lines {
+		if startMarker != "" && strings.Contains(l, startMarker) {
+			inside = true
+			continue
+		}
+		if endMarker != "" && strings.Contains(l, endMarker) {
+			break
+		}
+		if inside {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 func (m *SSHManager) GetSystemInfo(sessionId string) (result map[string]interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -937,27 +960,6 @@ func (m *SSHManager) GetSystemInfo(sessionId string) (result map[string]interfac
 
 	lines1 := strings.Split(part1, "\n")
 	lines2 := strings.Split(part2, "\n")
-
-	// ── Helper: extract a named section from a line slice ─────────────
-	extractSection := func(lines []string, startMarker, endMarker string) []string {
-		var out []string
-		// BUG FIX: if startMarker is empty, strings.Contains(l,"") is always true
-		// causing every line to be skipped via `continue`. Fix: start collecting immediately.
-		inside := (startMarker == "")
-		for _, l := range lines {
-			if startMarker != "" && strings.Contains(l, startMarker) {
-				inside = true
-				continue
-			}
-			if endMarker != "" && strings.Contains(l, endMarker) {
-				break
-			}
-			if inside {
-				out = append(out, l)
-			}
-		}
-		return out
-	}
 
 	// ── Parse uptime ──────────────────────────────────────────────────
 	uptimeStr := "0 小时"
@@ -1333,24 +1335,6 @@ ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print $2}' || 
 	}
 
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-
-	extractSection := func(lines []string, startMarker, endMarker string) []string {
-		var res []string
-		inside := (startMarker == "")
-		for _, l := range lines {
-			if startMarker != "" && strings.Contains(l, startMarker) {
-				inside = true
-				continue
-			}
-			if endMarker != "" && strings.Contains(l, endMarker) {
-				break
-			}
-			if inside {
-				res = append(res, l)
-			}
-		}
-		return res
-	}
 
 	osName := "Linux"
 	for _, l := range extractSection(lines, "---OS---", "---TZ---") {

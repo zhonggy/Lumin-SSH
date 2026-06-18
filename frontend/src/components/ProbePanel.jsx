@@ -6,6 +6,7 @@ import {
   formatRate,
   formatTransferTotal,
 } from './probeFormatting.js';
+import { useTranslation } from '../i18n.js';
 
 // ── Sparkline SVG ──────────────────────────────────────────────────────────
 function Sparkline({ data, color = '#22c55e', fill = true, height = 36, width = '100%' }) {
@@ -123,6 +124,7 @@ const ftotal = (mb) => {
 
 // ══════════════════════════════════════════════════════════════════════════
 export default function ProbePanel({ sessionId, host, addToast, enabled, onEnable }) {
+  const { t } = useTranslation();
   const [info, setInfo] = useState(null);
   const [uploadHist, setUploadHist] = useState(Array(30).fill(0));
   const [downloadHist, setDownloadHist] = useState(Array(30).fill(0));
@@ -242,11 +244,11 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', gap: 16 }}>
           <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📊</div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', marginBottom: 6 }}>系统监控</div>
-            <div style={{ fontSize: 12, color: 'var(--text-4)', lineHeight: 1.6, maxWidth: 220 }}>实时查看服务器 CPU、内存、网络和磁盘使用情况</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)', marginBottom: 6 }}>{t('系统监控')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-4)', lineHeight: 1.6, maxWidth: 220 }}>{t('实时查看服务器 CPU、内存、网络和磁盘使用情况')}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', maxWidth: 220 }}>
-            {[['⚡', 'CPU 每核心实时占用'], ['💾', '内存甜甜圈图分析'], ['🌐', '网络速率折线图'], ['🗄', '磁盘分区挂载表'], ['📋', '进程热点排行']].map(([icon, text]) => (
+            {[['⚡', t('CPU 每核心实时占用')], ['💾', t('内存甜甜圈图分析')], ['🌐', t('网络速率折线图')], ['🗄', t('磁盘分区挂载表')], ['📋', t('进程热点排行')]].map(([icon, text]) => (
               <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 11px', borderRadius: 6, background: 'var(--bg-1)', border: '1px solid var(--border-light)' }}>
                 <span style={{ fontSize: 13 }}>{icon}</span>
                 <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{text}</span>
@@ -256,7 +258,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
           <button onClick={() => setShowConfirm(true)} style={{ marginTop: 8, padding: '9px 26px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.5)', background: 'rgba(34,197,94,0.12)', color: '#22c55e', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.5px' }}
             onMouseOver={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.2)'; }}
             onMouseOut={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.12)'; }}>
-            开启监控
+            {t('开启监控')}
           </button>
         </div>
         {showConfirm && (
@@ -265,22 +267,22 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🔍</div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>注入监控脚本</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>{t('注入监控脚本')}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-3)' }}>LuminSSH Probe v2</div>
                 </div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.7 }}>
-                将在服务器写入 <code style={{ color: '#4ade80', background: 'rgba(34,197,94,0.08)', padding: '2px 5px', borderRadius: 3, fontSize: 11 }}>~/.lumin/probe.sh</code>，轻量监控脚本。
+                {t('将在服务器写入')} <code style={{ color: '#4ade80', background: 'rgba(34,197,94,0.08)', padding: '2px 5px', borderRadius: 3, fontSize: 11 }}>~/.lumin/probe.sh</code>{t('，轻量监控脚本。')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {['✅ 纯 Shell，读取 /proc 文件系统', '✅ 无需安装任何软件或依赖', '✅ 不修改系统配置，不常驻后台', '✅ 断开连接后自动停止采集'].map(t => (
-                  <div key={t} style={{ fontSize: 11.5, color: 'var(--text-4)' }}>{t}</div>
+                {[t('✅ 纯 Shell，读取 /proc 文件系统'), t('✅ 无需安装任何软件或依赖'), t('✅ 不修改系统配置，不常驻后台'), t('✅ 断开连接后自动停止采集')].map(item => (
+                  <div key={item} style={{ fontSize: 11.5, color: 'var(--text-4)' }}>{item}</div>
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={() => setShowConfirm(false)} style={{ flex: 1, padding: '8.5px 0', borderRadius: 7, border: '1px solid var(--border-light)', background: 'transparent', color: 'var(--text-4)', fontSize: 12.5, cursor: 'pointer' }}>取消</button>
+                <button onClick={() => setShowConfirm(false)} style={{ flex: 1, padding: '8.5px 0', borderRadius: 7, border: '1px solid var(--border-light)', background: 'transparent', color: 'var(--text-4)', fontSize: 12.5, cursor: 'pointer' }}>{t('取消')}</button>
                 <button onClick={handleConfirm} disabled={enabling} style={{ flex: 1, padding: '8.5px 0', borderRadius: 7, border: '1px solid rgba(34,197,94,0.5)', background: enabling ? 'rgba(34,197,94,0.05)' : 'rgba(34,197,94,0.15)', color: enabling ? 'var(--text-4)' : '#22c55e', fontSize: 12.5, fontWeight: 700, cursor: enabling ? 'default' : 'pointer' }}>
-                  {enabling ? '注入中...' : '确认开启'}
+                  {enabling ? t('注入中...') : t('确认开启')}
                 </button>
               </div>
             </div>
@@ -295,7 +297,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, color: '#4ade80', opacity: 0.5 }}>
         <div style={{ fontSize: 22, animation: 'spin 1.2s linear infinite' }}>⟳</div>
-        <div style={{ fontSize: 11 }}>正在采集系统信息...</div>
+        <div style={{ fontSize: 11 }}>{t('正在采集系统信息...')}</div>
       </div>
     );
   }
@@ -326,18 +328,18 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <span style={{ fontSize: 14 }}>🖥</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>系统</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>{t('系统')}</span>
           </div>
           {displayIP && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, minWidth: 0 }}>
               <span title={hideIP ? '' : displayIP} style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: '#fbbf24', fontWeight: 700, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', padding: '1px 6px', borderRadius: 4, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>
                 {hideIP ? '***.***.***.***' : displayIP}
               </span>
-              <button onClick={() => { navigator.clipboard.writeText(displayIP); addToast?.('已复制 ' + displayIP, 'success'); }} title="复制 IP"
+              <button onClick={() => { navigator.clipboard.writeText(displayIP); addToast?.(t('已复制') + ' ' + displayIP, 'success'); }} title={t('复制 IP')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '2px 4px', fontSize: 13, lineHeight: 1, borderRadius: 3 }}
                 onMouseOver={e => e.currentTarget.style.color = 'var(--text-1)'}
                 onMouseOut={e => e.currentTarget.style.color = 'var(--text-4)'}>📋</button>
-              <button onClick={() => setHideIP(p => !p)} title={hideIP ? '显示 IP' : '隐藏 IP'}
+              <button onClick={() => setHideIP(p => !p)} title={hideIP ? t('显示 IP') : t('隐藏 IP')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '2px 4px', fontSize: 13, lineHeight: 1, borderRadius: 3 }}
                 onMouseOver={e => e.currentTarget.style.color = 'var(--text-1)'}
                 onMouseOut={e => e.currentTarget.style.color = 'var(--text-4)'}>{hideIP ? '👁' : '🙈'}</button>
@@ -349,8 +351,8 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
           <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 4, background: 'var(--border)', color: 'var(--text-3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.os?.replace(osParts[0], '').trim()}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-4)' }}>时区 <span style={{ color: '#22c55e', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{info.timezone}</span></div>
-          <div style={{ fontSize: 12, color: 'var(--text-4)' }}>运行 <span style={{ color: '#4ade80', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12 }}>{info.uptime}</span></div>
+          <div style={{ fontSize: 12, color: 'var(--text-4)' }}>{t('时区')} <span style={{ color: '#22c55e', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{info.timezone}</span></div>
+          <div style={{ fontSize: 12, color: 'var(--text-4)' }}>{t('运行')} <span style={{ color: '#4ade80', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12 }}>{info.uptime}</span></div>
         </div>
       </Card>
 
@@ -358,7 +360,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <span style={{ fontSize: 14 }}>⚡</span>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', flex: 1 }}>CPU {cores.length > 0 ? `${cores.length}核` : ''}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', flex: 1 }}>CPU {cores.length > 0 ? `${cores.length}${t('核')}` : ''}</span>
           <div style={{ width: 76, height: 24 }}>
             <Sparkline data={cpuHist} color="#6366f1" height={24} />
           </div>
@@ -378,14 +380,14 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
 
       {/* ── 内存 ── */}
       <Card>
-        <SectionHeader icon="💾" title="内存" badge={fmem(info.memTotal)} />
+        <SectionHeader icon="💾" title={t('内存')} badge={fmem(info.memTotal)} />
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <MemDonut used={info.memUsed} cache={info.memCache} total={info.memTotal} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
             {[
-              { dot: '#ef4444', label: '已用', val: fmem(info.memUsed) },
-              { dot: 'var(--text-4)', label: '缓存', val: fmem(info.memCache) },
-              { dot: '#22c55e', label: '空闲', val: fmem(info.memFree) },
+              { dot: '#ef4444', label: t('已用'), val: fmem(info.memUsed) },
+              { dot: 'var(--text-4)', label: t('缓存'), val: fmem(info.memCache) },
+              { dot: '#22c55e', label: t('空闲'), val: fmem(info.memFree) },
             ].map(({ dot, label, val }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-2)', borderRadius: 6, padding: '4px 8px' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0 }} />
@@ -396,7 +398,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
           </div>
         </div>
         <div style={{ fontSize: 12.5, color: 'var(--text-4)', textAlign: 'right', marginTop: 4 }}>
-          使用率 <span style={{ color: memPct >= 80 ? '#ef4444' : '#4ade80', fontWeight: 700 }}>{memPct}%</span>
+          {t('使用率')} <span style={{ color: memPct >= 80 ? '#ef4444' : '#4ade80', fontWeight: 700 }}>{memPct}%</span>
         </div>
         {info.swapTotal > 0 && (
           <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
@@ -419,7 +421,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <span style={{ fontSize: 14 }}>🌐</span>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', flex: 1 }}>网络</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', flex: 1 }}>{t('网络')}</span>
         </div>
         <div style={{ marginBottom: 6 }}>
           <Sparkline data={downloadHist} color="#3b82f6" height={36} />
@@ -427,11 +429,11 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         {/* Table */}
         <div style={{ display: 'grid', gridTemplateColumns: '62px 1fr 1fr', gap: '5px 0' }}>
           <div style={{ fontSize: 11.5, color: 'var(--text-4)' }} />
-          <div style={{ fontSize: 11.5, color: 'var(--text-4)', textAlign: 'center' }}>速度</div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-4)', textAlign: 'center' }}>已用流量</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-4)', textAlign: 'center' }}>{t('速度')}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-4)', textAlign: 'center' }}>{t('已用流量')}</div>
           {[
-            { dot: '#22c55e', label: '上传', speed: fspeed(info.netUp), total: ftotal(info.netUpTotal) },
-            { dot: '#3b82f6', label: '下载', speed: fspeed(info.netDown), total: ftotal(info.netDownTotal) },
+            { dot: '#22c55e', label: t('上传'), speed: fspeed(info.netUp), total: ftotal(info.netUpTotal) },
+            { dot: '#3b82f6', label: t('下载'), speed: fspeed(info.netDown), total: ftotal(info.netDownTotal) },
           ].map(({ dot, label, speed, total }) => (
             <Fragment key={label}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, padding: '3px 0' }}>
@@ -447,19 +449,19 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
 
       {/* ── 磁盘 ── */}
       <Card>
-        <SectionHeader icon="🗄" title="磁盘" badge={`${formatCapacity(info.diskUsed, 1)} / ${formatCapacity(info.diskTotal, 1)}`} />
+        <SectionHeader icon="🗄" title={t('磁盘')} badge={`${formatCapacity(info.diskUsed, 1)} / ${formatCapacity(info.diskTotal, 1)}`} />
         {/* Root partition info */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 7 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', marginRight: 5 }} />
           <span style={{ fontSize: 12.5, color: 'var(--text-3)', flex: 1, fontFamily: 'var(--font-mono)' }}>/ ({info.diskDevice})</span>
-          <span style={{ fontSize: 11.5, color: 'var(--text-4)', marginRight: 4 }}>类型</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-4)', marginRight: 4 }}>{t('类型')}</span>
           <span style={{ fontSize: 11, background: '#ca8a04', color: '#fef9c3', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>{info.diskType}</span>
         </div>
         {/* IO speeds */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 7 }}>
           {[
-            { label: '读/s', val: fspeed(info.diskReadSpeed), color: '#22c55e' },
-            { label: '写/s', val: fspeed(info.diskWriteSpeed), color: '#f97316' },
+            { label: t('读/s'), val: fspeed(info.diskReadSpeed), color: '#22c55e' },
+            { label: t('写/s'), val: fspeed(info.diskWriteSpeed), color: '#f97316' },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ background: 'var(--bg-2)', borderRadius: 6, padding: '5px 8px' }}>
               <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 2 }}>{label}</div>
@@ -469,11 +471,11 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         </div>
         {/* Partition table header */}
         <div className="probe-partition-header">
-          <span>挂载</span>
+          <span>{t('挂载')}</span>
           <span></span>
-          <span>大小</span>
-          <span>可用</span>
-          <span>已用%</span>
+          <span>{t('大小')}</span>
+          <span>{t('可用')}</span>
+          <span>{t('已用%')}</span>
         </div>
         {(info.diskPartitions?.length > 0
           ? info.diskPartitions.slice(0, 4)
@@ -487,13 +489,13 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
       <Card style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
           <span style={{ fontSize: 13 }}>📋</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-1)', flex: 1 }}>进程管理</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-1)', flex: 1 }}>{t('进程管理')}</span>
           <span style={{ fontSize: 11.5, color: 'var(--text-4)' }}>TOP CPU</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '44px 56px 1fr', gap: '4px 8px' }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-4)', fontWeight: 700 }}>CPU</span>
-          <span style={{ fontSize: 11.5, color: 'var(--text-4)', fontWeight: 700 }}>内存</span>
-          <span style={{ fontSize: 11.5, color: 'var(--text-4)', fontWeight: 700 }}>进程</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-4)', fontWeight: 700 }}>{t('内存')}</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-4)', fontWeight: 700 }}>{t('进程')}</span>
           {info.processes?.length > 0 ? info.processes.slice(0, 5).map((p, i) => (
             <Fragment key={i}>
               <span style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: p.cpu > 5 ? '#f59e0b' : 'var(--text-3)' }}>{p.cpu?.toFixed(1)}%</span>
@@ -501,7 +503,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
               <span style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.cmd}</span>
             </Fragment>
           )) : (
-            <div style={{ gridColumn: '1/-1', fontSize: 11.5, color: 'var(--text-4)', textAlign: 'center', padding: '8px 0' }}>暂无热点进程</div>
+            <div style={{ gridColumn: '1/-1', fontSize: 11.5, color: 'var(--text-4)', textAlign: 'center', padding: '8px 0' }}>{t('暂无热点进程')}</div>
           )}
         </div>
       </Card>

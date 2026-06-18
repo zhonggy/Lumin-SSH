@@ -104,7 +104,7 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
   // ── 操作 ──
   const copy = (cmd) => {
     navigator.clipboard.writeText(cmd);
-    addToast?.('命令已复制到剪贴板', 'success');
+    addToast?.(t('命令已复制到剪贴板'), 'success');
   };
 
   const exec = (cmd) => {
@@ -114,11 +114,11 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
     AppGo.WriteTerminal(sessionId, cmd + '\r').catch((err) => {
       console.error('WriteTerminal failed:', err);
     });
-    addToast?.('已发送指令到终端', 'info', 2000);
+    addToast?.(t('已发送指令到终端'), 'info', 2000);
   };
 
   const clear = async () => {
-    if (await window.luminDialog?.confirm('确定要清空该服务器的历史指令吗？')) {
+    if (await window.luminDialog?.confirm(t('确定要清空该服务器的历史指令吗？'))) {
       if (historyMode === 'global') {
         AppGo.SaveGlobalCommandHistory('[]').catch(() => {});
       } else {
@@ -168,7 +168,7 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
         <input
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="搜索命令..."
+          placeholder={t('搜索命令...')}
           style={{
             flex: 1,
             padding: '6px 10px',
@@ -192,7 +192,7 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
             whiteSpace: 'nowrap',
           }}
         >
-          当前服务器
+          {t('当前服务器')}
         </button>
         <button
           onClick={() => setHistoryMode('global')}
@@ -206,7 +206,7 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
             whiteSpace: 'nowrap',
           }}
         >
-          全部服务器
+          {t('全部服务器')}
         </button>
       </div>
 
@@ -215,10 +215,10 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
         <div className="empty-state" style={{ marginTop: '10vh' }}>
           <div style={{ fontSize: 48, opacity: 0.3 }}>⌨️</div>
           <p style={{ marginTop: 16, color: 'var(--text-2)', fontSize: 15, fontWeight: 500 }}>
-            {searchQuery ? '未找到匹配的命令' : t('您还没有执行过任何命令')}
+            {searchQuery ? t('未找到匹配的命令') : t('您还没有执行过任何命令')}
           </p>
           <span style={{ fontSize: 13, color: 'var(--text-4)', maxWidth: 300, textAlign: 'center', lineHeight: 1.6, marginTop: 8 }}>
-            {searchQuery ? '尝试其他搜索词' : t('在此服务器中执行过的命令会自动留存，方便您浏览与重复运行。')}
+            {searchQuery ? t('尝试其他搜索词') : t('在此服务器中执行过的命令会自动留存，方便您浏览与重复运行。')}
           </span>
         </div>
       ) : (

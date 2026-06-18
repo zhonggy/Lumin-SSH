@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { useTranslation } from '../i18n.js';
 
 export default function GlobalDialog() {
   const [dialogs, setDialogs] = useState([]);
@@ -91,6 +92,7 @@ export default function GlobalDialog() {
 }
 
 function DialogContent({ current, onClose, onConfirm, onChoice }) {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState(current.defaultValue || '');
   const [checked, setChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -121,7 +123,7 @@ function DialogContent({ current, onClose, onConfirm, onChoice }) {
             />
             <button
               type="button"
-              title={showPassword ? '隐藏密码' : '显示密码'}
+              title={showPassword ? t('隐藏密码') : t('显示密码')}
               onClick={() => setShowPassword(!showPassword)}
               style={{
                 position: 'absolute', right: 42, top: '50%', transform: 'translateY(-50%)',
@@ -145,7 +147,7 @@ function DialogContent({ current, onClose, onConfirm, onChoice }) {
                   } catch {}
                 }
               }}
-              title="粘贴"
+              title={t('粘贴')}
               style={{
                 position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
                 background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer',
@@ -181,7 +183,7 @@ function DialogContent({ current, onClose, onConfirm, onChoice }) {
       ) : (
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
         {current.type !== 'alert' && (
-          <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1, padding: '10px 0', justifyContent: 'center' }}>取消</button>
+          <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1, padding: '10px 0', justifyContent: 'center' }}>{t('取消')}</button>
         )}
         <button 
           className="btn btn-primary"
@@ -192,7 +194,7 @@ function DialogContent({ current, onClose, onConfirm, onChoice }) {
           }}
           style={current.type === 'alert' ? { minWidth: 120, justifyContent: 'center' } : { flex: 1, padding: '10px 0', justifyContent: 'center' }}
         >
-          {current.type === 'alert' ? '我知道了' : '确定'}
+          {current.type === 'alert' ? t('我知道了') : t('确定')}
         </button>
       </div>)}
     </div>

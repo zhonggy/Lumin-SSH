@@ -705,6 +705,8 @@ export default function App() {
   useEffect(() => {
     const handleReconnectTrigger = (e) => {
       const sessId = e.detail;
+      // 通过 sessionsRef 读取最新 sessions，避免每次 sessions 变化都重注册监听器
+      const sessions = sessionsRef.current;
       // 先按 sessionId 查找
       let sess = sessions.find((s) => s.id === sessId);
       // 如果是子终端 ID，找到父会话
@@ -718,7 +720,7 @@ export default function App() {
     };
     window.addEventListener('ssh-reconnect-trigger', handleReconnectTrigger);
     return () => window.removeEventListener('ssh-reconnect-trigger', handleReconnectTrigger);
-  }, [sessions, reconnectSession]);
+  }, [reconnectSession]);
 
   // ── Connect to server ──────────────────────────────────────
   const connectServer = useCallback(async (server) => {

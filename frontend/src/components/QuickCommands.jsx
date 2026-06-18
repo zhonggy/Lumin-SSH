@@ -407,6 +407,23 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     closeContextMenu();
   };
 
+  // ── 沿路径浅拷贝各层数组 + 目标节点（避免全树深拷贝）──
+  // 用于只修改单一字段的场景：返回新树，路径上各层均为新数组/对象引用
+  const cloneAlongPath = (list, path) => {
+    const parts = path.split('/').map(Number);
+    const newList = [...list];
+    let cur = newList;
+    for (let i = 0; i < parts.length; i++) {
+      const idx = parts[i];
+      cur[idx] = { ...cur[idx] };
+      if (i < parts.length - 1) {
+        cur[idx].children = [...(cur[idx].children || [])];
+        cur = cur[idx].children;
+      }
+    }
+    return newList;
+  };
+
   // ── 从 path 定位节点 ─────────────────────────────────
   const resolvePath = (list, path) => {
     const parts = path.split('/').map(Number);
@@ -450,7 +467,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     const { item } = resolvePath(commands, path);
     // 点击分组：切换展开/折叠，并在右侧显示分组详情
     if (item?.type === 'group') {
-      const list = structuredClone(commands);
+      const list = cloneAlongPath(commands, path);
       const r = resolvePath(list, path);
       r.item.expanded = !r.item.expanded;
       save(list);
@@ -935,7 +952,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                   type="text"
                   value={selectedItem.name}
                   onChange={(e) => {
-                    const list = structuredClone(commands);
+                    const list = cloneAlongPath(commands, selectedPath);
                     const r = resolvePath(list, selectedPath);
                     r.parent[r.idx].name = e.target.value;
                     setCommands(list);
@@ -954,7 +971,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                       <button
                         key={n}
                         onClick={() => {
-                          const list = structuredClone(commands);
+                          const list = cloneAlongPath(commands, selectedPath);
                           const r = resolvePath(list, selectedPath);
                           r.parent[r.idx].command = (r.parent[r.idx].command || '') + `[p#${n} 参数${n}]`;
                           setCommands(list);
@@ -972,7 +989,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 <textarea
                   value={selectedItem.command}
                   onChange={(e) => {
-                    const list = structuredClone(commands);
+                    const list = cloneAlongPath(commands, selectedPath);
                     const r = resolvePath(list, selectedPath);
                     r.parent[r.idx].command = e.target.value;
                     setCommands(list);

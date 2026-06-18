@@ -160,7 +160,9 @@ type r2Storage struct {
 func (s *r2Storage) MaxBackups() int { return s.maxBackups }
 
 func (s *r2Storage) ListFiles() ([]RemoteFile, error) {
-	ctx := context.Background()
+	// R2 操作加 30s 超时，避免网络挂起时永久阻塞
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	objects := s.cli.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{Prefix: s.prefix})
 	var result []RemoteFile
 	var firstErr error
@@ -188,7 +190,9 @@ func (s *r2Storage) ListFiles() ([]RemoteFile, error) {
 }
 
 func (s *r2Storage) ReadFile(name string) ([]byte, error) {
-	ctx := context.Background()
+	// R2 操作加 30s 超时，避免网络挂起时永久阻塞
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	obj, err := s.cli.GetObject(ctx, s.bucket, s.prefix+name, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, err
@@ -200,7 +204,9 @@ func (s *r2Storage) ReadFile(name string) ([]byte, error) {
 }
 
 func (s *r2Storage) WriteFile(name string, data []byte) error {
-	ctx := context.Background()
+	// R2 操作加 30s 超时，避免网络挂起时永久阻塞
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	objectKey := s.prefix + name
 	_, err := s.cli.PutObject(ctx, s.bucket, objectKey, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
 		ContentType: "application/octet-stream",
@@ -209,7 +215,9 @@ func (s *r2Storage) WriteFile(name string, data []byte) error {
 }
 
 func (s *r2Storage) DeleteFile(name string) error {
-	ctx := context.Background()
+	// R2 操作加 30s 超时，避免网络挂起时永久阻塞
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	return s.cli.RemoveObject(ctx, s.bucket, s.prefix+name, minio.RemoveObjectOptions{})
 }
 
