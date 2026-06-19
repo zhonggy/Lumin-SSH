@@ -193,13 +193,17 @@ func (a *App) WriteWsOutput(sessionId string, data []byte) {
 }
 
 // IsPortableVersion checks if the current executable is the portable version
+// 开发构建默认视为便携版（exe 名不含 installer/setup）
 func (a *App) IsPortableVersion() bool {
 	exePath, err := os.Executable()
 	if err != nil {
-		return false
+		return true // 无法确定时默认便携版
 	}
 	exeName := strings.ToLower(filepath.Base(exePath))
-	return strings.Contains(exeName, "portable")
+	if strings.Contains(exeName, "installer") || strings.Contains(exeName, "setup") {
+		return false
+	}
+	return true
 }
 
 // GetConnections returns all saved SSH connections

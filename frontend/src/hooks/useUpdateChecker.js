@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
 import { APP_VERSION } from '../config.js';
+import { EventsOn } from '../../wailsjs/runtime/runtime.js';
 
 const RELEASE_API = 'https://api.github.com/repos/wmwlwmwl/Lumin-SSH/releases/latest';
 
@@ -55,11 +56,10 @@ export function useUpdateChecker({ onResult, onError } = {}) {
   cbRef.current = { onResult, onError };
 
   useEffect(() => {
-    const handleProgress = (e) => {
-      if (typeof e.detail === 'number') setDownloadProgress(e.detail);
-    };
-    window.addEventListener('app-update-progress', handleProgress);
-    return () => window.removeEventListener('app-update-progress', handleProgress);
+    const off = EventsOn('app-update-progress', (progress) => {
+      if (typeof progress === 'number') setDownloadProgress(progress);
+    });
+    return off;
   }, []);
 
   const checkUpdate = useCallback(async () => {
