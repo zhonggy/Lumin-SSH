@@ -11,6 +11,7 @@ luminssh-go
 # Wails standard build outputs
 /build/bin/
 /build/windows/installer/Output/
+/build/windows/installer/wails_tools.nsh
 
 # Wails auto-generated bindings (regenerated on every build)
 /frontend/wailsjs/
