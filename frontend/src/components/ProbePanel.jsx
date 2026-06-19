@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
 import {
   formatCapacity,
@@ -9,7 +9,7 @@ import {
 import { useTranslation } from '../i18n.js';
 
 // ── Sparkline SVG ──────────────────────────────────────────────────────────
-function Sparkline({ data, color = '#22c55e', fill = true, height = 36, width = '100%' }) {
+const Sparkline = React.memo(function Sparkline({ data, color = '#22c55e', fill = true, height = 36, width = '100%' }) {
   const pts = data || [];
   const { points, fillPts } = useMemo(() => {
     if (pts.length < 2) return { points: '', fillPts: '' };
@@ -25,10 +25,10 @@ function Sparkline({ data, color = '#22c55e', fill = true, height = 36, width = 
       <polyline points={points} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
-}
+});
 
 // ── Memory Donut ──────────────────────────────────────────────────────────
-function MemDonut({ used, cache, total }) {
+const MemDonut = React.memo(function MemDonut({ used, cache, total }) {
   const r = 27; const cx = 35; const cy = 35;
   const circ = 2 * Math.PI * r;
   const f1 = total > 0 ? Math.min(Math.max(used / total, 0), 1) : 0;
@@ -48,10 +48,10 @@ function MemDonut({ used, cache, total }) {
       {seg(f3, '#22c55e', f1 + f2)}
     </svg>
   );
-}
+});
 
 // ── CPU Bar ────────────────────────────────────────────────────────────────
-function CpuBar({ val = 0 }) {
+const CpuBar = React.memo(function CpuBar({ val = 0 }) {
   const pct = Math.min(Math.max(val, 0), 100);
   const color = pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#22c55e';
   return (
@@ -59,10 +59,10 @@ function CpuBar({ val = 0 }) {
       <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.4s ease' }} />
     </div>
   );
-}
+});
 
 // ── Disk Partition Row ─────────────────────────────────────────────────────
-function PartRow({ mount, size, avail, usedPct }) {
+const PartRow = React.memo(function PartRow({ mount, size, avail, usedPct }) {
   const pct = Math.min(Math.max(usedPct, 0), 100);
   const color = pct > 85 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#22c55e';
   return (
@@ -76,10 +76,10 @@ function PartRow({ mount, size, avail, usedPct }) {
       <span className="probe-partition-percent" style={{ color }}>{pct}%</span>
     </div>
   );
-}
+});
 
 // ── Section Card ───────────────────────────────────────────────────────────
-function Card({ children, style }) {
+const Card = React.memo(function Card({ children, style }) {
   return (
     <div style={{
       background: 'var(--bg-2)',
@@ -90,10 +90,10 @@ function Card({ children, style }) {
       {children}
     </div>
   );
-}
+});
 
 // ── Section Header ─────────────────────────────────────────────────────────
-function SectionHeader({ icon, title, badge, right }) {
+const SectionHeader = React.memo(function SectionHeader({ icon, title, badge, right }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
       <span style={{ fontSize: 14 }}>{icon}</span>
@@ -109,7 +109,7 @@ function SectionHeader({ icon, title, badge, right }) {
       {right}
     </div>
   );
-}
+});
 
 // ── Format helpers ─────────────────────────────────────────────────────────
 const fmem = (mb) => {

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
-import FileEditor from './FileEditor.jsx';
+const FileEditor = React.lazy(() => import('./FileEditor.jsx'));
 import { useTranslation, t as tKey } from '../i18n.js';
 
 // 格式化文件大小
@@ -1052,19 +1052,21 @@ export default function FileManager({ sessionId, addToast, isActive = true }) {
 
       {/* File Editor (modal/popup/split 均由 FileEditor 内部决定渲染方式) */}
       {openEditFiles.length > 0 && (
-        <FileEditor
-          files={openEditFiles}
-          activePath={activeEditPath}
-          onSave={handleSaveFile}
-          onCloseFile={closeEditFile}
-          onCloseAll={closeAllEditFiles}
-          onActivate={activateEditFile}
-          mode={editorMode}
-          onModeChange={handleEditorModeChange}
-          splitPosition={editorSplitPosition}
-          onSplitPositionChange={handleEditorSplitPositionChange}
-          isActive={isActive}
-        />
+        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-4)' }}>Loading...</div>}>
+          <FileEditor
+            files={openEditFiles}
+            activePath={activeEditPath}
+            onSave={handleSaveFile}
+            onCloseFile={closeEditFile}
+            onCloseAll={closeAllEditFiles}
+            onActivate={activateEditFile}
+            mode={editorMode}
+            onModeChange={handleEditorModeChange}
+            splitPosition={editorSplitPosition}
+            onSplitPositionChange={handleEditorSplitPositionChange}
+            isActive={isActive}
+          />
+        </Suspense>
       )}
 
       {/* Chmod Dialog */}

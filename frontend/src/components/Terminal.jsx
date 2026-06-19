@@ -8,6 +8,9 @@ import '@xterm/xterm/css/xterm.css';
 import { t } from '../i18n';
 import defaultTermBg from '../assets/term_bg.png';
 
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
+
 // ── 多套终端主题定义 ──────────────────────────────────────────────
 const TERMINAL_THEMES = {
   'lumin': {
@@ -199,7 +202,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         e.preventDefault();
         navigator.clipboard.readText().then((text) => {
           if (text && wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(new TextEncoder().encode(text));
+            wsRef.current.send(textEncoder.encode(text));
           }
         }).catch((err) => {
           console.error('Clipboard read failed:', err);
@@ -260,7 +263,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
         // 检测密码提示，标记下一行输入为密码（不记入命令历史）
         if (!awaitingPassword) {
-          const probeText = typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data);
+          const probeText = typeof ev.data === 'string' ? ev.data : textDecoder.decode(ev.data);
           if (/[Pp]assword|密码|passphrase/i.test(probeText)) {
             awaitingPassword = true;
           }
@@ -273,15 +276,15 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         }
 
         // --- 预测匹配阶段 ---
-        let text = typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data);
+        let text = typeof ev.data === 'string' ? ev.data : textDecoder.decode(ev.data);
         let i = 0;
-        let newText = '';
+        const parts = [];
         
         while (i < text.length) {
           // 1. 强大且健壮的 ANSI 转义序列跳过逻辑 (CSI、OSC 及其他单字符转义)
           if (text[i] === '\x1b') {
             let j = i + 1;
-            if (j >= text.length) { newText += text[i]; i++; continue; }
+            if (j >= text.length) { parts.push(text[i]); i++; continue; }
             if (text[j] === '[') {
                // CSI 序列
                j++;
@@ -302,7 +305,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                // 其他 ESC 序列（跳过后面一个字符）
                j++;
             }
-            newText += text.substring(i, j);
+            parts.push(text.substring(i, j));
             i = j;
             continue;
           }
@@ -323,7 +326,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             // 遇到非打印控制字符（如 \r, \n, \x07 等），直接放行打印，不破坏当前的预测队列
             const charCode = text.charCodeAt(i);
             if (charCode < 32 || charCode === 127) {
-              newText += text[i];
+              parts.push(text[i]);
               i++;
               continue;
             }
@@ -331,11 +334,12 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
           
           // 真正的冲突（服务器发来了与预测不符的可打印字符），视为脱轨，清空队列并接受服务器输出
           pendingEchoes.length = 0;
-          newText += text[i];
+          parts.push(text[i]);
           i++;
         }
         
         // 写回经过滤的文本
+        const newText = parts.join('');
         termRef.current.write(newText);
       };
 
@@ -348,7 +352,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
     term.onData((data) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(new TextEncoder().encode(data));
+        wsRef.current.send(textEncoder.encode(data));
       }
 
       // ── 按键累计记录命令（仅跟踪可打印字符，方向键/控制序列自动放弃）──
@@ -554,7 +558,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       case 'paste':
         navigator.clipboard.readText().then(text => {
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(new TextEncoder().encode(text));
+            wsRef.current.send(textEncoder.encode(text));
           }
           termRef.current.focus();
         }).catch(err => {

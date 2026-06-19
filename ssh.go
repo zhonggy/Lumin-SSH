@@ -59,7 +59,7 @@ type SSHManager struct {
 	probeDeployed    map[string]bool            // connKey -> probe.sh deployed
 	pendingHostKeys  map[string]*PendingHostKey // sessionId -> pending host key info
 	tempAcceptedKeys map[string]string          // sessionId -> fingerprint (accept this time only)
-	mu               sync.Mutex
+	mu               sync.RWMutex
 }
 
 // dialAddr 拼接 host:port，自动处理 IPv6 地址
@@ -86,9 +86,9 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 	conn.Password = strings.TrimSpace(conn.Password)
 	connKey := fmt.Sprintf("%s@%s", conn.Username, dialAddr(conn.Host, conn.Port))
 
-	m.mu.Lock()
+	m.mu.RLock()
 	existingEntry, clientExists := m.clients[connKey]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 
 	var client *ssh.Client
 	var sftpClient *sftp.Client
@@ -151,12 +151,12 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 					fingerprint := ssh.FingerprintSHA256(key)
 
 					// 检查是否为临时接受的密钥（仅本次会话，按 sessionId 匹配）
-					m.mu.Lock()
+					m.mu.RLock()
 					if fp, ok := m.tempAcceptedKeys[sessionId]; ok && fp == fingerprint {
-						m.mu.Unlock()
+						m.mu.RUnlock()
 						return nil
 					}
-					m.mu.Unlock()
+					m.mu.RUnlock()
 
 					// 新主机密钥 —— 需要用户确认
 					m.mu.Lock()
@@ -173,12 +173,12 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 					fingerprint := ssh.FingerprintSHA256(key)
 
 					// 检查是否为临时接受的密钥（仅本次会话，按 sessionId 匹配）
-					m.mu.Lock()
+					m.mu.RLock()
 					if fp, ok := m.tempAcceptedKeys[sessionId]; ok && fp == fingerprint {
-						m.mu.Unlock()
+						m.mu.RUnlock()
 						return nil // 本次接受该密钥
 					}
-					m.mu.Unlock()
+					m.mu.RUnlock()
 
 					m.mu.Lock()
 					m.pendingHostKeys[sessionId] = &PendingHostKey{
@@ -219,10 +219,10 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 			if errors.Is(dialErr, ErrHostKeyChanged) {
 				if m.ctx != nil {
 					// 在锁内读取 pendingHostKeys，避免与 AcceptHostKeyChange 并发写入竞争
-					m.mu.Lock()
+					m.mu.RLock()
 					pending, ok := m.pendingHostKeys[sessionId]
 					if !ok || pending == nil {
-						m.mu.Unlock()
+						m.mu.RUnlock()
 						return fmt.Errorf("主机密钥已变更，但未找到待确认信息")
 					}
 					hostname := pending.Hostname
@@ -232,7 +232,7 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 						oldFingerprints = append(oldFingerprints, ssh.FingerprintSHA256(k.Key))
 					}
 					isNew := len(pending.OldKeys) == 0
-					m.mu.Unlock()
+					m.mu.RUnlock()
 					runtime.EventsEmit(m.ctx, "ssh-host-key-changed", map[string]interface{}{
 						"sessionId":       sessionId,
 						"hostname":        hostname,
@@ -428,20 +428,21 @@ func (m *SSHManager) pipeOutput(sessionId string, r io.Reader, historyStream *co
 
 	// 查找 GroupSessionId（子终端时使用父会话 ID 归组历史事件）
 	eventSessionId := sessionId
-	m.mu.Lock()
+	m.mu.RLock()
 	if s, ok := m.sessions[sessionId]; ok && s.GroupSessionId != "" {
 		eventSessionId = s.GroupSessionId
 	}
-	m.mu.Unlock()
+	m.mu.RUnlock()
 
 	// 直接读取并通过 WebSocket 发送，不再批处理缓冲
 	// WebSocket 过 TCP loopback 延迟极低，无需批处理
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
-			data := make([]byte, n)
-			copy(data, buf[:n])
+			var data []byte
 			if historyStream != nil {
+				data = make([]byte, n)
+				copy(data, buf[:n])
 				visible, commands := historyStream.Process(data)
 				data = visible
 				for _, command := range commands {
@@ -455,6 +456,8 @@ func (m *SSHManager) pipeOutput(sessionId string, r io.Reader, historyStream *co
 						"source":    "remote",
 					})
 				}
+			} else {
+				data = buf[:n]
 			}
 			if len(data) == 0 {
 				if err != nil {
@@ -477,14 +480,14 @@ func (m *SSHManager) pipeOutput(sessionId string, r io.Reader, historyStream *co
 
 // getClientEntry 查找 session 对应的共享客户端
 func (m *SSHManager) getClientEntry(sessionId string) (*ssh.Client, *sftp.Client, error) {
-	m.mu.Lock()
+	m.mu.RLock()
 	s, ok := m.sessions[sessionId]
 	if !ok {
-		m.mu.Unlock()
+		m.mu.RUnlock()
 		return nil, nil, fmt.Errorf("session not found")
 	}
 	entry, ok := m.clients[s.ConnKey]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	if !ok {
 		return nil, nil, fmt.Errorf("client not found for session")
 	}
@@ -553,12 +556,12 @@ func (m *SSHManager) Disconnect(sessionId string) {
 
 // DisconnectAll 断开所有 SSH 连接，用于应用退出时清理资源
 func (m *SSHManager) DisconnectAll() {
-	m.mu.Lock()
+	m.mu.RLock()
 	ids := make([]string, 0, len(m.sessions))
 	for id := range m.sessions {
 		ids = append(ids, id)
 	}
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	for _, id := range ids {
 		m.Disconnect(id)
 	}
@@ -567,20 +570,20 @@ func (m *SSHManager) DisconnectAll() {
 // OpenTerminal 为已有连接创建新的终端通道
 // 复用同一个 SSH 客户端，创建新的 shell session
 func (m *SSHManager) OpenTerminal(sessionId string) (string, error) {
-	m.mu.Lock()
+	m.mu.RLock()
 	existing, ok := m.sessions[sessionId]
 	if !ok {
-		m.mu.Unlock()
+		m.mu.RUnlock()
 		return "", fmt.Errorf("session not found")
 	}
 	entry, ok := m.clients[existing.ConnKey]
 	if !ok {
-		m.mu.Unlock()
+		m.mu.RUnlock()
 		return "", fmt.Errorf("client not found for session")
 	}
 	connKey := existing.ConnKey
 	remoteHistoryActive := existing.RemoteHistoryActive
-	m.mu.Unlock()
+	m.mu.RUnlock()
 
 	session, err := entry.Client.NewSession()
 	if err != nil {
@@ -785,18 +788,18 @@ func (m *SSHManager) GetTerminalCwd(sessionId string) (string, error) {
 
 // WriteBytes sends raw bytes to the SSH PTY stdin (used by WebSocket handler)
 func (m *SSHManager) WriteBytes(sessionId string, data []byte) {
-	m.mu.Lock()
+	m.mu.RLock()
 	s, ok := m.sessions[sessionId]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	if ok && s.Stdin != nil {
 		_, _ = s.Stdin.Write(data)
 	}
 }
 
 func (m *SSHManager) Resize(sessionId string, cols, rows int) {
-	m.mu.Lock()
+	m.mu.RLock()
 	s, ok := m.sessions[sessionId]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	if ok {
 		s.Session.WindowChange(rows, cols)
 	}
@@ -865,9 +868,9 @@ func (m *SSHManager) deployProbeScript(sftpClient *sftp.Client, connKey string) 
 	if sftpClient == nil {
 		return fmt.Errorf("SFTP not available")
 	}
-	m.mu.Lock()
+	m.mu.RLock()
 	already := m.probeDeployed[connKey]
-	m.mu.Unlock()
+	m.mu.RUnlock()
 	if already {
 		return nil
 	}
@@ -934,14 +937,14 @@ func (m *SSHManager) GetSystemInfo(sessionId string) (result map[string]interfac
 		return nil, err
 	}
 
-	m.mu.Lock()
+	m.mu.RLock()
 	s, ok := m.sessions[sessionId]
 	if !ok {
-		m.mu.Unlock()
+		m.mu.RUnlock()
 		return nil, fmt.Errorf("session not found")
 	}
 	connKey := s.ConnKey
-	m.mu.Unlock()
+	m.mu.RUnlock()
 
 	_ = m.deployProbeScript(sftpClient, connKey)
 
@@ -1480,11 +1483,23 @@ func (m *SSHManager) ReadFile(sessionId string, path string) (string, error) {
 	}
 	defer f.Close()
 
-	buf, err := io.ReadAll(f)
+	stat, err := f.Stat()
 	if err != nil {
 		return "", err
 	}
-	return string(buf), nil
+
+	const maxFileSize = 50 * 1024 * 1024 // 50MB
+	if stat.Size() > maxFileSize {
+		return "", fmt.Errorf("文件过大 (%.1f MB)，请使用终端命令查看", float64(stat.Size())/(1024*1024))
+	}
+
+	var b bytes.Buffer
+	b.Grow(int(stat.Size()))
+	_, err = io.Copy(&b, f)
+	if err != nil {
+		return "", err
+	}
+	return b.String(), nil
 }
 
 func (m *SSHManager) WriteFile(sessionId string, path string, content string) error {
@@ -1631,6 +1646,7 @@ func (m *SSHManager) UploadDir(sessionId string, localDir string, remoteDir stri
 
 	remoteDir = filepath.ToSlash(remoteDir)
 
+	buf := make([]byte, 2*1024*1024)
 	return filepath.Walk(localDir, func(localPath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -1672,7 +1688,6 @@ func (m *SSHManager) UploadDir(sessionId string, localDir string, remoteDir stri
 			lastEmit:  time.Now(),
 		}
 
-		buf := make([]byte, 2*1024*1024)
 		_, err = io.CopyBuffer(dst, pr, buf)
 		return err
 	})

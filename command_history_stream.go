@@ -26,6 +26,11 @@ func (s *commandHistoryStream) Process(chunk []byte) ([]byte, []string) {
 		return nil, nil
 	}
 
+	// Fast path: no carry-over and no marker in chunk — pass through directly
+	if len(s.visibleCarry) == 0 && !s.inMarker && !bytes.Contains(chunk, historyMarkerStart) {
+		return chunk, nil
+	}
+
 	data := append(append([]byte{}, s.visibleCarry...), chunk...)
 	s.visibleCarry = s.visibleCarry[:0]
 

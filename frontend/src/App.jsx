@@ -30,6 +30,7 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [activeTerminalId, setActiveTerminalId] = useState(null);
   const lastTerminalRef = useRef({}); // 记录每个 session 最后选中的终端
+  const [mountedSessions, setMountedSessions] = useState(new Set());
   const [contentTab, setContentTab] = useState('terminal'); // 'terminal' | 'files'
   const [showAddServer, setShowAddServer] = useState(false);
   const [editServer, setEditServer] = useState(null);
@@ -722,7 +723,7 @@ export default function App() {
 
   // ── Connect to server ──────────────────────────────────────
   const connectServer = useCallback(async (server) => {
-    const existing = sessions.find((s) => s.serverId === server.id && s.status !== 'closed');
+    const existing = sessionsRef.current.find((s) => s.serverId === server.id && s.status !== 'closed');
     if (existing) {
       setActiveSessionId(existing.id);
       const lastTid = lastTerminalRef.current[existing.id];
@@ -799,7 +800,7 @@ export default function App() {
       }
       // 主机密钥变更或认证失败时，保持 connectingServer 和 connecting 状态，等待弹窗确认
     }
-  }, [sessions, addToast]);
+  }, [addToast]);
 
   // ── Close session ──────────────────────────────────────────
   const closeSession = useCallback((sessionId, e) => {
@@ -884,6 +885,12 @@ export default function App() {
         setActiveTerminalId(remaining[remaining.length - 1].id);
       } else {
         // 最后一个终端被关闭，整个 session 也被移除了
+        setMountedSessions(prev => {
+          if (!prev.has(sessionId)) return prev;
+          const next = new Set(prev);
+          next.delete(sessionId);
+          return next;
+        });
         const remainingSessions = sessionsRef.current.filter(s => s.id !== sessionId);
         if (remainingSessions.length > 0) {
           const nextSession = remainingSessions[remainingSessions.length - 1];
@@ -907,6 +914,18 @@ export default function App() {
       lastTerminalRef.current[activeSessionId] = activeTerminalId;
     }
   }, [activeSessionId, activeTerminalId]);
+
+  // 追踪已访问的 session，仅渲染访问过的 session 组件（避免未激活的 session 创建 xterm/WebSocket）
+  useEffect(() => {
+    if (activeSessionId) {
+      setMountedSessions(prev => {
+        if (prev.has(activeSessionId)) return prev;
+        const next = new Set(prev);
+        next.add(activeSessionId);
+        return next;
+      });
+    }
+  }, [activeSessionId]);
 
   // ── Quick Connect ──────────────────────────────────────────
   const handleQuickConnect = useCallback(() => {
