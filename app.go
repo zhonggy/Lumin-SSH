@@ -10,12 +10,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -720,11 +718,8 @@ func (a *App) UpdateApp(downloadUrl string, filename string) error {
 
 	// 3. 区分 Setup 还是 Portable 替换
 	if isSetup {
-		// 启动 Setup 安装向导，隐藏黑框
-		cmd := exec.Command("cmd.exe", "/C", "start", "", targetPath)
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("failed to start setup: %w", err)
+		if err := launchInstaller(targetPath); err != nil {
+			return err
 		}
 		// 退出当前应用以解除目录锁定
 		os.Exit(0)
@@ -743,10 +738,8 @@ func (a *App) UpdateApp(downloadUrl string, filename string) error {
 		return fmt.Errorf("failed to apply update file: %w", err)
 	}
 
-	cmd := exec.Command(exePath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to restart application: %w", err)
+	if err := restartApp(exePath); err != nil {
+		return err
 	}
 
 	os.Exit(0)

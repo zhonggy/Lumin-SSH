@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import CodeMirror from '@uiw/react-codemirror';
 import { useTranslation } from '../i18n.js';
+import { formatShortcut } from '../utils/platform.js';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
@@ -612,10 +613,10 @@ export default function FileEditor({
           onMouseDown={(e) => e.stopPropagation()}
         >
           {[
-            { label: t('复制'), action: 'copy', shortcut: 'Ctrl+C' },
-            { label: t('粘贴'), action: 'paste', shortcut: 'Ctrl+V' },
-            { label: t('剪切'), action: 'cut', shortcut: 'Ctrl+X' },
-            { label: t('全选'), action: 'selectAll', shortcut: 'Ctrl+A' },
+            { label: t('复制'), action: 'copy', shortcut: formatShortcut('Ctrl+C') },
+            { label: t('粘贴'), action: 'paste', shortcut: formatShortcut('Ctrl+V') },
+            { label: t('剪切'), action: 'cut', shortcut: formatShortcut('Ctrl+X') },
+            { label: t('全选'), action: 'selectAll', shortcut: formatShortcut('Ctrl+A') },
           ].map((item) => (
             <div
               key={item.action}

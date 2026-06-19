@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from '../i18n.js';
+import { formatShortcut } from '../utils/platform.js';
 import * as runtime from '../../wailsjs/runtime/runtime.js';
 
 export default function GlobalContextMenu() {
@@ -108,20 +109,20 @@ export default function GlobalContextMenu() {
     >
       <div className="context-menu-item" onClick={() => handleAction('cut')}>
         <span className="item-label">{t('剪切')}</span>
-        <span className="item-shortcut">Ctrl+X</span>
+        <span className="item-shortcut">{formatShortcut('Ctrl+X')}</span>
       </div>
       <div className="context-menu-item" onClick={() => handleAction('copy')}>
         <span className="item-label">{t('复制')}</span>
-        <span className="item-shortcut">Ctrl+C</span>
+        <span className="item-shortcut">{formatShortcut('Ctrl+C')}</span>
       </div>
       <div className="context-menu-item" onClick={() => handleAction('paste')}>
         <span className="item-label">{t('粘贴')}</span>
-        <span className="item-shortcut">Ctrl+V</span>
+        <span className="item-shortcut">{formatShortcut('Ctrl+V')}</span>
       </div>
       <div className="context-menu-divider"></div>
       <div className="context-menu-item" onClick={() => handleAction('selectAll')}>
         <span className="item-label">{t('全选')}</span>
-        <span className="item-shortcut">Ctrl+A</span>
+        <span className="item-shortcut">{formatShortcut('Ctrl+A')}</span>
       </div>
     </div>
   );

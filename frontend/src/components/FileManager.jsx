@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
 const FileEditor = React.lazy(() => import('./FileEditor.jsx'));
-import { useTranslation, t as tKey } from '../i18n.js';
+import { useTranslation, t as tKey, getLanguage } from '../i18n.js';
 
 // 格式化文件大小
 function fmtSize(bytes) {
@@ -15,7 +15,9 @@ function fmtSize(bytes) {
 // 格式化日期
 function fmtDate(ts) {
   if (!ts) return '-';
-  return new Date(ts).toLocaleString('zh-CN', {
+  const lang = getLanguage();
+  const locale = lang === 'en-US' ? 'en-US' : 'zh-CN';
+  return new Date(ts).toLocaleString(locale, {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   });

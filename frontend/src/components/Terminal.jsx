@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Copy, Clipboard, Trash2, CheckSquare, Play, Clock, X } from 'lucide-react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
+import { getModKey, formatShortcut } from '../utils/platform.js';
 import QuickCommands from './QuickCommands.jsx';
 import '@xterm/xterm/css/xterm.css';
 import { t } from '../i18n';
@@ -185,7 +186,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
       // 2. 解析当前按下的组合键字符串（如 "Ctrl+C", "Ctrl+Shift+V"）
       const keys = [];
-      if (e.ctrlKey)  keys.push('Ctrl');
+      if (getModKey(e))  keys.push('Ctrl');
       if (e.shiftKey) keys.push('Shift');
       if (e.altKey)   keys.push('Alt');
 
@@ -1200,11 +1201,11 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
           }}
         >
           {[
-            { icon: <Copy size={13} />, label: t('复制'), action: 'copy', shortcut: 'Ctrl+C', disabled: !contextHasSelection },
-            { icon: <Clipboard size={13} />, label: t('粘贴'), action: 'paste', shortcut: 'Ctrl+V' },
+            { icon: <Copy size={13} />, label: t('复制'), action: 'copy', shortcut: formatShortcut('Ctrl+C'), disabled: !contextHasSelection },
+            { icon: <Clipboard size={13} />, label: t('粘贴'), action: 'paste', shortcut: formatShortcut('Ctrl+V') },
             { type: 'separator' },
             { icon: <CheckSquare size={13} />, label: t('全选'), action: 'selectAll' },
-            { icon: <Trash2 size={13} />, label: t('清空屏幕'), action: 'clear', shortcut: 'Ctrl+L' },
+            { icon: <Trash2 size={13} />, label: t('清空屏幕'), action: 'clear', shortcut: formatShortcut('Ctrl+L') },
           ].map((item, idx) =>
             item.type === 'separator' ? (
               <div key={idx} className="context-menu-separator" />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
 import { useTranslation } from '../i18n.js';
+import { getModKey } from '../utils/platform.js';
 
 // ── 加载命令数据（从 Go 后端文件）────────────────────
 async function loadCommands() {
@@ -1000,7 +1001,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                   value={editCmdText}
                   onChange={(e) => { setEditCmdText(e.target.value); setDirty(true); }}
                   onKeyDown={(e) => {
-                    if (e.ctrlKey && e.key === 's') {
+                    if (getModKey(e) && e.key === 's') {
                       e.preventDefault();
                       commitCmdEdit();
                       save(commands);
@@ -1444,7 +1445,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 value={dlgCmd}
                 onChange={e => setDlgCmd(e.target.value)}
                 onKeyDown={e => {
-                  if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleDlgSave(); }
+                  if (getModKey(e) && e.key === 's') { e.preventDefault(); handleDlgSave(); }
                 }}
                 rows={3}
                 style={{ ...inputStyle, resize: 'vertical', fontFamily: "'JetBrains Mono', monospace", fontSize: 12, lineHeight: 1.5, minHeight: 70 }}

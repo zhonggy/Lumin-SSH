@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
 import { setLanguage as setGlobalLanguage, t as $t } from '../i18n.js';
+import { getModKey } from '../utils/platform.js';
 import logoImg from '../assets/logo.png';
 import { APP_VERSION } from '../config.js';
 import { useUpdateChecker } from '../hooks/useUpdateChecker.js';
@@ -533,7 +534,7 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
       if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
 
       const keys = [];
-      if (e.ctrlKey) keys.push('Ctrl');
+      if (getModKey(e)) keys.push('Ctrl');
       if (e.shiftKey) keys.push('Shift');
       if (e.altKey) keys.push('Alt');
       

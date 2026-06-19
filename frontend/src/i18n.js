@@ -941,6 +941,10 @@ export function setLanguage(lang) {
   listeners.forEach(fn => fn(lang));
 }
 
+export function getLanguage() {
+  return currentLang;
+}
+
 export function t(key) {
   const table = dict[currentLang] || dict['zh-CN'];
   return table[key] !== undefined ? table[key] : key;
