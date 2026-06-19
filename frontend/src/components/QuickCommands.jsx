@@ -262,6 +262,9 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
   const [confirmUnsaved, setConfirmUnsaved] = useState(null);
   // 分组名称编辑（本地缓存，手动保存）
   const [editGroupName, setEditGroupName] = useState('');
+  // 命令编辑（本地缓存，保存时才同步到树，避免每个按键都 cloneAlongPath）
+  const [editCmdName, setEditCmdName] = useState('');
+  const [editCmdText, setEditCmdText] = useState('');
 
   const treeRef = useRef(null);
   const groupPickerRef = useRef(null);
@@ -355,10 +358,13 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     return () => { cancelled = true; };
   }, []);
 
-  // 选中分组时同步本地编辑名称
+  // 选中项变化时同步本地编辑状态
   useEffect(() => {
     if (selectedItem?.type === 'group') {
       setEditGroupName(selectedItem.name || '');
+    } else if (selectedItem && !selectedItem.children) {
+      setEditCmdName(selectedItem.name || '');
+      setEditCmdText(selectedItem.command || '');
     }
   }, [selectedPath]);
 
@@ -394,6 +400,20 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     const data = await loadCommands();
     if (data.length > 0) setCommands(data);
   };
+
+  // ── 将本地编辑的命令名/内容写回树 ────────────────────
+  const commitCmdEdit = useCallback(() => {
+    if (!selectedPath || dirty === false) return false;
+    const sel = resolvePath(commands, selectedPath);
+    if (!sel || sel.item.children) return false; // 不是命令节点
+    if (sel.item.name === editCmdName && sel.item.command === editCmdText) return false;
+    const list = structuredClone(commands);
+    const r = resolvePath(list, selectedPath);
+    r.parent[r.idx].name = editCmdName;
+    r.parent[r.idx].command = editCmdText;
+    setCommands(list);
+    return true;
+  }, [commands, selectedPath, editCmdName, editCmdText, dirty]);
 
   // ── 上移/下移 ──────────────────────────────────────
   const handleMove = (path, direction) => {
@@ -457,6 +477,8 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
   // ── 选中处理 ────────────────────────────────────────
   const handleSelect = (path) => {
+    // 先将当前命令编辑写回树
+    commitCmdEdit();
     // 切换选中时如果有未保存修改，弹出确认框
     if (selectedPath && selectedPath !== path && dirty) {
       setConfirmUnsaved({ pendingPath: path });
@@ -949,14 +971,8 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 <label style={{ fontSize: 11, color: '#8b949e', display: 'block', marginBottom: 4 }}>{t('名称')}</label>
                 <input
                   type="text"
-                  value={selectedItem.name}
-                  onChange={(e) => {
-                    const list = cloneAlongPath(commands, selectedPath);
-                    const r = resolvePath(list, selectedPath);
-                    r.parent[r.idx].name = e.target.value;
-                    setCommands(list);
-                    setDirty(true);
-                  }}
+                  value={editCmdName}
+                  onChange={(e) => { setEditCmdName(e.target.value); setDirty(true); }}
                   style={inputStyle}
                 />
               </div>
@@ -970,10 +986,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                       <button
                         key={n}
                         onClick={() => {
-                          const list = cloneAlongPath(commands, selectedPath);
-                          const r = resolvePath(list, selectedPath);
-                          r.parent[r.idx].command = (r.parent[r.idx].command || '') + `[p#${n} ${t('参数')}${n}]`;
-                          setCommands(list);
+                          setEditCmdText(prev => prev + `[p#${n} ${t('参数')}${n}]`);
                           setDirty(true);
                         }}
                         title={t('插入参数 p#') + n}
@@ -986,17 +999,12 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                   </div>
                 </div>
                 <textarea
-                  value={selectedItem.command}
-                  onChange={(e) => {
-                    const list = cloneAlongPath(commands, selectedPath);
-                    const r = resolvePath(list, selectedPath);
-                    r.parent[r.idx].command = e.target.value;
-                    setCommands(list);
-                    setDirty(true);
-                  }}
+                  value={editCmdText}
+                  onChange={(e) => { setEditCmdText(e.target.value); setDirty(true); }}
                   onKeyDown={(e) => {
                     if (e.ctrlKey && e.key === 's') {
                       e.preventDefault();
+                      commitCmdEdit();
                       save(commands);
                       setDirty(false);
                       if (addToast) addToast(t('已保存'), 'success', 1500);
@@ -1010,10 +1018,10 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 />
 
                 {/* 参数预览 */}
-                {extractParams(selectedItem.command).length > 0 && (
+                {extractParams(editCmdText).length > 0 && (
                   <div style={{ marginTop: 6, fontSize: 11, color: '#d29922', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span>⚡</span>
-                    {t('含')} {extractParams(selectedItem.command).length} {t('个动态参数：')} {extractParams(selectedItem.command).map(p => `[p#${p.num}${p.label ? ' ' + p.label : ''}]`).join(', ')}
+                    {t('含')} {extractParams(editCmdText).length} {t('个动态参数：')} {extractParams(editCmdText).map(p => `[p#${p.num}${p.label ? ' ' + p.label : ''}]`).join(', ')}
                   </div>
                 )}
               </div>
@@ -1028,22 +1036,21 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 {/* 第一行：命令名 + 命令预览 + 编辑按钮 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                   <span style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontSize: 11, padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' }}>
-                    {selectedItem.name}
+                    {editCmdName}
                   </span>
                   <span style={{ flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b1bac4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {selectedItem.command || ''}
+                    {editCmdText || ''}
                   </span>
                   <button
-                    onClick={() => { save(commands); setDirty(false); if (addToast) addToast(t('已保存'), 'success', 1500); }}
+                    onClick={() => { commitCmdEdit(); save(commands); setDirty(false); if (addToast) addToast(t('已保存'), 'success', 1500); }}
                     style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', borderRadius: 3, padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}
                   >{t('保存')}</button>
                   <button
                     onClick={() => {
-                      const item = selectedItem;
                       setDialog({ type: 'edit' });
-                      setDlgName(item.name || '');
-                      setDlgCmd(item.command || '');
-                      setDlgAddCR(item.addCR !== false);
+                      setDlgName(editCmdName || '');
+                      setDlgCmd(editCmdText || '');
+                      setDlgAddCR(selectedItem.addCR !== false);
                     }}
                     style={{ background: 'transparent', border: '1px solid #30363d', color: '#8b949e', borderRadius: 3, padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}
                   >{t('编辑')}</button>
@@ -1051,9 +1058,9 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
                 {/* 第二行：参数输入区（有参数时才显示） */}
                 {(() => {
-                  const params = extractParams(selectedItem.command || '');
+                  const params = extractParams(editCmdText || '');
                   if (params.length === 0) return null;
-                  const cmdKey = selectedItem.command;
+                  const cmdKey = editCmdText;
                   return (
                     <div style={{ marginBottom: 6, overflowX: 'auto', overflowY: 'visible' }}>
                       {/* 参数行：标签名在外面，输入框 + 历史按钮 */}

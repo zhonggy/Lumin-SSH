@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import CodeMirror from '@uiw/react-codemirror';
-import { useTranslation, t as st } from '../i18n.js';
+import { useTranslation } from '../i18n.js';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
@@ -73,18 +73,18 @@ function getLanguage(filename) {
   return map[ext] || null;
 }
 
-const MODE_ICONS = {
-  modal: { icon: Maximize2, title: st('全屏弹窗') },
-  popup: { icon: PictureInPicture, title: st('浮动面板') },
-  split: { icon: Columns2, title: st('分栏编辑') },
+const MODE_ICONS_KEYS = {
+  modal: { icon: Maximize2, titleKey: '全屏弹窗' },
+  popup: { icon: PictureInPicture, titleKey: '浮动面板' },
+  split: { icon: Columns2, titleKey: '分栏编辑' },
 };
 
 const MODE_ORDER = ['modal', 'popup', 'split'];
 
-const SPLIT_ICONS = {
-  left: { icon: PanelLeft, title: st('左侧分栏') },
-  right: { icon: PanelRight, title: st('右侧分栏') },
-  bottom: { icon: PanelBottom, title: st('底部分栏') },
+const SPLIT_ICONS_KEYS = {
+  left: { icon: PanelLeft, titleKey: '左侧分栏' },
+  right: { icon: PanelRight, titleKey: '右侧分栏' },
+  bottom: { icon: PanelBottom, titleKey: '底部分栏' },
 };
 
 const SPLIT_ORDER = ['left', 'right', 'bottom'];
@@ -478,11 +478,11 @@ export default function FileEditor({
             <button
               className="btn btn-ghost btn-icon btn-sm"
               onClick={toggleSplitPosition}
-              title={SPLIT_ICONS[splitPosition].title}
+              title={t(SPLIT_ICONS_KEYS[splitPosition].titleKey)}
               style={{ padding: '4px 6px' }}
             >
               {(() => {
-                const Icon = SPLIT_ICONS[splitPosition].icon;
+                const Icon = SPLIT_ICONS_KEYS[splitPosition].icon;
                 return <Icon size={14} />;
               })()}
             </button>
@@ -491,11 +491,11 @@ export default function FileEditor({
           <button
             className="btn btn-ghost btn-icon btn-sm"
             onClick={toggleMode}
-            title={MODE_ICONS[mode].title}
+            title={t(MODE_ICONS_KEYS[mode].titleKey)}
             style={{ padding: '4px 6px' }}
           >
             {(() => {
-              const Icon = MODE_ICONS[mode].icon;
+              const Icon = MODE_ICONS_KEYS[mode].icon;
               return <Icon size={14} />;
             })()}
           </button>
