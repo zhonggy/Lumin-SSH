@@ -31,6 +31,7 @@ export default function App() {
   const [sessions, setSessions] = useState([]);      // { id, serverId, serverName, host, status, osInfo }
   const sessionsRef = useRef([]);
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+  const cancelledConnectionsRef = useRef(new Set());
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [activeTerminalId, setActiveTerminalId] = useState(null);
   const lastTerminalRef = useRef({}); // 记录每个 session 最后选中的终端
@@ -335,6 +336,11 @@ export default function App() {
 
   // ── 连接错误通用处理 ──────────────────────────────────────
   const handleConnectError = useCallback((sessionId, err) => {
+    // 如果用户已取消该连接，不再弹错误提示
+    if (cancelledConnectionsRef.current.has(sessionId)) {
+      cancelledConnectionsRef.current.delete(sessionId);
+      return;
+    }
     const errMsg = String(err);
     const isHostKeyChange = errMsg.includes('主机密钥已变更');
     const isAuthFailed = errMsg.includes('认证失败');
@@ -426,6 +432,7 @@ export default function App() {
   const handleCancelConnection = useCallback(() => {
     const cs = connectingServerRef.current;
     if (!cs) return;
+    cancelledConnectionsRef.current.add(cs.sessionId);
     AppGo.DisconnectSSH(cs.sessionId).catch(() => {});
     setSessions(prev => prev.filter(s => s.id !== cs.sessionId));
     setActiveSessionId(null);
@@ -778,13 +785,12 @@ export default function App() {
     const session = sessionsRef.current.find(s => s.id === sessionId);
     const name = session?.serverName || session?.name || session?.host || sessionId;
     if (!(await window.luminDialog?.confirm(`${t('确定关闭连接')}「${name}」？`))) return;
+    // 标记已取消，防止 connectServer/重连的 catch 仍弹错误提示
+    const termIds = session?.terminals ? session.terminals.map(t => t.id) : [sessionId];
+    termIds.forEach(id => cancelledConnectionsRef.current.add(id));
     // 后端断开（不等待，即使服务器无响应也不阻塞 UI）
-    if (session?.terminals) {
-      for (const term of session.terminals) {
-        AppGo.DisconnectSSH(term.id).catch(() => {});
-      }
-    } else {
-      AppGo.DisconnectSSH(sessionId).catch(() => {});
+    for (const id of termIds) {
+      AppGo.DisconnectSSH(id).catch(() => {});
     }
     // 立即从 UI 移除会话
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));

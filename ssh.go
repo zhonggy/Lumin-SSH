@@ -53,14 +53,16 @@ type SessionData struct {
 
 type SSHManager struct {
 	ctx              context.Context
-	app              *App                       // reference to App for WebSocket output delivery
-	sessions         map[string]*SessionData    // terminalId -> terminal session
-	clients          map[string]*sshClientEntry // connKey -> shared client+SFTP
-	connTerminals    map[string][]string        // connKey -> terminal sessionIds
-	probeDeployed    map[string]bool            // connKey -> probe.sh deployed
-	pendingHostKeys  map[string]*PendingHostKey // sessionId -> pending host key info
-	tempAcceptedKeys map[string]string          // sessionId -> fingerprint (accept this time only)
+	app              *App                          // reference to App for WebSocket output delivery
+	sessions         map[string]*SessionData       // terminalId -> terminal session
+	clients          map[string]*sshClientEntry    // connKey -> shared client+SFTP
+	connTerminals    map[string][]string           // connKey -> terminal sessionIds
+	probeDeployed    map[string]bool               // connKey -> probe.sh deployed
+	pendingHostKeys  map[string]*PendingHostKey    // sessionId -> pending host key info
+	tempAcceptedKeys map[string]string             // sessionId -> fingerprint (accept this time only)
+	pendingCancels   map[string]context.CancelFunc // sessionId -> cancel func for in-progress Connect
 	mu               sync.RWMutex
+	pendingMu        sync.Mutex
 }
 
 // dialAddr 拼接 host:port，自动处理 IPv6 地址
@@ -79,6 +81,7 @@ func NewSSHManager() *SSHManager {
 		probeDeployed:    make(map[string]bool),
 		pendingHostKeys:  make(map[string]*PendingHostKey),
 		tempAcceptedKeys: make(map[string]string),
+		pendingCancels:   make(map[string]context.CancelFunc),
 	}
 }
 
@@ -220,10 +223,69 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 		}
 
 		target := dialAddr(conn.Host, conn.Port)
-		var dialErr error
-		client, dialErr = ssh.Dial("tcp", target, config)
+
+		// 创建可取消 context，支持 Disconnect 中断正在进行的连接
+		cancelCtx, cancelConnect := context.WithCancel(context.Background())
+		m.pendingMu.Lock()
+		m.pendingCancels[sessionId] = cancelConnect
+		m.pendingMu.Unlock()
+		defer func() {
+			m.pendingMu.Lock()
+			delete(m.pendingCancels, sessionId)
+			m.pendingMu.Unlock()
+		}()
+
+		var d net.Dialer
+		d.Timeout = config.Timeout
+		netConn, dialErr := d.DialContext(cancelCtx, "tcp", target)
 		if dialErr != nil {
-			if errors.Is(dialErr, ErrHostKeyChanged) {
+			// 用户取消连接时不弹错误，直接返回
+			if errors.Is(dialErr, context.Canceled) || cancelCtx.Err() != nil {
+				return fmt.Errorf("连接已取消")
+			}
+			// TCP 连接失败（超时、拒绝等），按原始逻辑处理
+			errStr := dialErr.Error()
+			if strings.Contains(errStr, "connection refused") {
+				if m.ctx != nil {
+					runtime.EventsEmit(m.ctx, "ssh-auth-failed", map[string]interface{}{
+						"sessionId": sessionId,
+						"connId":    conn.ID,
+						"host":      conn.Host,
+						"port":      conn.Port,
+						"username":  conn.Username,
+						"error":     errStr,
+					})
+				}
+				return fmt.Errorf("认证失败")
+			}
+			return dialErr
+		}
+
+		// 再检查一次取消信号（DialContext 返回后 context 可能刚被取消）
+		if cancelCtx.Err() != nil {
+			netConn.Close()
+			return fmt.Errorf("连接已取消")
+		}
+
+		// 在握手期间监听取消：context 取消时关闭 netConn，使 NewClientConn 快速失败
+		handshakeDone := make(chan struct{})
+		go func() {
+			select {
+			case <-cancelCtx.Done():
+				netConn.Close()
+			case <-handshakeDone:
+			}
+		}()
+
+		sshConn, chans, reqs, handshakeErr := ssh.NewClientConn(netConn, target, config)
+		close(handshakeDone)
+
+		if handshakeErr != nil {
+			// 用户取消导致的握手失败
+			if cancelCtx.Err() != nil {
+				return fmt.Errorf("连接已取消")
+			}
+			if errors.Is(handshakeErr, ErrHostKeyChanged) {
 				if m.ctx != nil {
 					// 在锁内读取 pendingHostKeys，避免与 AcceptHostKeyChange 并发写入竞争
 					m.mu.RLock()
@@ -254,12 +316,11 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 			}
 
 			// 认证失败或连接被拒绝，立即返回错误
-			errStr := dialErr.Error()
+			errStr := handshakeErr.Error()
 			if strings.Contains(errStr, "unable to authenticate") ||
 				strings.Contains(errStr, "no supported methods remain") ||
 				strings.Contains(errStr, "EOF") ||
-				strings.Contains(errStr, "connection reset") ||
-				strings.Contains(errStr, "connection refused") {
+				strings.Contains(errStr, "connection reset") {
 				if m.ctx != nil {
 					runtime.EventsEmit(m.ctx, "ssh-auth-failed", map[string]interface{}{
 						"sessionId": sessionId,
@@ -273,8 +334,10 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 				return fmt.Errorf("认证失败")
 			}
 
-			return dialErr
+			return handshakeErr
 		}
+
+		client = ssh.NewClient(sshConn, chans, reqs)
 
 		var sftpErr error
 		sftpClient, sftpErr = sftp.NewClient(client)
@@ -520,6 +583,14 @@ func (m *SSHManager) Disconnect(sessionId string) {
 		}
 	}()
 
+	// 先取消正在进行的连接（Connect 还没完成的情况）
+	m.pendingMu.Lock()
+	if cancel, ok := m.pendingCancels[sessionId]; ok {
+		cancel()
+		delete(m.pendingCancels, sessionId)
+	}
+	m.pendingMu.Unlock()
+
 	// 1. 在锁内完成 map 清理，收集需要关闭的资源
 	m.mu.Lock()
 	s, ok := m.sessions[sessionId]
@@ -575,6 +646,14 @@ func (m *SSHManager) Disconnect(sessionId string) {
 
 // DisconnectAll 断开所有 SSH 连接，用于应用退出时清理资源
 func (m *SSHManager) DisconnectAll() {
+	// 先取消所有正在进行的连接
+	m.pendingMu.Lock()
+	for id, cancel := range m.pendingCancels {
+		cancel()
+		delete(m.pendingCancels, id)
+	}
+	m.pendingMu.Unlock()
+
 	m.mu.RLock()
 	ids := make([]string, 0, len(m.sessions))
 	for id := range m.sessions {
