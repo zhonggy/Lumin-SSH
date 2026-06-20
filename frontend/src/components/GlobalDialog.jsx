@@ -47,15 +47,19 @@ export default function GlobalDialog() {
       },
       choice: (message, title, buttons) => {
         return new Promise((resolve) => {
-          setDialogs(prev => [...prev, {
-            id: Date.now() + Math.random(),
-            type: 'choice',
-            title,
-            message,
-            buttons,
-            onChoice: (val) => resolve(val),
-            onClose: () => resolve(null)
-          }]);
+          setDialogs(prev => {
+            // 防止重复弹窗
+            if (prev.some(d => d.type === 'choice' && d.title === title)) return prev;
+            return [...prev, {
+              id: Date.now() + Math.random(),
+              type: 'choice',
+              title,
+              message,
+              buttons,
+              onChoice: (val) => resolve(val),
+              onClose: () => resolve(null)
+            }];
+          });
         });
       }
     };
