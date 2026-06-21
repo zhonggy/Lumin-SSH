@@ -41,7 +41,7 @@ const AnolisIcon     = () => <LetterIcon letter="An" bg="#3b82f6" color="#fff" /
 const OpenCloudIcon  = () => <LetterIcon letter="OC" bg="#0066ff" />;
 const OpenEulerIcon  = () => <LetterIcon letter="eU" bg="#0066ff" />;
 const OpenSuseIcon   = () => <LetterIcon letter="oS" bg="#73ba25" />;
-const NixosIcon      = () => <LetterIcon letter="Nx" bg="#7eb8da" />;
+const NixosIcon      = () => <img src="/nixos.svg" width="22" height="22" alt="NixOS" />;
 const GentooIcon     = () => <LetterIcon letter="G" bg="#54487a" />;
 const AoscIcon       = () => <LetterIcon letter="Ao" bg="#ff6b6b" />;
 const FnosIcon       = () => <LetterIcon letter="fn" bg="#0ea5e9" />;
@@ -73,7 +73,7 @@ const getOSInfo = (name = '', os = '', osInfo = null) => {
   if (n.includes('fedora'))       return { icon: <FedoraIcon />, bg: 'var(--bg-2)', label: 'Fedora' };
   if (n.includes('opensuse'))     return { icon: <OpenSuseIcon />, bg: '#73ba25', label: 'openSUSE' };
   if (n.includes('arch'))         return { icon: <ArchIcon />, bg: '#1793d1', label: 'Arch' };
-  if (n.includes('nixos'))        return { icon: <NixosIcon />, bg: '#7eb8da', label: 'NixOS' };
+  if (n.includes('nixos'))        return { icon: <NixosIcon />, bg: 'var(--bg-2)', label: 'NixOS' };
   if (n.includes('alpine'))       return { icon: <AlpineIcon />, bg: 'var(--bg-2)', label: 'Alpine' };
   if (n.includes('gentoo'))       return { icon: <GentooIcon />, bg: '#54487a', label: 'Gentoo' };
   if (n.includes('aosc'))         return { icon: <AoscIcon />, bg: '#ff6b6b', label: 'AOSC' };
