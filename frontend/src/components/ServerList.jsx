@@ -63,14 +63,14 @@ const getOSInfo = (name = '', os = '', osInfo = null) => {
   if (n.includes('kali'))         return { icon: <KaliIcon />, bg: '#367bf0', label: 'Kali' };
   if (n.includes('centos stream'))return { icon: <CentosIcon />, bg: 'var(--bg-2)', label: 'CentOS Stream' };
   if (n.includes('centos'))       return { icon: <CentosIcon />, bg: 'var(--bg-2)', label: 'CentOS' };
-  if (n.includes('rhel'))         return { icon: <RhelIcon />, bg: '#ee0000', label: 'RHEL' };
+  if (n.includes('rhel'))         return { icon: <RhelIcon />, bg: 'var(--bg-2)', label: 'RHEL' };
   if (n.includes('almalinux'))    return { icon: <AlmaIcon />, bg: 'var(--bg-2)', label: 'AlmaLinux' };
   if (n.includes('rocky'))        return { icon: <RockyIcon />, bg: 'var(--bg-2)', label: 'Rocky' };
-  if (n.includes('oracle'))       return { icon: <OracleIcon />, bg: '#f80000', label: 'Oracle' };
+  if (n.includes('oracle'))       return { icon: <OracleIcon />, bg: 'var(--bg-2)', label: 'Oracle' };
   if (n.includes('anolis'))       return { icon: <AnolisIcon />, bg: '#3b82f6', label: 'Anolis' };
   if (n.includes('opencloudos'))  return { icon: <OpenCloudIcon />, bg: '#0066ff', label: 'OpenCloudOS' };
   if (n.includes('openeuler'))    return { icon: <OpenEulerIcon />, bg: '#0066ff', label: 'openEuler' };
-  if (n.includes('fedora'))       return { icon: <FedoraIcon />, bg: '#294172', label: 'Fedora' };
+  if (n.includes('fedora'))       return { icon: <FedoraIcon />, bg: 'var(--bg-2)', label: 'Fedora' };
   if (n.includes('opensuse'))     return { icon: <OpenSuseIcon />, bg: '#73ba25', label: 'openSUSE' };
   if (n.includes('arch'))         return { icon: <ArchIcon />, bg: '#1793d1', label: 'Arch' };
   if (n.includes('nixos'))        return { icon: <NixosIcon />, bg: '#7eb8da', label: 'NixOS' };
