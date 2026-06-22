@@ -1,15 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from '../i18n.js';
 import { Monitor, Pencil, Link, Trash2, X, SquarePen } from 'lucide-react';
+import { clampMenuPosition } from '../utils/menuPosition.js';
 
-const MENU_VIEWPORT_GAP = 12;
 const MENU_ESTIMATED_WIDTH = 196;
 const MENU_ESTIMATED_HEIGHT = 132;
-
-const clampMenuPosition = (x, y, width = MENU_ESTIMATED_WIDTH, height = MENU_ESTIMATED_HEIGHT) => ({
-  x: Math.max(MENU_VIEWPORT_GAP, Math.min(x, window.innerWidth - width - MENU_VIEWPORT_GAP)),
-  y: Math.max(MENU_VIEWPORT_GAP, Math.min(y, window.innerHeight - height - MENU_VIEWPORT_GAP)),
-});
 
 const LATENCY_CLASS = (ms) => {
   if (ms === null || ms === undefined) return 'offline';
@@ -44,41 +39,48 @@ const AlpineIcon = () => <svg viewBox="0 0 512 512" width="22" height="22"><path
 const FreeBSDIcon = () => <svg viewBox="0 0 256 252" width="22" height="22"><g fill="#B5010F"><path d="M252.723 5.11c13.508 13.5-23.939 72.848-30.27 79.182-6.33 6.321-22.409.505-35.91-13-13.508-13.5-19.327-29.583-12.996-35.914 6.327-6.333 65.671-43.777 79.176-30.269M63.305 19.394c-20.622-11.7-49.966-24.716-59.3-15.38-9.458 9.454 4.034 39.458 15.858 60.117a126.812 126.812 0 0 1 43.442-44.737"/><path d="M232.123 79.636c1.899 6.44 1.558 11.76-1.522 14.834-7.193 7.196-26.624-.464-44.14-17.134a89.383 89.383 0 0 1-3.627-3.428c-6.334-6.336-11.262-13.08-14.414-19.291-6.135-11.006-7.67-20.726-3.033-25.364 2.527-2.524 6.57-3.212 11.502-2.325 3.216-2.034 7.013-4.3 11.176-6.621-16.929-8.83-36.176-13.817-56.593-13.817C63.753 6.49 8.854 61.38 8.854 129.105c0 67.713 54.9 122.61 122.618 122.61 67.72 0 122.616-54.897 122.616-122.61 0-21.87-5.74-42.377-15.767-60.156-2.167 3.955-4.274 7.578-6.198 10.687"/></g></svg>;
 
 // 检测OS，支持静态名称匹配和动态 osInfo 对象
+// 使用模块级缓存避免每次渲染都创建新 JSX 元素（性能优化）
+const _osInfoCache = new Map();
 const getOSInfo = (name = '', os = '', osInfo = null) => {
   // 优先用连接后实际查询到的系统信息
   const dynStr = (osInfo?.os || osInfo?.platform || '').toLowerCase();
   const n = dynStr || (name + ' ' + (os || '')).toLowerCase();
+  // 缓存键：仅依赖输入字符串，JSX 元素可安全复用
+  if (_osInfoCache.has(n)) return _osInfoCache.get(n);
+  let result;
   // ── 发行版检测（按优先级排列）──
-  if (n.includes('ubuntu'))       return { icon: <UbuntuIcon />, bg: 'var(--bg-2)', label: 'Ubuntu' };
-  if (n.includes('debian'))       return { icon: <DebianIcon />, bg: 'var(--bg-2)', label: 'Debian' };
-  if (n.includes('kali'))         return { icon: <KaliIcon />, bg: 'var(--bg-2)', label: 'Kali' };
-  if (n.includes('centos stream'))return { icon: <CentosIcon />, bg: 'var(--bg-2)', label: 'CentOS Stream' };
-  if (n.includes('centos'))       return { icon: <CentosIcon />, bg: 'var(--bg-2)', label: 'CentOS' };
-  if (n.includes('rhel'))         return { icon: <RhelIcon />, bg: 'var(--bg-2)', label: 'RHEL' };
-  if (n.includes('almalinux'))    return { icon: <AlmaIcon />, bg: 'var(--bg-2)', label: 'AlmaLinux' };
-  if (n.includes('rocky'))        return { icon: <RockyIcon />, bg: 'var(--bg-2)', label: 'Rocky' };
-  if (n.includes('oracle'))       return { icon: <OracleIcon />, bg: 'var(--bg-2)', label: 'Oracle' };
-  if (n.includes('anolis'))       return { icon: <AnolisIcon />, bg: 'var(--bg-2)', label: 'Anolis' };
-  if (n.includes('opencloudos'))  return { icon: <OpenCloudIcon />, bg: 'var(--bg-2)', label: 'OpenCloudOS' };
-  if (n.includes('openeuler'))    return { icon: <OpenEulerIcon />, bg: 'var(--bg-2)', label: 'openEuler' };
-  if (n.includes('fedora'))       return { icon: <FedoraIcon />, bg: 'var(--bg-2)', label: 'Fedora' };
-  if (n.includes('opensuse'))     return { icon: <OpenSuseIcon />, bg: 'var(--bg-2)', label: 'openSUSE' };
-  if (n.includes('arch'))         return { icon: <ArchIcon />, bg: 'var(--bg-2)', label: 'Arch' };
-  if (n.includes('nixos'))        return { icon: <NixosIcon />, bg: 'var(--bg-2)', label: 'NixOS' };
-  if (n.includes('alpine'))       return { icon: <AlpineIcon />, bg: 'var(--bg-2)', label: 'Alpine' };
-  if (n.includes('gentoo'))       return { icon: <GentooIcon />, bg: 'var(--bg-2)', label: 'Gentoo' };
-  if (n.includes('aosc'))         return { icon: <AoscIcon />, bg: 'var(--bg-2)', label: 'AOSC' };
-  if (n.includes('freebsd'))      return { icon: <FreeBSDIcon />, bg: 'var(--bg-2)', label: 'FreeBSD' };
+  if (n.includes('ubuntu'))       result = { icon: <UbuntuIcon />, bg: 'var(--bg-2)', label: 'Ubuntu' };
+  else if (n.includes('debian'))       result = { icon: <DebianIcon />, bg: 'var(--bg-2)', label: 'Debian' };
+  else if (n.includes('kali'))         result = { icon: <KaliIcon />, bg: 'var(--bg-2)', label: 'Kali' };
+  else if (n.includes('centos stream'))result = { icon: <CentosIcon />, bg: 'var(--bg-2)', label: 'CentOS Stream' };
+  else if (n.includes('centos'))       result = { icon: <CentosIcon />, bg: 'var(--bg-2)', label: 'CentOS' };
+  else if (n.includes('rhel'))         result = { icon: <RhelIcon />, bg: 'var(--bg-2)', label: 'RHEL' };
+  else if (n.includes('almalinux'))    result = { icon: <AlmaIcon />, bg: 'var(--bg-2)', label: 'AlmaLinux' };
+  else if (n.includes('rocky'))        result = { icon: <RockyIcon />, bg: 'var(--bg-2)', label: 'Rocky' };
+  else if (n.includes('oracle'))       result = { icon: <OracleIcon />, bg: 'var(--bg-2)', label: 'Oracle' };
+  else if (n.includes('anolis'))       result = { icon: <AnolisIcon />, bg: 'var(--bg-2)', label: 'Anolis' };
+  else if (n.includes('opencloudos'))  result = { icon: <OpenCloudIcon />, bg: 'var(--bg-2)', label: 'OpenCloudOS' };
+  else if (n.includes('openeuler'))    result = { icon: <OpenEulerIcon />, bg: 'var(--bg-2)', label: 'openEuler' };
+  else if (n.includes('fedora'))       result = { icon: <FedoraIcon />, bg: 'var(--bg-2)', label: 'Fedora' };
+  else if (n.includes('opensuse'))     result = { icon: <OpenSuseIcon />, bg: 'var(--bg-2)', label: 'openSUSE' };
+  else if (n.includes('arch'))         result = { icon: <ArchIcon />, bg: 'var(--bg-2)', label: 'Arch' };
+  else if (n.includes('nixos'))        result = { icon: <NixosIcon />, bg: 'var(--bg-2)', label: 'NixOS' };
+  else if (n.includes('alpine'))       result = { icon: <AlpineIcon />, bg: 'var(--bg-2)', label: 'Alpine' };
+  else if (n.includes('gentoo'))       result = { icon: <GentooIcon />, bg: 'var(--bg-2)', label: 'Gentoo' };
+  else if (n.includes('aosc'))         result = { icon: <AoscIcon />, bg: 'var(--bg-2)', label: 'AOSC' };
+  else if (n.includes('freebsd'))      result = { icon: <FreeBSDIcon />, bg: 'var(--bg-2)', label: 'FreeBSD' };
   // ── 非 Linux 系统 ──
-  if (n.includes('windows'))      return { icon: <WinIcon />, bg: 'var(--bg-2)', label: 'Windows' };
-  if (n.includes('mac') || n.includes('darwin')) return { icon: <AppleIcon />, bg: 'var(--bg-2)', label: 'macOS' };
+  else if (n.includes('windows'))      result = { icon: <WinIcon />, bg: 'var(--bg-2)', label: 'Windows' };
+  else if (n.includes('mac') || n.includes('darwin')) result = { icon: <AppleIcon />, bg: 'var(--bg-2)', label: 'macOS' };
   // ── 环境关键词（基于服务器名称）──
-  if (n.includes('prod') || n.includes('生产'))  return { icon: <LinuxIcon />, bg: '#059669', label: 'Prod' };
-  if (n.includes('dev') || n.includes('开发'))   return { icon: <LinuxIcon />, bg: '#7c3aed', label: 'Dev' };
-  if (n.includes('test') || n.includes('测试'))  return { icon: <LinuxIcon />, bg: '#dc2626', label: 'Test' };
-  if (n.includes('db') || n.includes('数据'))    return { icon: <LinuxIcon />, bg: '#b45309', label: 'DB' };
-  if (n.includes('web') || n.includes('nginx'))  return { icon: <LinuxIcon />, bg: '#0891b2', label: 'Web' };
-  return { icon: <LinuxIcon />, bg: 'var(--bg-3)', label: 'Linux' };
+  else if (n.includes('prod') || n.includes('生产'))  result = { icon: <LinuxIcon />, bg: '#059669', label: 'Prod' };
+  else if (n.includes('dev') || n.includes('开发'))   result = { icon: <LinuxIcon />, bg: '#7c3aed', label: 'Dev' };
+  else if (n.includes('test') || n.includes('测试'))  result = { icon: <LinuxIcon />, bg: '#dc2626', label: 'Test' };
+  else if (n.includes('db') || n.includes('数据'))    result = { icon: <LinuxIcon />, bg: '#b45309', label: 'DB' };
+  else if (n.includes('web') || n.includes('nginx'))  result = { icon: <LinuxIcon />, bg: '#0891b2', label: 'Web' };
+  else result = { icon: <LinuxIcon />, bg: 'var(--bg-3)', label: 'Linux' };
+  _osInfoCache.set(n, result);
+  return result;
 };
 
 export default function ServerList({
@@ -135,7 +137,7 @@ export default function ServerList({
     e.preventDefault();
     e.stopPropagation();
     setMenuServer(server);
-    setMenuPos(clampMenuPosition(e.clientX, e.clientY));
+    setMenuPos(clampMenuPosition(e.clientX, e.clientY, MENU_ESTIMATED_WIDTH, MENU_ESTIMATED_HEIGHT));
   };
 
   const isActive = (server) => {

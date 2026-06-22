@@ -16,7 +16,6 @@ import { clampPanelWidth } from './components/probeFormatting.js';
 import { useTranslation } from './i18n.js';
 import { useUpdateChecker } from './hooks/useUpdateChecker.js';
 import ConnectingCard from './components/ConnectingCard.jsx';
-import TrayPanel from './components/TrayPanel.jsx';
 import UpdateModal from './components/UpdateModal.jsx';
 import { Settings, House, Minus, Square, X, Eye, EyeOff, LayoutGrid, List, Search, Plus, Zap, BarChart3, Monitor, RefreshCw, FolderOpen, Terminal as TerminalIcon, Folder, ScrollText } from 'lucide-react';
 import { Z } from './constants/zIndex';
@@ -51,7 +50,6 @@ export default function App() {
     }, 0);
     return () => { clearTimeout(timer); document.removeEventListener('click', close); };
   }, [tabContextMenu]);
-  const [showTrayPanel, setShowTrayPanel] = useState(false);
   const [connectingServer, setConnectingServer] = useState(null); // { server, sessionId, startTime }
   const connectingServerRef = useRef(connectingServer);
   useEffect(() => { connectingServerRef.current = connectingServer; }, [connectingServer]);
@@ -170,16 +168,6 @@ export default function App() {
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   // ── 新增主页仪表盘状态 ──────────────────────────────────
-  const [recentServers, setRecentServers] = useState(() => {
-    try {
-      const saved = localStorage.getItem('recent_servers');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) { return []; }
-  });
-  // 持久化最近连接列表到 localStorage（仅含非敏感字段）
-  useEffect(() => {
-    localStorage.setItem('recent_servers', JSON.stringify(recentServers));
-  }, [recentServers]);
   const [isRefreshingPing, setIsRefreshingPing] = useState(false);
   const [pingInterval, setPingInterval] = useState(parseInt(localStorage.getItem('pingInterval') || '2', 10));
 
@@ -269,6 +257,7 @@ export default function App() {
 
   // ── 刷新延迟 ────────────────────────────────────────────
   const handleRefreshPing = async () => {
+    if (isRefreshingPing) return; // 防止重复点击导致并发竞态
     setIsRefreshingPing(true);
     await pingAll();
     setTimeout(() => { if (mountedRef.current) setIsRefreshingPing(false); }, 800);
@@ -322,9 +311,6 @@ export default function App() {
 
       // 连接成功后自动查询 OS信息并更新 sessions
       await postConnectSetup(sessionId, savedServer.id);
-
-      // 加入最近连接（仅保留非敏感字段）
-      addRecentServer({ id: savedServer.id, name: savedServer.name, host: savedServer.host, port: savedServer.port, username: savedServer.username });
 
       // 清空表单
       setQuickName('');
@@ -446,19 +432,13 @@ export default function App() {
     const cs = connectingServerRef.current;
     if (!cs) return;
     cancelledConnectionsRef.current.add(cs.sessionId);
+    // 30 秒后自动清理，避免 Set 无限增长（错误若未到达则永久残留）
+    setTimeout(() => { cancelledConnectionsRef.current.delete(cs.sessionId); }, 30000);
     AppGo.DisconnectSSH(cs.sessionId).catch(() => {});
     setSessions(prev => prev.filter(s => s.id !== cs.sessionId));
     setActiveSessionId(null);
     setActiveTerminalId(null);
     setConnectingServer(null);
-  }, []);
-
-  // ── 加入最近连接列表 ──────────────────────────────────────
-  const addRecentServer = useCallback((serverData) => {
-    setRecentServers(prev => {
-      const filtered = prev.filter(s => s.id !== serverData.id);
-      return [serverData, ...filtered].slice(0, 4);
-    });
   }, []);
 
   // ── 切换到下一个可用 session ──────────────────────────────
@@ -483,7 +463,7 @@ export default function App() {
     );
 
     // 如果是当前激活的会话，展示连接等待卡片
-    const serverObj = servers.find((sv) => sv.id === session.serverId);
+    const serverObj = serversRef.current.find((sv) => sv.id === session.serverId);
     if (serverObj) {
       setConnectingServer({ server: serverObj, sessionId: session.id, startTime: Date.now() });
     }
@@ -527,7 +507,7 @@ export default function App() {
         addToast(`${t('重新连接失败')}: ${err}`, 'error', 5000);
       }
     }
-  }, [servers, addToast, t, postConnectSetup]);
+  }, [addToast, t, postConnectSetup]);
 
   // ── 监听 SSH 意外断开事件 ────────────────────────────────────
   useEffect(() => {
@@ -687,7 +667,6 @@ export default function App() {
         await postConnectSetup(sessionId, connId, { password: newPassword });
 
         // 加入最近连接
-        addRecentServer({ id: connId, host, port, username });
       } catch (retryErr) {
         setSessions((prev) =>
           prev.map((s) => (s.id === sessionId ? { ...s, status: 'error' } : s))
@@ -786,7 +765,6 @@ export default function App() {
       await postConnectSetup(sessionId, server.id);
 
       // 连接成功后加入最近连接列表（仅保留非敏感字段）
-      addRecentServer({ id: server.id, name: server.name, host: server.host, port: server.port, username: server.username });
     } catch (err) {
       handleConnectError(sessionId, err);
     }
@@ -800,7 +778,11 @@ export default function App() {
     if (!(await window.luminDialog?.confirm(`${t('确定关闭连接')}「${name}」？`))) return;
     // 标记已取消，防止 connectServer/重连的 catch 仍弹错误提示
     const termIds = session?.terminals ? session.terminals.map(t => t.id) : [sessionId];
-    termIds.forEach(id => cancelledConnectionsRef.current.add(id));
+    termIds.forEach(id => {
+      cancelledConnectionsRef.current.add(id);
+      // 30 秒后自动清理，避免 Set 无限增长
+      setTimeout(() => { cancelledConnectionsRef.current.delete(id); }, 30000);
+    });
     // 后端断开（不等待，即使服务器无响应也不阻塞 UI）
     for (const id of termIds) {
       AppGo.DisconnectSSH(id).catch(() => {});
@@ -845,7 +827,7 @@ export default function App() {
     } catch (err) {
       addToast(`${t('新建终端失败')}: ${err}`, 'error', 5000);
     }
-  }, [sessions, addToast]);
+  }, [addToast, t]);
 
   // ── 关闭单个终端标签 ──────────────────────────────────────
   const closeTerminal = useCallback((sessionId, terminalId, e) => {
@@ -1006,7 +988,7 @@ export default function App() {
       <div className="topbar">
         <div className="topbar-content">
           <div className="topbar-logo" style={{ marginLeft: 8, cursor: 'pointer' }} onClick={() => { setActiveSessionId(null); setActiveTerminalId(null); setShowSettings(false); }}>
-            <img src={logoImg} alt="logo" />
+            <img src={logoImg} alt="Lumin SSH" />
             <div className="topbar-title" style={{ userSelect: 'none' }}>Lumin</div>
           </div>
           
@@ -1074,15 +1056,16 @@ export default function App() {
           {sessions.length === 0 && <div style={{ flex: 1 }}></div>}
 
           <div className="window-controls">
-            <button className="btn btn-ghost btn-icon no-drag" onClick={() => setShowSettings(true)} title={t('设置')} style={{ display: 'flex', alignItems: 'center' }}><Settings size={16} /></button>
-            
+            <button className="btn btn-ghost btn-icon no-drag" onClick={() => setShowSettings(true)} title={t('设置')} aria-label={t('设置')} style={{ display: 'flex', alignItems: 'center' }}><Settings size={16} /></button>
+
             <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 8px' }}></div>
-            
-            <button className="btn btn-ghost btn-icon no-drag" onClick={WindowMinimise} title={t('最小化')} style={{ display: 'flex', alignItems: 'center' }}><Minus size={14} /></button>
-            <button className="btn btn-ghost btn-icon no-drag" onClick={WindowToggleMaximise} title={t('最大化')} style={{ display: 'flex', alignItems: 'center' }}><Square size={14} /></button>
+
+            <button className="btn btn-ghost btn-icon no-drag" onClick={WindowMinimise} title={t('最小化')} aria-label={t('最小化')} style={{ display: 'flex', alignItems: 'center' }}><Minus size={14} /></button>
+            <button className="btn btn-ghost btn-icon no-drag" onClick={WindowToggleMaximise} title={t('最大化')} aria-label={t('最大化')} style={{ display: 'flex', alignItems: 'center' }}><Square size={14} /></button>
             <button
               className="btn btn-ghost btn-icon no-drag"
               title={t('关闭')}
+              aria-label={t('关闭')}
               onClick={handleCloseWindow}
             ><X size={14} /></button>
           </div>
@@ -1128,7 +1111,7 @@ export default function App() {
                     <div className="form-group-compact" style={{ position: 'relative' }}>
                       <label>{t('密码')}</label>
                       <input className="input-compact" type={showQuickPass ? "text" : "password"} placeholder={t('请输入密码')} value={quickPass} onChange={e => setQuickPass(e.target.value)} style={{ paddingRight: 32 }} />
-                      <button type="button" onClick={() => setShowQuickPass(!showQuickPass)} style={{ position: 'absolute', right: 6, bottom: 4, background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
+                      <button type="button" aria-label={showQuickPass ? t('隐藏密码') : t('显示密码')} onClick={() => setShowQuickPass(!showQuickPass)} style={{ position: 'absolute', right: 6, bottom: 4, background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
                         {showQuickPass ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
@@ -1144,7 +1127,7 @@ export default function App() {
                       <div className="form-group-compact" style={{ position: 'relative' }}>
                         <label>{t('私钥密码短语 (可选)')}</label>
                         <input className="input-compact" type={showQuickPassphrase ? "text" : "password"} placeholder="Passphrase" value={quickPassphrase} onChange={e => setQuickPassphrase(e.target.value)} style={{ paddingRight: 32 }} />
-                        <button type="button" onClick={() => setShowQuickPassphrase(!showQuickPassphrase)} style={{ position: 'absolute', right: 6, bottom: 4, background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
+                        <button type="button" aria-label={showQuickPassphrase ? t('隐藏密码短语') : t('显示密码短语')} onClick={() => setShowQuickPassphrase(!showQuickPassphrase)} style={{ position: 'absolute', right: 6, bottom: 4, background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '4px', display: 'flex' }}>
                           {showQuickPassphrase ? <EyeOff size={14} /> : <Eye size={14} />}
                         </button>
                       </div>
@@ -1159,7 +1142,7 @@ export default function App() {
                 <div className="card-header-icon-title">
                   <span className="card-header-icon" style={{ display: "flex", alignItems: "center" }}><BarChart3 size={18} /></span>
                   <span className="card-header-title">{t('系统状态')}</span>
-                  <button className={`btn-icon-spin ${isRefreshingPing ? 'spinning' : ''}`} onClick={handleRefreshPing} title="Refresh" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, display: "flex", alignItems: "center" }}><RefreshCw size={14} /></button>
+                  <button className={`btn-icon-spin ${isRefreshingPing ? 'spinning' : ''}`} onClick={handleRefreshPing} title={t('刷新延迟')} aria-label={t('刷新延迟')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, display: "flex", alignItems: "center" }}><RefreshCw size={14} /></button>
                 </div>
                 <div className="stats-grid">
                   <div className="stat-item">
@@ -1606,22 +1589,6 @@ export default function App() {
         />
       )}
 
-      {/* ── 托盘弹窗面板 ─────────────────────────────── */}
-      <TrayPanel
-         show={showTrayPanel}
-         sessions={sessions}
-         t={t}
-         logoImg={logoImg}
-         onSessionClick={(sessionId) => {
-           setActiveSessionId(sessionId);
-           setShowTrayPanel(false);
-         }}
-         onClose={() => setShowTrayPanel(false)}
-         onQuit={() => AppGo.DoQuit()}
-         onShowWindow={() => { WindowShow(); }}
-       />
-
-
       {/* ── 自动更新弹窗 ──────────────────────────────── */}
       <UpdateModal
         visible={isUpdateModalVisible}
@@ -1657,7 +1624,10 @@ export default function App() {
                 // 直接关闭，不弹确认框
                 const session = sessionsRef.current.find(s => s.id === sessionId);
                 const termIds = session?.terminals ? session.terminals.map(t => t.id) : [sessionId];
-                termIds.forEach(id => cancelledConnectionsRef.current.add(id));
+                termIds.forEach(id => {
+                  cancelledConnectionsRef.current.add(id);
+                  setTimeout(() => { cancelledConnectionsRef.current.delete(id); }, 30000);
+                });
                 for (const id of termIds) {
                   AppGo.DisconnectSSH(id).catch(() => {});
                 }

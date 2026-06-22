@@ -408,7 +408,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     const sel = resolvePath(commands, selectedPath);
     if (!sel || sel.item.children) return false; // 不是命令节点
     if (sel.item.name === editCmdName && sel.item.command === editCmdText) return false;
-    const list = structuredClone(commands);
+    const list = cloneAlongPath(commands, selectedPath);
     const r = resolvePath(list, selectedPath);
     r.parent[r.idx].name = editCmdName;
     r.parent[r.idx].command = editCmdText;
@@ -717,7 +717,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
         }
         save(list);
       } else if (dialog.type === 'editGroup') {
-        const list = structuredClone(commands);
+        const list = cloneAlongPath(commands, dialog.contextPath);
         const r = resolvePath(list, dialog.contextPath);
         r.parent[r.idx].name = dlgName.trim();
         save(list);
@@ -734,7 +734,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
       dialog.targetChildren.push(newItem);
       save(dialog.parentList);
     } else if (dialog.type === 'edit') {
-      const list = structuredClone(commands);
+      const list = cloneAlongPath(commands, selectedPath);
       const r = resolvePath(list, selectedPath);
       r.parent[r.idx] = { ...r.parent[r.idx], ...newItem };
       save(list);

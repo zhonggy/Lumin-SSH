@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from '../i18n.js';
 import { formatShortcut } from '../utils/platform.js';
+import { clampMenuPosition } from '../utils/menuPosition.js';
 import * as runtime from '../../wailsjs/runtime/runtime.js';
 
 export default function GlobalContextMenu() {
@@ -15,16 +16,7 @@ export default function GlobalContextMenu() {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
         e.preventDefault();
         setTargetInput(e.target);
-        
-        let x = e.clientX;
-        let y = e.clientY;
-        const menuWidth = 160;
-        const menuHeight = 150; // 近似高度
-        
-        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
-        if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
-
-        setPosition({ x, y });
+        setPosition(clampMenuPosition(e.clientX, e.clientY, 160, 150));
         setVisible(true);
       } else {
         setVisible(false);

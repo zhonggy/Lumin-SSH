@@ -285,7 +285,13 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 	// 合并连接（双向：按 ID 去重合并）
 	localConns := c.GetConnections()
 	deduped := c.mergeAndDedupe(localConns, remoteSnap.Connections)
-	c.saveConnectionsFile(deduped)
+	// 加锁保存并失效缓存（saveConnectionsFile 要求调用方持有 c.mu）
+	c.mu.Lock()
+	if err := c.saveConnectionsFile(deduped); err != nil {
+		log.Printf("[syncFromProvider] failed to save connections: %v", err)
+	}
+	c.connCacheDirty = true
+	c.mu.Unlock()
 	c.CleanupOrphanedHistory() // 清理已不存在的连接的历史文件
 
 	// 合并快捷命令（双向：按 name 去重合并）
@@ -519,7 +525,13 @@ func (c *ConfigManager) restoreSnapshotToLocal(snap *SyncSnapshot) {
 	if snap == nil {
 		return
 	}
-	c.saveConnectionsFile(snap.Connections)
+	// 加锁保存并失效缓存（saveConnectionsFile 要求调用方持有 c.mu）
+	c.mu.Lock()
+	if err := c.saveConnectionsFile(snap.Connections); err != nil {
+		log.Printf("[restoreSnapshotToLocal] failed to save connections: %v", err)
+	}
+	c.connCacheDirty = true
+	c.mu.Unlock()
 	if snap.QuickCommands != "" {
 		if err := os.WriteFile(c.quickCmdFile, []byte(snap.QuickCommands), 0600); err != nil {
 			log.Printf("[restoreSnapshotToLocal] failed to write quick commands: %v", err)
@@ -550,4 +562,57 @@ func restoreResult(err error) (map[string]interface{}, error) {
 		return nil, err
 	}
 	return map[string]interface{}{"success": true}, nil
+}
+
+// ─── 备份提供者共享包装方法 ─────────────────────────────────
+// 以下 backupTo/listBackupsFrom/syncFrom/restoreFrom 方法消除了 4 个提供者
+// （webdav/r2/ftp/sftp）各自的 BackupToXxx/ListXxxBackups/SyncFromXxx/RestoreFromXxxFile
+// 样板代码，统一处理 storageCloser 释放。
+
+// backupTo 创建存储、备份、关闭连接
+func (c *ConfigManager) backupTo(storageFn func() (RemoteStorage, int, error)) (map[string]interface{}, error) {
+	s, max, err := storageFn()
+	if err != nil {
+		return nil, err
+	}
+	if cl, ok := s.(storageCloser); ok {
+		defer cl.Close()
+	}
+	return c.backupConnections(s, max)
+}
+
+// listBackupsFrom 创建存储、列出备份、关闭连接
+func (c *ConfigManager) listBackupsFrom(storageFn func() (RemoteStorage, int, error)) ([]map[string]interface{}, error) {
+	s, _, err := storageFn()
+	if err != nil {
+		return nil, err
+	}
+	if cl, ok := s.(storageCloser); ok {
+		defer cl.Close()
+	}
+	return c.listBackupFiles(s)
+}
+
+// syncFrom 创建存储、同步、关闭连接
+func (c *ConfigManager) syncFrom(storageFn func() (RemoteStorage, int, error)) (map[string]interface{}, error) {
+	s, _, err := storageFn()
+	if err != nil {
+		return nil, err
+	}
+	if cl, ok := s.(storageCloser); ok {
+		defer cl.Close()
+	}
+	return c.syncFromProvider(s)
+}
+
+// restoreFrom 创建存储、恢复、关闭连接
+func (c *ConfigManager) restoreFrom(storageFn func() (RemoteStorage, int, error), filename string) (map[string]interface{}, error) {
+	s, _, err := storageFn()
+	if err != nil {
+		return nil, err
+	}
+	if cl, ok := s.(storageCloser); ok {
+		defer cl.Close()
+	}
+	return restoreResult(c.restoreFromProvider(s, filename))
 }

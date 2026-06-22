@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import CodeMirror from '@uiw/react-codemirror';
 import { useTranslation } from '../i18n.js';
 import { formatShortcut } from '../utils/platform.js';
+import { clampMenuPosition } from '../utils/menuPosition.js';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
@@ -172,10 +173,8 @@ export default function FileEditor({
     e.preventDefault();
     e.stopPropagation();
     const sel = window.getSelection()?.toString() || '';
-    const menuW = 160, menuH = 120;
-    const x = e.clientX + menuW > window.innerWidth ? e.clientX - menuW : e.clientX;
-    const y = e.clientY + menuH > window.innerHeight ? e.clientY - menuH : e.clientY;
-    setContextMenu({ x, y, hasSelection: sel.length > 0 });
+    const pos = clampMenuPosition(e.clientX, e.clientY, 160, 120);
+    setContextMenu({ ...pos, hasSelection: sel.length > 0 });
   };
 
   const handleMenuAction = (action) => {

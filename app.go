@@ -30,6 +30,8 @@ type App struct {
 	wsToken       string
 	wsMu          sync.Mutex
 	wsConns       map[string]*wsEntry // sessionId -> active WebSocket
+	wsServer      *http.Server        // WebSocket HTTP 服务器，用于优雅关闭
+	wsListener    net.Listener        // WebSocket 监听器，用于关闭时释放端口
 	quitting      atomic.Bool         // 标记用户确认退出，OnBeforeClose 放行（跨 goroutine 访问需原子操作）
 }
 
@@ -123,8 +125,10 @@ func (a *App) startup(ctx context.Context) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err == nil {
 		a.wsPort = listener.Addr().(*net.TCPAddr).Port
+		a.wsListener = listener
+		a.wsServer = &http.Server{Handler: mux}
 		go func() {
-			_ = http.Serve(listener, mux)
+			_ = a.wsServer.Serve(listener)
 		}()
 	}
 
@@ -148,8 +152,24 @@ func (a *App) startup(ctx context.Context) {
 }
 
 // DoQuit 用户确认退出，设标记让 OnBeforeClose 放行
+// 同时清理资源：断开所有 SSH 会话、关闭 WebSocket 监听器
 func (a *App) DoQuit() {
 	a.quitting.Store(true)
+	// 断开所有 SSH 会话，避免服务器侧遗留僵尸会话
+	if a.sshManager != nil {
+		a.sshManager.DisconnectAll()
+	}
+	// 关闭 WebSocket 监听器，释放端口并停止 goroutine
+	if a.wsServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = a.wsServer.Shutdown(ctx)
+		a.wsServer = nil
+	}
+	if a.wsListener != nil {
+		_ = a.wsListener.Close()
+		a.wsListener = nil
+	}
 	runtime.Quit(a.ctx)
 }
 
@@ -231,30 +251,30 @@ func (a *App) DeleteConnection(id string) bool {
 
 // ConnectSSH establishes an SSH connection
 func (a *App) ConnectSSH(sessionId string, connId string) error {
-	conn := a.configManager.GetConnectionByID(connId)
-	if conn == nil {
+	conn, ok := a.configManager.GetConnectionByID(connId)
+	if !ok {
 		return fmt.Errorf("connection not found")
 	}
-	return a.sshManager.Connect(sessionId, *conn)
+	return a.sshManager.Connect(sessionId, conn)
 }
 
 // ReconnectWithPassword 更新密码并重连（认证失败后使用）
 // persist: true=保存到已知主机列表, false=仅本次会话使用
 func (a *App) ReconnectWithPassword(sessionId string, connId string, newPassword string, persist bool) error {
-	conn := a.configManager.GetConnectionByID(connId)
-	if conn == nil {
+	conn, ok := a.configManager.GetConnectionByID(connId)
+	if !ok {
 		return fmt.Errorf("connection not found")
 	}
 	conn.Password = newPassword
 	if persist {
-		a.configManager.SaveConnection(*conn)
+		a.configManager.SaveConnection(conn)
 	}
 
 	// 清理旧会话
 	a.sshManager.Disconnect(sessionId)
 
 	// 重新连接
-	return a.sshManager.Connect(sessionId, *conn)
+	return a.sshManager.Connect(sessionId, conn)
 }
 
 // DisconnectSSH closes an SSH connection

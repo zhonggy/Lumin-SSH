@@ -196,14 +196,16 @@ func (c *ConfigManager) getConnectionsLocked() []Connection {
 	return conns
 }
 
-func (c *ConfigManager) GetConnectionByID(id string) *Connection {
+// GetConnectionByID 按 ID 返回连接的深拷贝。
+// 返回值语义避免返回指向内部临时切片的指针，防止调用方修改的是副本而非真实配置。
+func (c *ConfigManager) GetConnectionByID(id string) (Connection, bool) {
 	conns := c.GetConnections()
 	for _, conn := range conns {
 		if conn.ID == id {
-			return &conn
+			return conn, true
 		}
 	}
-	return nil
+	return Connection{}, false
 }
 
 // GetConnectionsMasked 返回掩码后的连接列表，用于前端显示
@@ -277,14 +279,7 @@ func (c *ConfigManager) saveConnectionsFile(conns []Connection) error {
 		return fmt.Errorf("marshal connections: %w", err)
 	}
 	// 原子写入：先写临时文件，再 rename 覆盖，避免中断损坏原文件
-	tmpFile := c.connFile + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
-		return fmt.Errorf("write temp file: %w", err)
-	}
-	if err := os.Rename(tmpFile, c.connFile); err != nil {
-		return fmt.Errorf("rename temp file: %w", err)
-	}
-	return nil
+	return atomicWriteFile(c.connFile, data, 0600)
 }
 
 // loadRawFile 读取配置文件的原始 JSON 字符串（用于同步快照）
@@ -296,6 +291,19 @@ func (c *ConfigManager) loadRawFile(path string) string {
 		return ""
 	}
 	return string(data)
+}
+
+// atomicWriteFile 原子写入文件：先写临时文件再 rename 覆盖，避免写入中断导致文件损坏。
+// 调用方需自行处理加锁（如涉及并发访问同一文件）。
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	tmpFile := path + ".tmp"
+	if err := os.WriteFile(tmpFile, data, perm); err != nil {
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	if err := os.Rename(tmpFile, path); err != nil {
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+	return nil
 }
 
 func (c *ConfigManager) DeleteConnection(id string) bool {
@@ -331,13 +339,20 @@ type WebdavConfig struct {
 }
 
 func (c *ConfigManager) GetWebdavConfig() map[string]string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.getWebdavConfigLocked()
+}
+
+// getWebdavConfigLocked 读取 WebDAV 配置，调用方需持有 c.mu
+func (c *ConfigManager) getWebdavConfigLocked() map[string]string {
 	data, err := os.ReadFile(c.davFile)
 	if err != nil {
 		return nil
 	}
 	var conf WebdavConfig
 	if err := json.Unmarshal(data, &conf); err != nil {
-		log.Printf("[GetWebdavConfig] json.Unmarshal failed: %v", err)
+		log.Printf("[getWebdavConfigLocked] json.Unmarshal failed: %v", err)
 		return nil
 	}
 	return map[string]string{
@@ -350,7 +365,7 @@ func (c *ConfigManager) GetWebdavConfig() map[string]string {
 }
 
 func (c *ConfigManager) getWebdavKey() []byte {
-	confMap := c.GetWebdavConfig()
+	confMap := c.getWebdavConfigLocked()
 	if confMap == nil || confMap["url"] == "" {
 		return c.key
 	}
@@ -359,9 +374,11 @@ func (c *ConfigManager) getWebdavKey() []byte {
 }
 
 func (c *ConfigManager) SaveWebdavConfig(config map[string]string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	pass := config["password"]
 	if pass == "" {
-		existing := c.GetWebdavConfig()
+		existing := c.getWebdavConfigLocked()
 		if existing != nil && existing["password"] != "" {
 			pass = existing["password"]
 		}
@@ -391,8 +408,11 @@ func (c *ConfigManager) SaveWebdavConfig(config map[string]string) error {
 	if conf.RemotePath == "" {
 		conf.RemotePath = "/Lumin/"
 	}
-	data, _ := json.MarshalIndent(conf, "", "  ")
-	return os.WriteFile(c.davFile, data, 0600)
+	data, err := json.MarshalIndent(conf, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal webdav config: %w", err)
+	}
+	return atomicWriteFile(c.davFile, data, 0600)
 }
 
 func (c *ConfigManager) TestWebdavConnection(url, username, password string) error {
@@ -448,7 +468,9 @@ func (s *webdavStorage) DeleteFile(name string) error {
 func (s *webdavStorage) EncryptKey() []byte { return s.key }
 
 func (c *ConfigManager) newWebdavStorage() (RemoteStorage, int, error) {
-	conf := c.GetWebdavConfig()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	conf := c.getWebdavConfigLocked()
 	if conf == nil {
 		return nil, 0, fmt.Errorf("WebDAV not configured")
 	}
@@ -464,43 +486,29 @@ func (c *ConfigManager) newWebdavStorage() (RemoteStorage, int, error) {
 
 // BackupToWebdav 备份到 WebDAV
 func (c *ConfigManager) BackupToWebdav() (map[string]interface{}, error) {
-	s, max, err := c.newWebdavStorage()
-	if err != nil {
-		return nil, err
-	}
-	return c.backupConnections(s, max)
+	return c.backupTo(c.newWebdavStorage)
 }
 
 // ListWebdavBackups 列出 WebDAV 备份
 func (c *ConfigManager) ListWebdavBackups() ([]map[string]interface{}, error) {
-	s, _, err := c.newWebdavStorage()
-	if err != nil {
-		return nil, err
-	}
-	return c.listBackupFiles(s)
+	return c.listBackupsFrom(c.newWebdavStorage)
 }
 
 // SyncFromWebdav 手动合并同步
 func (c *ConfigManager) SyncFromWebdav() (map[string]interface{}, error) {
-	s, _, err := c.newWebdavStorage()
-	if err != nil {
-		return nil, err
-	}
-	return c.syncFromProvider(s)
+	return c.syncFrom(c.newWebdavStorage)
 }
 
 func (c *ConfigManager) RestoreFromWebdavFile(filename string) (map[string]interface{}, error) {
-	s, _, err := c.newWebdavStorage()
-	if err != nil {
-		return nil, err
-	}
-	return restoreResult(c.restoreFromProvider(s, filename))
+	return c.restoreFrom(c.newWebdavStorage, filename)
 }
 
 // ─── 同步模式配置 ─────────────────────────────────────────
 
 // GetSyncMode 获取自动同步模式：webdav / r2 / ftp / sftp / all
 func (c *ConfigManager) GetSyncMode() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	data, err := os.ReadFile(c.syncModeFile)
 	if err != nil {
 		return "webdav"
@@ -514,8 +522,10 @@ func (c *ConfigManager) GetSyncMode() string {
 
 // SetSyncMode 设置自动同步模式
 func (c *ConfigManager) SetSyncMode(mode string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	data, _ := json.Marshal(mode)
-	return os.WriteFile(c.syncModeFile, data, 0600)
+	return atomicWriteFile(c.syncModeFile, data, 0600)
 }
 
 // ─── 快捷命令 ──────────────────────────────────────
@@ -535,7 +545,7 @@ func (c *ConfigManager) GetQuickCommands() string {
 func (c *ConfigManager) SaveQuickCommands(jsonStr string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	err := os.WriteFile(c.quickCmdFile, []byte(jsonStr), 0600)
+	err := atomicWriteFile(c.quickCmdFile, []byte(jsonStr), 0600)
 	if err == nil {
 		go c.AutoSync()
 	}
@@ -546,11 +556,13 @@ func (c *ConfigManager) SaveQuickCommands(jsonStr string) error {
 func (c *ConfigManager) SaveQuickCommandsLocal(jsonStr string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return os.WriteFile(c.quickCmdFile, []byte(jsonStr), 0600)
+	return atomicWriteFile(c.quickCmdFile, []byte(jsonStr), 0600)
 }
 
 // GetParamHistory 读取参数历史
 func (c *ConfigManager) GetParamHistory() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	data, err := os.ReadFile(c.paramHistFile)
 	if err != nil {
 		return "{}"
@@ -560,7 +572,9 @@ func (c *ConfigManager) GetParamHistory() string {
 
 // SaveParamHistory 保存参数历史
 func (c *ConfigManager) SaveParamHistory(jsonStr string) error {
-	return os.WriteFile(c.paramHistFile, []byte(jsonStr), 0600)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return atomicWriteFile(c.paramHistFile, []byte(jsonStr), 0600)
 }
 
 // ─── 命令历史 ──────────────────────────────────────
@@ -570,6 +584,8 @@ func (c *ConfigManager) GetCommandHistory(sessionId string) string {
 	// 防止路径穿越
 	sessionId = filepath.Base(sessionId)
 	path := filepath.Join(c.historyDir, sessionId+".json")
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "[]"
@@ -582,11 +598,15 @@ func (c *ConfigManager) SaveCommandHistory(sessionId, jsonStr string) error {
 	// 防止路径穿越
 	sessionId = filepath.Base(sessionId)
 	path := filepath.Join(c.historyDir, sessionId+".json")
-	return os.WriteFile(path, []byte(jsonStr), 0600)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return atomicWriteFile(path, []byte(jsonStr), 0600)
 }
 
 // GetGlobalCommandHistory 读取全局命令历史
 func (c *ConfigManager) GetGlobalCommandHistory() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	data, err := os.ReadFile(c.globalHistFile)
 	if err != nil {
 		return "[]"
@@ -596,7 +616,9 @@ func (c *ConfigManager) GetGlobalCommandHistory() string {
 
 // SaveGlobalCommandHistory 保存全局命令历史
 func (c *ConfigManager) SaveGlobalCommandHistory(jsonStr string) error {
-	return os.WriteFile(c.globalHistFile, []byte(jsonStr), 0600)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return atomicWriteFile(c.globalHistFile, []byte(jsonStr), 0600)
 }
 
 // CleanupOrphanedHistory 清理已不存在的连接的历史文件

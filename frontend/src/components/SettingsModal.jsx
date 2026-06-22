@@ -512,6 +512,18 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
   });
   const [listeningKey, setListeningKey] = useState(null); // 'copy' | 'paste' | 'clear' | 'newTab' | null
 
+  // Esc 关闭模态框（仅在未监听快捷键时生效）
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !listeningKey) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [listeningKey, onClose]);
+
   // 监听并捕捉组合快捷键
   useEffect(() => {
     if (!listeningKey) return;

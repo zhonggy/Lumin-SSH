@@ -42,6 +42,13 @@ func (c *ConfigManager) getR2Key() []byte {
 }
 
 func (c *ConfigManager) GetR2Config() *R2Config {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.getR2ConfigLocked()
+}
+
+// getR2ConfigLocked 读取 R2 配置，调用方需持有 c.mu
+func (c *ConfigManager) getR2ConfigLocked() *R2Config {
 	r2File := filepath.Join(c.configDir, "r2.json")
 	data, err := os.ReadFile(r2File)
 	if err != nil {
@@ -63,7 +70,9 @@ func (c *ConfigManager) GetR2Config() *R2Config {
 }
 
 func (c *ConfigManager) SaveR2Config(config map[string]string) error {
-	existing := c.GetR2Config()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	existing := c.getR2ConfigLocked()
 
 	accessKey := config["accessKeyId"]
 	secretKey := config["secretAccessKey"]
@@ -111,8 +120,11 @@ func (c *ConfigManager) SaveR2Config(config map[string]string) error {
 	conf.AccessKeyID = encKey
 	conf.SecretAccessKey = encSecret
 	r2File := filepath.Join(c.configDir, "r2.json")
-	data, _ := json.MarshalIndent(conf, "", "  ")
-	return os.WriteFile(r2File, data, 0600)
+	data, err := json.MarshalIndent(conf, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal r2 config: %w", err)
+	}
+	return atomicWriteFile(r2File, data, 0600)
 }
 
 // sanitizeEndpoint 去除 URL 中的协议前缀和尾部斜杠，minio.New 会自动拼接 https://
@@ -249,35 +261,19 @@ func (c *ConfigManager) newR2Storage() (RemoteStorage, int, error) {
 
 // BackupToR2 备份到 R2
 func (c *ConfigManager) BackupToR2() (map[string]interface{}, error) {
-	s, max, err := c.newR2Storage()
-	if err != nil {
-		return nil, err
-	}
-	return c.backupConnections(s, max)
+	return c.backupTo(c.newR2Storage)
 }
 
 // ListR2Backups 列出 R2 备份
 func (c *ConfigManager) ListR2Backups() ([]map[string]interface{}, error) {
-	s, _, err := c.newR2Storage()
-	if err != nil {
-		return nil, err
-	}
-	return c.listBackupFiles(s)
+	return c.listBackupsFrom(c.newR2Storage)
 }
 
 // SyncFromR2 手动合并同步
 func (c *ConfigManager) SyncFromR2() (map[string]interface{}, error) {
-	s, _, err := c.newR2Storage()
-	if err != nil {
-		return nil, err
-	}
-	return c.syncFromProvider(s)
+	return c.syncFrom(c.newR2Storage)
 }
 
 func (c *ConfigManager) RestoreFromR2File(objectKey string) (map[string]interface{}, error) {
-	s, _, err := c.newR2Storage()
-	if err != nil {
-		return nil, err
-	}
-	return restoreResult(c.restoreFromProvider(s, objectKey))
+	return c.restoreFrom(c.newR2Storage, objectKey)
 }

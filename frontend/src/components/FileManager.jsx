@@ -4,6 +4,7 @@ import * as AppGo from '../../wailsjs/go/main/App.js';
 const FileEditor = React.lazy(() => import('./FileEditor.jsx'));
 import { EventsOn } from '../../wailsjs/runtime/runtime.js';
 import { useTranslation, t as tKey, getLanguage } from '../i18n.js';
+import { clampMenuPosition } from '../utils/menuPosition.js';
 import {
   Folder, FolderOpen, FolderPlus, File, FileText, FilePlus, FileCode,
   FileArchive, Settings, ClipboardList, Wrench, Image, Code, Globe,
@@ -276,20 +277,9 @@ function ContextMenu({ pos, item, onClose, onDownload, onEdit, onRename, onDelet
 
   React.useLayoutEffect(() => {
     if (!ref.current) return;
-    const el = ref.current;
-    const rect = el.getBoundingClientRect();
-    let left = pos.x;
-    let top = pos.y;
-    // 右侧超出则左移
-    if (left + rect.width > window.innerWidth - 8) {
-      left = window.innerWidth - rect.width - 8;
-    }
-    // 底部超出则上移
-    if (top + rect.height > window.innerHeight - 8) {
-      top = pos.y - rect.height;
-      if (top < 8) top = 8;
-    }
-    setAdjusted({ left, top });
+    const rect = ref.current.getBoundingClientRect();
+    const clamped = clampMenuPosition(pos.x, pos.y, rect.width, rect.height);
+    setAdjusted({ left: clamped.x, top: clamped.y });
   }, [pos.x, pos.y]);
 
   useEffect(() => {

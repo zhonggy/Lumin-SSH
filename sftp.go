@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -45,6 +46,13 @@ func (c *ConfigManager) getSFTPKey() []byte {
 }
 
 func (c *ConfigManager) GetSFTPConfig() *SFTPConfig {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.getSFTPConfigLocked()
+}
+
+// getSFTPConfigLocked 读取 SFTP 配置，调用方需持有 c.mu
+func (c *ConfigManager) getSFTPConfigLocked() *SFTPConfig {
 	sftpFile := filepath.Join(c.configDir, "sftp.json")
 	data, err := os.ReadFile(sftpFile)
 	if err != nil {
@@ -70,7 +78,9 @@ func (c *ConfigManager) GetSFTPConfig() *SFTPConfig {
 }
 
 func (c *ConfigManager) SaveSFTPConfig(config map[string]string) error {
-	existing := c.GetSFTPConfig()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	existing := c.getSFTPConfigLocked()
 
 	username := config["username"]
 	password := config["password"]
@@ -127,12 +137,16 @@ func (c *ConfigManager) SaveSFTPConfig(config map[string]string) error {
 	conf.Password = encPass
 	conf.PrivateKey = encKey
 	sftpFile := filepath.Join(c.configDir, "sftp.json")
-	data, _ := json.MarshalIndent(conf, "", "  ")
-	return os.WriteFile(sftpFile, data, 0600)
+	data, err := json.MarshalIndent(conf, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal sftp config: %w", err)
+	}
+	return atomicWriteFile(sftpFile, data, 0600)
 }
 
 // sftpHostKeyCallback 返回基于 known_hosts 的 TOFU（首次信任）主机密钥校验回调。
 // 首次连接时自动将主机密钥写入 known_hosts；后续连接若密钥不匹配则拒绝。
+// 注意：TOFU 模式在首次连接时存在中间人攻击风险，此处通过日志记录以便审计。
 func sftpHostKeyCallback() ssh.HostKeyCallback {
 	cb, err := initKnownHostsCallback()
 	if err != nil {
@@ -149,6 +163,7 @@ func sftpHostKeyCallback() ssh.HostKeyCallback {
 		// TOFU：密钥不在 known_hosts 中（首次连接），追加写入
 		var keyErr *knownhosts.KeyError
 		if errors.As(err, &keyErr) && len(keyErr.Want) == 0 {
+			log.Printf("[sftpHostKeyCallback] TOFU: 自动接受 %s 的新主机密钥 (fingerprint: %s)", hostname, ssh.FingerprintSHA256(key))
 			line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
 			if f, ferr := os.OpenFile(knownHostsPath, os.O_APPEND|os.O_WRONLY, 0600); ferr == nil {
 				if _, werr := f.WriteString(line + "\n"); werr == nil {
@@ -355,47 +370,19 @@ func (c *ConfigManager) newSFTPStorage() (RemoteStorage, int, error) {
 
 // BackupToSFTP 备份到 SFTP
 func (c *ConfigManager) BackupToSFTP() (map[string]interface{}, error) {
-	s, max, err := c.newSFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return c.backupConnections(s, max)
+	return c.backupTo(c.newSFTPStorage)
 }
 
 // ListSFTPBackups 列出 SFTP 备份
 func (c *ConfigManager) ListSFTPBackups() ([]map[string]interface{}, error) {
-	s, _, err := c.newSFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return c.listBackupFiles(s)
+	return c.listBackupsFrom(c.newSFTPStorage)
 }
 
 // SyncFromSFTP 手动合并同步
 func (c *ConfigManager) SyncFromSFTP() (map[string]interface{}, error) {
-	s, _, err := c.newSFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return c.syncFromProvider(s)
+	return c.syncFrom(c.newSFTPStorage)
 }
 
 func (c *ConfigManager) RestoreFromSFTPFile(filename string) (map[string]interface{}, error) {
-	s, _, err := c.newSFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return restoreResult(c.restoreFromProvider(s, filename))
+	return c.restoreFrom(c.newSFTPStorage, filename)
 }

@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Copy, Clipboard, Trash2, CheckSquare, Play, Clock, X, Zap } from 'lucide-react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
 import { getModKey, formatShortcut } from '../utils/platform.js';
+import { clampMenuPosition } from '../utils/menuPosition.js';
 import QuickCommands from './QuickCommands.jsx';
 import '@xterm/xterm/css/xterm.css';
 import { useTranslation } from '../i18n.js';
@@ -40,7 +41,8 @@ const TERMINAL_THEMES = {
     swatches: ['#22c55e', '#58a6ff', '#bc8cff', '#0d1117'],
     theme: {
       background: '#00000000', foreground: '#cdd9e5', cursor: '#22c55e',
-      cursorAccent: '#0d1117', selectionBackground: 'rgba(34,197,94,0.20)',
+      cursorAccent: '#0d1117', selectionBackground: 'rgba(34,197,94,0.40)',
+      selectionForeground: '#0d1117',
       black: '#484f58', red: '#ff7b72', green: '#3fb950', yellow: '#d29922',
       blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39c5cf', white: '#b1bac4',
       brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
@@ -53,7 +55,8 @@ const TERMINAL_THEMES = {
     swatches: ['#7aa2f7', '#bb9af7', '#73daca', '#1a1b26'],
     theme: {
       background: '#00000000', foreground: '#a9b1d6', cursor: '#7aa2f7',
-      cursorAccent: '#1a1b26', selectionBackground: 'rgba(122,162,247,0.20)',
+      cursorAccent: '#1a1b26', selectionBackground: 'rgba(122,162,247,0.40)',
+      selectionForeground: '#1a1b26',
       black: '#32344a', red: '#f7768e', green: '#9ece6a', yellow: '#e0af68',
       blue: '#7aa2f7', magenta: '#ad8ee6', cyan: '#449dab', white: '#787c99',
       brightBlack: '#444b6a', brightRed: '#ff7a93', brightGreen: '#b9f27c',
@@ -66,7 +69,8 @@ const TERMINAL_THEMES = {
     swatches: ['#cba6f7', '#89b4fa', '#a6e3a1', '#1e1e2e'],
     theme: {
       background: '#00000000', foreground: '#cdd6f4', cursor: '#f5c2e7',
-      cursorAccent: '#1e1e2e', selectionBackground: 'rgba(203,166,247,0.20)',
+      cursorAccent: '#1e1e2e', selectionBackground: 'rgba(203,166,247,0.40)',
+      selectionForeground: '#1e1e2e',
       black: '#45475a', red: '#f38ba8', green: '#a6e3a1', yellow: '#f9e2af',
       blue: '#89b4fa', magenta: '#f5c2e7', cyan: '#94e2d5', white: '#bac2de',
       brightBlack: '#585b70', brightRed: '#f38ba8', brightGreen: '#a6e3a1',
@@ -79,7 +83,8 @@ const TERMINAL_THEMES = {
     swatches: ['#ff79c6', '#bd93f9', '#50fa7b', '#282a36'],
     theme: {
       background: '#00000000', foreground: '#f8f8f2', cursor: '#f8f8f2',
-      cursorAccent: '#282a36', selectionBackground: 'rgba(189,147,249,0.25)',
+      cursorAccent: '#282a36', selectionBackground: 'rgba(189,147,249,0.40)',
+      selectionForeground: '#282a36',
       black: '#21222c', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c',
       blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#f8f8f2',
       brightBlack: '#6272a4', brightRed: '#ff6e6e', brightGreen: '#69ff94',
@@ -170,19 +175,31 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         userPinned = false;
       }
     });
-    containerRef.current?.addEventListener('wheel', (e) => {
-      if (e.deltaY < 0) {
-        requestAnimationFrame(() => {
-          const buf = term.buffer.active;
-          if (buf.viewportY < buf.baseY) userPinned = true;
-        });
-      }
-    }, { passive: true });
+    const wheelHandler = (e) => {
+      // 无论向上还是向下滚动，都检查当前位置并更新锁定状态
+      requestAnimationFrame(() => {
+        const buf = term.buffer.active;
+        userPinned = buf.viewportY < buf.baseY;
+      });
+    };
+    containerRef.current?.addEventListener('wheel', wheelHandler, { passive: true });
 
     const smartWrite = (data) => {
       if (userPinned) {
-        const savedY = term.buffer.active.viewportY;
-        term.write(data, () => { term.scrollToLine(savedY); });
+        // xterm.js 在用户不在底部时已经会保持滚动位置。
+        // 之前的 scrollToLine(savedY) 在异步回调中执行，会在用户向下滚动后
+        // 把视图拉回旧位置，导致用户无法追上最新输出。
+        // 现在仅在 xterm.js 自动滚动打断时才恢复（用相对偏移检测）。
+        const buf = term.buffer.active;
+        const offset = buf.baseY - buf.viewportY;
+        term.write(data, () => {
+          const newBuf = term.buffer.active;
+          // 只有当 offset 变小（说明 xterm 自动滚动了）才恢复
+          if (newBuf.baseY - newBuf.viewportY < offset) {
+            const newY = newBuf.baseY - offset;
+            if (newY >= 0) term.scrollToLine(newY);
+          }
+        });
       } else {
         term.write(data);
       }
@@ -302,6 +319,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     let ws = null;
     let cancelled = false;
     const pendingEchoes = [];
+    let awaitingPassword = false; // 检测到密码提示后，下一行输入不记入命令历史
 
     // 并行获取端口与鉴权 token，后端要求连接时通过 ?token=xxx 携带，防止本机恶意进程注入命令
     Promise.all([AppGo.GetWsPort(), AppGo.GetWsToken()]).then(([port, token]) => {
@@ -401,7 +419,6 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
     // ── 历史指令记录 + 输入直通 + Local Echo ────────────────────────
     let localInputLength = 0; // 用于保护提示符，防止退格越界
-    let awaitingPassword = false; // 检测到密码提示后，下一行输入不记入命令历史
 
     term.onData((data) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -467,6 +484,8 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       cancelled = true;
       clearTimeout(fitTimer);
       if (ws) { try { ws.close(); } catch (_) {} }
+      // 移除 wheel 监听器，避免内存泄漏
+      containerRef.current?.removeEventListener('wheel', wheelHandler);
       termRef.current     = null;
       fitAddonRef.current = null;
       try { term.dispose(); } catch (_) {}
@@ -599,12 +618,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     e.preventDefault();
     const hasSelection = !!(termRef.current && termRef.current.getSelection());
     setContextHasSelection(hasSelection);
-    // 边界检测：防止菜单溢出屏幕
-    const menuW = 190;
-    const menuH = 140;
-    const x = e.clientX + menuW > window.innerWidth  ? e.clientX - menuW : e.clientX;
-    const y = e.clientY + menuH > window.innerHeight ? e.clientY - menuH : e.clientY;
-    setContextMenu({ x, y });
+    setContextMenu(clampMenuPosition(e.clientX, e.clientY, 190, 140));
   };
 
   const closeContextMenu = () => {
@@ -1078,6 +1092,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                 </button>
                 <button
                   onClick={() => { setShowHistory(false); setHistoryPopupPos(null); }}
+                  aria-label={t('关闭')}
                   style={btnStyle('red')}
                 >
                   <X size={12} />

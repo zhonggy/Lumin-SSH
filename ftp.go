@@ -40,6 +40,13 @@ func (c *ConfigManager) getFTPKey() []byte {
 }
 
 func (c *ConfigManager) GetFTPConfig() *FTPConfig {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.getFTPConfigLocked()
+}
+
+// getFTPConfigLocked 读取 FTP 配置，调用方需持有 c.mu
+func (c *ConfigManager) getFTPConfigLocked() *FTPConfig {
 	ftpFile := filepath.Join(c.configDir, "ftp.json")
 	data, err := os.ReadFile(ftpFile)
 	if err != nil {
@@ -61,7 +68,9 @@ func (c *ConfigManager) GetFTPConfig() *FTPConfig {
 }
 
 func (c *ConfigManager) SaveFTPConfig(config map[string]string) error {
-	existing := c.GetFTPConfig()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	existing := c.getFTPConfigLocked()
 
 	username := config["username"]
 	password := config["password"]
@@ -111,13 +120,16 @@ func (c *ConfigManager) SaveFTPConfig(config map[string]string) error {
 	conf.Username = encUser
 	conf.Password = encPass
 	ftpFile := filepath.Join(c.configDir, "ftp.json")
-	data, _ := json.MarshalIndent(conf, "", "  ")
-	return os.WriteFile(ftpFile, data, 0600)
+	data, err := json.MarshalIndent(conf, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal ftp config: %w", err)
+	}
+	return atomicWriteFile(ftpFile, data, 0600)
 }
 
 func (c *ConfigManager) TestFTPConnection(host string, port int, username, password string) error {
 	addr := dialAddr(host, port)
-	client, err := ftp.Dial(addr, ftp.DialWithTimeout(10*time.Second), ftp.DialWithExplicitTLS(&tls.Config{ServerName: host}))
+	client, err := ftp.Dial(addr, ftp.DialWithTimeout(10*time.Second), ftp.DialWithExplicitTLS(&tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}))
 	if err != nil {
 		return fmt.Errorf("FTP TLS 连接失败 %s: %w", addr, err)
 	}
@@ -136,7 +148,7 @@ func (c *ConfigManager) newFTPClient() (*ftp.ServerConn, error) {
 		return nil, fmt.Errorf("FTP not configured")
 	}
 	addr := dialAddr(conf.Host, conf.Port)
-	client, err := ftp.Dial(addr, ftp.DialWithTimeout(10*time.Second), ftp.DialWithExplicitTLS(&tls.Config{ServerName: conf.Host}))
+	client, err := ftp.Dial(addr, ftp.DialWithTimeout(10*time.Second), ftp.DialWithExplicitTLS(&tls.Config{ServerName: conf.Host, MinVersion: tls.VersionTLS12}))
 	if err != nil {
 		return nil, fmt.Errorf("FTP TLS 连接失败 %s: %w", addr, err)
 	}
@@ -231,9 +243,7 @@ func (s *ftpStorage) ReadFile(name string) ([]byte, error) {
 }
 
 func (s *ftpStorage) WriteFile(name string, data []byte) error {
-	if err := s.c.ensureFTPDir(s.client); err != nil {
-		return err
-	}
+	// 目录在 newFTPStorage 时已确保创建，此处无需每次检查
 	return s.client.Stor(name, bytes.NewReader(data))
 }
 
@@ -253,6 +263,11 @@ func (c *ConfigManager) newFTPStorage() (RemoteStorage, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
+	// 创建存储对象后立即确保远程目录存在，避免每次 WriteFile 都检查
+	if err := c.ensureFTPDir(client); err != nil {
+		client.Quit()
+		return nil, 0, err
+	}
 	return &ftpStorage{
 		c:          c,
 		client:     client,
@@ -264,47 +279,19 @@ func (c *ConfigManager) newFTPStorage() (RemoteStorage, int, error) {
 
 // BackupToFTP 备份到 FTP
 func (c *ConfigManager) BackupToFTP() (map[string]interface{}, error) {
-	s, max, err := c.newFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return c.backupConnections(s, max)
+	return c.backupTo(c.newFTPStorage)
 }
 
 // ListFTPBackups 列出 FTP 备份
 func (c *ConfigManager) ListFTPBackups() ([]map[string]interface{}, error) {
-	s, _, err := c.newFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return c.listBackupFiles(s)
+	return c.listBackupsFrom(c.newFTPStorage)
 }
 
 // SyncFromFTP 手动合并同步
 func (c *ConfigManager) SyncFromFTP() (map[string]interface{}, error) {
-	s, _, err := c.newFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return c.syncFromProvider(s)
+	return c.syncFrom(c.newFTPStorage)
 }
 
 func (c *ConfigManager) RestoreFromFTPFile(filename string) (map[string]interface{}, error) {
-	s, _, err := c.newFTPStorage()
-	if err != nil {
-		return nil, err
-	}
-	if cl, ok := s.(storageCloser); ok {
-		defer cl.Close()
-	}
-	return restoreResult(c.restoreFromProvider(s, filename))
+	return c.restoreFrom(c.newFTPStorage, filename)
 }

@@ -217,7 +217,12 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 		target := dialAddr(conn.Host, conn.Port)
 
 		// 创建可取消 context，支持 Disconnect 中断正在进行的连接
-		cancelCtx, cancelConnect := context.WithCancel(context.Background())
+		// 派生自 m.ctx（若存在），确保应用关闭时所有进行中的握手也能被取消
+		parent := context.Background()
+		if m.ctx != nil {
+			parent = m.ctx
+		}
+		cancelCtx, cancelConnect := context.WithCancel(parent)
 		m.pendingMu.Lock()
 		m.pendingCancels[sessionId] = cancelConnect
 		m.pendingMu.Unlock()
@@ -515,9 +520,8 @@ func (m *SSHManager) pipeOutput(sessionId string, r io.Reader, historyStream *co
 		if n > 0 {
 			var data []byte
 			if historyStream != nil {
-				data = make([]byte, n)
-				copy(data, buf[:n])
-				visible, commands := historyStream.Process(data)
+				// historyStream.Process 内部会拷贝输入，无需在此处再 make+copy
+				visible, commands := historyStream.Process(buf[:n])
 				data = visible
 				for _, command := range commands {
 					if command == "" || m.ctx == nil {
@@ -764,7 +768,14 @@ func (m *SSHManager) AcceptHostKeyChange(sessionId string, action int) error {
 		m.mu.Lock()
 		m.tempAcceptedKeys[sessionId] = pending.NewFingerprint
 		m.mu.Unlock()
-		return m.Connect(sessionId, pending.Conn)
+		err := m.Connect(sessionId, pending.Conn)
+		// Connect 失败时清除临时密钥，避免下次连接静默绕过主机密钥校验
+		if err != nil {
+			m.mu.Lock()
+			delete(m.tempAcceptedKeys, sessionId)
+			m.mu.Unlock()
+		}
+		return err
 
 	case 2: // 接受并保存到 known_hosts
 		knownHostsPath := getKnownHostsPath()
@@ -806,7 +817,10 @@ func (m *SSHManager) AcceptHostKeyChange(sessionId string, action int) error {
 			if err := os.WriteFile(tmpPath, []byte(strings.Join(newLines, "\n")+"\n"), 0600); err != nil {
 				return fmt.Errorf("无法写入 known_hosts: %w", err)
 			}
-			os.Rename(knownHostsPath, knownHostsPath+".bak")
+			if err := os.Rename(knownHostsPath, knownHostsPath+".bak"); err != nil && !os.IsNotExist(err) {
+				os.Remove(tmpPath)
+				return fmt.Errorf("无法备份 known_hosts: %w", err)
+			}
 			if err := os.Rename(tmpPath, knownHostsPath); err != nil {
 				os.Rename(knownHostsPath+".bak", knownHostsPath) // 回滚
 				return fmt.Errorf("无法写入 known_hosts: %w", err)
@@ -818,8 +832,13 @@ func (m *SSHManager) AcceptHostKeyChange(sessionId string, action int) error {
 			if err != nil {
 				return fmt.Errorf("无法写入 known_hosts: %w", err)
 			}
-			defer f.Close()
-			f.WriteString(newLine + "\n")
+			if _, err := f.WriteString(newLine + "\n"); err != nil {
+				f.Close()
+				return fmt.Errorf("无法写入 known_hosts: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("无法关闭 known_hosts: %w", err)
+			}
 		}
 
 		return m.Connect(sessionId, pending.Conn)
@@ -982,7 +1001,10 @@ func (m *SSHManager) deployProbeScript(sftpClient *sftp.Client, connKey string) 
 		}
 	}
 	_, err = f.Write([]byte(dynamicProbeScript))
-	f.Close()
+	// Close 错误也要检查：SFTP 写缓冲刷新失败会导致脚本不完整
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
 	if err != nil {
 		m.mu.Lock()
 		m.probeFailed[connKey]++
@@ -1500,14 +1522,6 @@ ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print $2}' || 
 
 // SFTP Methods
 
-func formatFileMode(mode os.FileMode) string {
-	return mode.String()
-}
-
-func fileModeNumeric(mode os.FileMode) string {
-	return fmt.Sprintf("%o", mode.Perm())
-}
-
 func (m *SSHManager) ListDir(sessionId string, path string) ([]map[string]interface{}, error) {
 	_, sftpClient, err := m.getClientEntry(sessionId)
 	if err != nil {
@@ -1524,8 +1538,8 @@ func (m *SSHManager) ListDir(sessionId string, path string) ([]map[string]interf
 
 	var results []map[string]interface{}
 	for _, f := range files {
-		permStr := formatFileMode(f.Mode())
-		modeNumeric := fileModeNumeric(f.Mode())
+		permStr := f.Mode().String()
+		modeNumeric := fmt.Sprintf("%o", f.Mode().Perm())
 
 		// 尝试从 Sys() 获取 UID/GID（*sftp.FileStat），非 sftp 环境可能为 nil
 		uid := "-"
@@ -1626,9 +1640,24 @@ func (m *SSHManager) WriteFile(sessionId string, path string, content string) er
 	return err
 }
 
+// isDangerousPath 检查是否为危险路径（根目录、家目录等），防止误删
+func isDangerousPath(path string) bool {
+	return path == "" || path == "/" || path == "/*" || path == "~" || path == "~/*"
+}
+
+// shellQuotePath 用单引号包裹路径并转义内部单引号，用于安全构造 shell 命令
+func shellQuotePath(path string) string {
+	return "'" + strings.ReplaceAll(path, "'", "'\\''") + "'"
+}
+
+// rmRfCmd 构造 rm -rf 删除命令
+func rmRfCmd(path string) string {
+	return "rm -rf " + shellQuotePath(path)
+}
+
 func (m *SSHManager) DeleteItem(sessionId string, path string, isDir bool) error {
 	// 拒绝删除危险路径，防止误删根目录或家目录
-	if path == "" || path == "/" || path == "/*" || path == "~" || path == "~/*" {
+	if isDangerousPath(path) {
 		return fmt.Errorf("refusing to delete dangerous path: %q", path)
 	}
 	client, sftpClient, err := m.getClientEntry(sessionId)
@@ -1642,7 +1671,7 @@ func (m *SSHManager) DeleteItem(sessionId string, path string, isDir bool) error
 				return nil
 			}
 		}
-		_, err := m.executeCmdWithClient(client, fmt.Sprintf("rm -rf '%s'", strings.ReplaceAll(path, "'", "'\\''")))
+		_, err := m.executeCmdWithClient(client, rmRfCmd(path))
 		return err
 	}
 	if sftpClient == nil {
@@ -1653,14 +1682,14 @@ func (m *SSHManager) DeleteItem(sessionId string, path string, isDir bool) error
 
 // DeleteItemShell 用 rm -rf 删除（和 FinalShell 一致）
 func (m *SSHManager) DeleteItemShell(sessionId string, path string) error {
-	if path == "" || path == "/" || path == "/*" || path == "~" || path == "~/*" {
+	if isDangerousPath(path) {
 		return fmt.Errorf("refusing to delete dangerous path: %q", path)
 	}
 	client, _, err := m.getClientEntry(sessionId)
 	if err != nil {
 		return err
 	}
-	_, err = m.executeCmdWithClient(client, fmt.Sprintf("rm -rf '%s'", strings.ReplaceAll(path, "'", "'\\''")))
+	_, err = m.executeCmdWithClient(client, rmRfCmd(path))
 	return err
 }
 
