@@ -573,6 +573,7 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
     const applyLight = mode === 'light' || (mode === 'system' && isSystemLight);
     if (applyLight) document.body.classList.add('theme-light');
     else document.body.classList.remove('theme-light');
+    window.dispatchEvent(new CustomEvent('theme-mode-changed'));
   };
 
   const handleColorChange = (color) => {
@@ -1237,10 +1238,10 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
                     <div style={{ color: 'var(--text-4)', fontSize: 11, marginBottom: 12 }}>{$t('选择终端的配色风格，即时生效')}</div>
                     <div className="theme-palette-grid">
                       {[
-                        { key: 'lumin',      name: 'Lumin Default', swatches: ['#22c55e', '#58a6ff', '#bc8cff', '#ff7b72'] },
-                        { key: 'tokyo-night', name: 'Tokyo Night',    swatches: ['#7aa2f7', '#bb9af7', '#73daca', '#f7768e'] },
-                        { key: 'catppuccin',  name: 'Catppuccin',     swatches: ['#cba6f7', '#89b4fa', '#a6e3a1', '#f38ba8'] },
-                        { key: 'dracula',     name: 'Dracula',        swatches: ['#ff79c6', '#bd93f9', '#50fa7b', '#ff5555'] },
+                        { key: 'lumin',       name: 'Lumin Default', swatches: ['#22c55e', '#58a6ff', '#bc8cff', '#0d1117'] },
+                        { key: 'tokyo-night', name: 'Tokyo Night',   swatches: ['#7aa2f7', '#bb9af7', '#73daca', '#1a1b26'] },
+                        { key: 'catppuccin',  name: 'Catppuccin',    swatches: ['#cba6f7', '#89b4fa', '#a6e3a1', '#1e1e2e'] },
+                        { key: 'dracula',     name: 'Dracula',       swatches: ['#ff79c6', '#bd93f9', '#50fa7b', '#282a36'] },
                       ].map(({ key, name, swatches }) => (
                         <div
                           key={key}

@@ -4,6 +4,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { useTranslation } from '../i18n.js';
 import { formatShortcut } from '../utils/platform.js';
 import { clampMenuPosition } from '../utils/menuPosition.js';
+import { getTerminalTheme } from '../utils/theme.js';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
@@ -124,6 +125,7 @@ export default function FileEditor({
   isActive = true,
 }) {
   const { t } = useTranslation();
+  const C = getTerminalTheme().container;
 
   // 每个文件的编辑内容缓存：{ [path]: content }
   const [editedContents, setEditedContents] = useState({});
@@ -624,10 +626,10 @@ export default function FileEditor({
             position: 'fixed',
             left: contextMenu.x,
             top: contextMenu.y,
-            backgroundColor: '#161b22',
-            border: '1px solid rgba(48,54,61,0.9)',
+            backgroundColor: C.contextBg,
+            border: '1px solid ' + C.btnBorder,
             borderRadius: '8px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            boxShadow: C.contextShadow,
             zIndex: Z.SEARCH_PANEL,
             padding: '4px 0',
             minWidth: '160px',
@@ -645,7 +647,7 @@ export default function FileEditor({
               key={item.action}
               className="context-menu-item"
               style={{ padding: '6px 12px', cursor: item.disabled ? 'default' : 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: 13, opacity: item.disabled ? 0.4 : 1 }}
-              onMouseEnter={(e) => { if (!item.disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+              onMouseEnter={(e) => { if (!item.disabled) e.currentTarget.style.background = 'rgba(128,128,128,0.08)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
               onClick={() => { if (!item.disabled) handleMenuAction(item.action); }}
             >

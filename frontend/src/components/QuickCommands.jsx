@@ -4,6 +4,7 @@ import * as AppGo from '../../wailsjs/go/main/App.js';
 import { useTranslation } from '../i18n.js';
 import { getModKey } from '../utils/platform.js';
 import { Z } from '../constants/zIndex';
+import { getTerminalTheme } from '../utils/theme.js';
 
 // ── 加载命令数据（从 Go 后端文件）────────────────────
 async function loadCommands() {
@@ -80,7 +81,7 @@ function filterTree(items, keyword, parentPath = '') {
 }
 
 // ── 树形节点渲染组件 ────────────────────────────────────
-function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onContextMenu, closeContextMenu, onExecute, onMove, onDragStart, onDropItem, onDragEnd, dragVersion }) {
+function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onContextMenu, closeContextMenu, onExecute, onMove, onDragStart, onDropItem, onDragEnd, dragVersion, theme }) {
   const { t } = useTranslation();
   const [hover, setHover] = useState(false);
   const [dropPos, setDropPos] = useState(null); // 'before' | 'inside' | 'after'
@@ -91,7 +92,7 @@ function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onCo
     <span
       onClick={(e) => { e.stopPropagation(); onMove && onMove(path, dir); }}
       style={{
-        fontSize: 10, cursor: 'pointer', color: '#6e7681', padding: '0 3px',
+        fontSize: 10, cursor: 'pointer', color: theme.mutedColor, padding: '0 3px',
         visibility: hover ? 'visible' : 'hidden', lineHeight: '14px',
         userSelect: 'none',
       }}
@@ -116,6 +117,7 @@ function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onCo
   const dropIndicator = (pos) => {
     if (dropPos !== pos) return null;
     if (pos === 'inside') return null; // handled by background
+
     return (
       <div style={{
         position: 'absolute', left: 4, right: 4, height: 2,
@@ -148,8 +150,8 @@ function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onCo
             {...commonDragProps}
             style={{
               display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', cursor: 'pointer',
-              borderRadius: 3, fontSize: 13, color: isSelected ? '#58a6ff' : '#cdd9e5',
-              background: dropPos === 'inside' ? 'rgba(34,197,94,0.15)' : isSelected ? 'rgba(88,166,255,0.1)' : hover ? 'rgba(255,255,255,0.03)' : 'transparent',
+              borderRadius: 3, fontSize: 13, color: isSelected ? '#58a6ff' : theme.inputColor,
+              background: dropPos === 'inside' ? 'rgba(34,197,94,0.15)' : isSelected ? 'rgba(88,166,255,0.1)' : hover ? 'rgba(128,128,128,0.06)' : 'transparent',
               outline: dropPos === 'inside' ? '1px dashed #22c55e' : 'none',
               userSelect: 'none',
               transition: 'background 0.1s',
@@ -181,11 +183,12 @@ function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onCo
                 onDropItem={onDropItem}
                 onDragEnd={onDragEnd}
                 dragVersion={dragVersion}
+                theme={theme}
               />
             </div>
           ))}
           {isExpanded && (!item.children || item.children.length === 0) && (
-            <div style={{ paddingLeft: 30, fontSize: 11, color: '#6e7681', padding: '4px 0 4px 30px', fontStyle: 'italic' }}>
+            <div style={{ paddingLeft: 30, fontSize: 11, color: theme.mutedColor, padding: '4px 0 4px 30px', fontStyle: 'italic' }}>
               {t('(空分组，右键添加命令)')}
             </div>
           )}
@@ -213,8 +216,8 @@ function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onCo
         {...commonDragProps}
         style={{
           display: 'flex', alignItems: 'center', padding: '5px 8px', cursor: 'pointer',
-          borderRadius: 3, fontSize: 12, color: isSelected ? '#22c55e' : '#b1bac4',
-          background: isSelected ? 'rgba(34,197,94,0.08)' : hover ? 'rgba(255,255,255,0.03)' : 'transparent',
+          borderRadius: 3, fontSize: 12, color: isSelected ? '#22c55e' : theme.inputColor,
+          background: isSelected ? 'rgba(34,197,94,0.08)' : hover ? 'rgba(128,128,128,0.06)' : 'transparent',
           userSelect: 'none',
         }}
       >
@@ -813,17 +816,34 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
   };
 
   // ── 通用样式 ──────────────────────────────────────
+  const C = getTerminalTheme().container;
   const inputStyle = {
     padding: '5px 8px', fontSize: 12, borderRadius: 3,
-    background: '#0d1117', border: '1px solid #30363d',
-    color: '#cdd9e5', outline: 'none', fontFamily: 'inherit',
+    background: C.inputBg, border: '1px solid ' + C.btnBorder,
+    color: C.inputColor, outline: 'none', fontFamily: 'inherit',
     width: '100%', boxSizing: 'border-box',
   };
 
   const selectedItem = useMemo(() => getSelectedItem(), [selectedPath, commands]);
 
+  // ── 内联样式常量（使用主题色）──
+  const _menuItemStyle = {
+    padding: '6px 14px', cursor: 'pointer', color: C.inputColor,
+    display: 'flex', alignItems: 'center', gap: 6,
+    transition: 'background 0.1s',
+    _hover: { background: 'rgba(88,166,255,0.1)' },
+  };
+
+  const _menuSepStyle = {
+    height: 1, background: C.separator, margin: '4px 0',
+  };
+
+  const _labelStyle = {
+    fontSize: 11, color: C.statusBarColor, display: 'block', marginBottom: 4,
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#161b22', fontFamily: 'var(--font-ui)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.popupBg, fontFamily: 'var(--font-ui)' }}>
       {/* ── 工具栏 ── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
@@ -849,7 +869,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           style={{ background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.25)', color: '#58a6ff', borderRadius: 3, padding: '3px 8px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
         ><FolderPlus size={14} /> {t('添加分组')}</button>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 10, color: '#6e7681' }}>{t('Ctrl+S 保存')}</span>
+        <span style={{ fontSize: 10, color: C.mutedColor }}>{t('Ctrl+S 保存')}</span>
       </div>
 
       {/* ── 主体：左右分栏 ── */}
@@ -865,7 +885,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           style={{
             width: 220, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)',
             overflowY: 'auto', padding: '4px 6px',
-            background: rootDragOver ? 'rgba(34,197,94,0.08)' : '#0d1117',
+            background: rootDragOver ? 'rgba(34,197,94,0.08)' : C.inputBg,
             outline: rootDragOver ? '1px dashed #22c55e' : 'none',
             display: 'flex', flexDirection: 'column',
             transition: 'background 0.1s',
@@ -897,7 +917,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
             {(() => {
               const displayed = filterTree(commands, searchText);
               return displayed.length === 0 ? (
-                <div style={{ padding: 16, textAlign: 'center', color: '#6e7681', fontSize: 12 }}>
+                <div style={{ padding: 16, textAlign: 'center', color: C.mutedColor, fontSize: 12 }}>
                   {searchText ? t('无匹配结果') : t('点击上方按钮添加命令')}
                 </div>
               ) : (
@@ -918,6 +938,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                     onDropItem={handleDropItem}
                     onDragEnd={clearDrag}
                     dragVersion={dragVersion}
+                    theme={C}
                   />
                 ))
               );
@@ -931,7 +952,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           {selectedItem && selectedItem.type === 'group' ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 14px', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, color: '#8b949e', display: 'block', marginBottom: 4 }}>{t('分组名称')}</label>
+                <label style={{ fontSize: 11, color: C.statusBarColor, display: 'block', marginBottom: 4 }}>{t('分组名称')}</label>
                 <input
                   type="text"
                   value={editGroupName}
@@ -960,7 +981,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                   style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e', borderRadius: 3, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}
                 >{t('＋ 添加命令')}</button>
               </div>
-              <div style={{ fontSize: 12, color: '#6e7681', marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: C.mutedColor, marginTop: 8 }}>
                 {selectedItem.children?.length || 0} {t('个命令/子分组')}
               </div>
             </div>
@@ -969,7 +990,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
               {/* 选中了命令 → 显示编辑器 */}
               {/* 名称 */}
               <div>
-                <label style={{ fontSize: 11, color: '#8b949e', display: 'block', marginBottom: 4 }}>{t('名称')}</label>
+                <label style={{ fontSize: 11, color: C.statusBarColor, display: 'block', marginBottom: 4 }}>{t('名称')}</label>
                 <input
                   type="text"
                   value={editCmdName}
@@ -981,7 +1002,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
               {/* 命令 */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <label style={{ fontSize: 11, color: '#8b949e' }}>{t('命令')}</label>
+                  <label style={{ fontSize: 11, color: C.statusBarColor }}>{t('命令')}</label>
                   <div style={{ display: 'flex', gap: 4 }}>
                     {[1,2,3,4,5].map(n => (
                       <button
@@ -992,8 +1013,8 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                         }}
                         title={t('插入参数 p#') + n}
                         style={{
-                          background: 'transparent', border: '1px solid #30363d', borderRadius: 3,
-                          color: '#8b949e', fontSize: 10, cursor: 'pointer', padding: '1px 5px',
+                          background: 'transparent', border: '1px solid ' + C.btnBorder, borderRadius: 3,
+                          color: C.statusBarColor, fontSize: 10, cursor: 'pointer', padding: '1px 5px',
                         }}
                       >{t('参数')}{n}</button>
                     ))}
@@ -1039,7 +1060,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                   <span style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontSize: 11, padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' }}>
                     {editCmdName}
                   </span>
-                  <span style={{ flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b1bac4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.inputColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {editCmdText || ''}
                   </span>
                   <button
@@ -1053,7 +1074,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                       setDlgCmd(editCmdText || '');
                       setDlgAddCR(selectedItem.addCR !== false);
                     }}
-                    style={{ background: 'transparent', border: '1px solid #30363d', color: '#8b949e', borderRadius: 3, padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}
+                    style={{ background: 'transparent', border: '1px solid ' + C.btnBorder, color: C.statusBarColor, borderRadius: 3, padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}
                   >{t('编辑')}</button>
                 </div>
 
@@ -1072,7 +1093,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                           return (
                             <div key={p.num} style={{ position: 'relative' }}>
                               {/* 标签名（FinalShell 风格：在框外面） */}
-                              <span style={{ fontSize: 11, color: '#8b949e', display: 'block', marginBottom: 2 }}>
+                              <span style={{ fontSize: 11, color: C.statusBarColor, display: 'block', marginBottom: 2 }}>
                                 {p.label || `p#${p.num}`}
                               </span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1095,7 +1116,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                                   }}
                                   data-history-dropdown="true"
                                   style={{
-                                    background: 'transparent', border: '1px solid #30363d',
+                                    background: 'transparent', border: '1px solid ' + C.btnBorder,
                                     color: '#58a6ff', borderRadius: 2,
                                     fontSize: 10, cursor: 'pointer', padding: '1px 7px',
                                     whiteSpace: 'nowrap',
@@ -1110,7 +1131,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                                   style={{
                                     position: 'absolute', bottom: '100%', left: 0, zIndex: Z.POPUP,
                                     minWidth: 180, maxHeight: 200, display: 'flex', flexDirection: 'column',
-                                    background: '#161b22', border: '1px solid #30363d',
+                                    background: C.popupBg, border: '1px solid ' + C.btnBorder,
                                     borderRadius: 4, boxShadow: '0 -4px 16px rgba(0,0,0,0.5)',
                                     marginBottom: 2,
                                   }}
@@ -1158,7 +1179,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                                         ? histList.filter(v => v.toLowerCase().includes(historySearch.toLowerCase()))
                                         : histList;
                                       return filtered.length === 0 ? (
-                                        <div style={{ padding: '6px 10px', fontSize: 11, color: '#484f58' }}>
+                                        <div style={{ padding: '6px 10px', fontSize: 11, color: C.btnMuted }}>
                                           {historySearch ? t('无匹配结果') : t('暂无历史')}
                                         </div>
                                       ) : filtered.map((val, i) => (
@@ -1171,7 +1192,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                                           }}
                                           style={{
                                             padding: '4px 10px', fontSize: 11,
-                                            color: '#cdd9e5', cursor: 'pointer',
+                                            color: C.inputColor, cursor: 'pointer',
                                             fontFamily: "'JetBrains Mono', monospace",
                                             borderBottom: '1px solid rgba(255,255,255,0.04)',
                                           }}
@@ -1193,7 +1214,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
                 {/* 第三行：CR选项 + 发送 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                  <label style={{ fontSize: 11, color: '#8b949e', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                  <label style={{ fontSize: 11, color: C.statusBarColor, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={selectedItem.addCR !== false}
@@ -1209,14 +1230,14 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                   </label>
                   <div style={{ flex: 1 }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, color: '#6e7681' }}>{t('发送到')}</span>
+                    <span style={{ fontSize: 11, color: C.mutedColor }}>{t('发送到')}</span>
                     <select
                       value={sendTarget}
                       onChange={(e) => setSendTarget(e.target.value)}
                       style={{
                         fontSize: 11, padding: '2px 6px', borderRadius: 3,
-                        background: '#0d1117', border: '1px solid #30363d',
-                        color: '#cdd9e5', outline: 'none', cursor: 'pointer',
+                        background: C.inputBg, border: '1px solid ' + C.btnBorder,
+                        color: C.inputColor, outline: 'none', cursor: 'pointer',
                       }}
                     >
                       <option value="current">{t('当前会话')}</option>
@@ -1238,7 +1259,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
             </div>
           ) : (
             /* 未选中任何项 */
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6e7681', fontSize: 13, flexDirection: 'column', gap: 8 }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.mutedColor, fontSize: 13, flexDirection: 'column', gap: 8 }}>
               <div style={{ opacity: 0.2 }}><Zap size={40} /></div>
               <div>{t('选择左侧命令或添加新命令')}</div>
             </div>
@@ -1250,9 +1271,9 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
       <div style={{
         display: 'flex', alignItems: 'center', gap: 6,
         borderTop: '1px solid rgba(255,255,255,0.06)',
-        padding: '5px 10px', background: '#0d1117', flexShrink: 0,
+        padding: '5px 10px', background: C.inputBg, flexShrink: 0,
       }}>
-        <span style={{ fontSize: 11, color: '#8b949e', whiteSpace: 'nowrap' }}>{t('快速命令')}</span>
+        <span style={{ fontSize: 11, color: C.statusBarColor, whiteSpace: 'nowrap' }}>{t('快速命令')}</span>
         <input
           type="text"
           value={quickCmd}
@@ -1261,19 +1282,19 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           placeholder={t('输入临时命令直接发送（不保存）...')}
           style={{ flex: 1, ...inputStyle, fontSize: 11, padding: '4px 8px' }}
         />
-        <label style={{ fontSize: 11, color: '#8b949e', display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <label style={{ fontSize: 11, color: C.statusBarColor, display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', whiteSpace: 'nowrap' }}>
           <input type="checkbox" checked={quickAddCR} onChange={e => setQuickAddCR(e.target.checked)} style={{ margin: 0, cursor: 'pointer' }} />
           {t('回车')}
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 11, color: '#6e7681' }}>→</span>
+          <span style={{ fontSize: 11, color: C.mutedColor }}>→</span>
           <select
             value={sendTarget}
             onChange={(e) => setSendTarget(e.target.value)}
             style={{
               fontSize: 11, padding: '2px 6px', borderRadius: 3,
-              background: '#0d1117', border: '1px solid #30363d',
-              color: '#cdd9e5', outline: 'none', cursor: 'pointer',
+              background: C.inputBg, border: '1px solid ' + C.btnBorder,
+              color: C.inputColor, outline: 'none', cursor: 'pointer',
             }}
           >
             <option value="current">{t('当前')}</option>
@@ -1301,25 +1322,25 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           <div onClick={closeContextMenu} style={{ position: 'fixed', inset: 0, zIndex: Z.MENU_BACKDROP, background: 'transparent' }} />
           <div style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: Z.MENU,
-            background: '#1c2128', border: '1px solid #30363d', borderRadius: 6,
+            background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 6,
             boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: '4px 0', minWidth: 160,
             fontSize: 12,
           }}>
             {contextMenu.type === 'group' ? (
               <>
-                <div onClick={() => doContextAction('addCmd')} style={menuItemStyle}>{t('＋ 添加命令')}</div>
-                <div onClick={() => doContextAction('addGroup')} style={menuItemStyle}><FolderPlus size={14} /> {t('添加子分组')}</div>
-                <div style={menuSepStyle} />
-                <div onClick={() => doContextAction('editGroup')} style={menuItemStyle}><Pencil size={14} /> {t('重命名分组')}</div>
-                <div style={menuSepStyle} />
-                <div onClick={() => doContextAction('delete')} style={{ ...menuItemStyle, color: '#ff7b72' }}><Trash2 size={14} /> {t('删除分组')}</div>
+                <div onClick={() => doContextAction('addCmd')} style={_menuItemStyle}>{t('＋ 添加命令')}</div>
+                <div onClick={() => doContextAction('addGroup')} style={_menuItemStyle}><FolderPlus size={14} /> {t('添加子分组')}</div>
+                <div style={_menuSepStyle} />
+                <div onClick={() => doContextAction('editGroup')} style={_menuItemStyle}><Pencil size={14} /> {t('重命名分组')}</div>
+                <div style={_menuSepStyle} />
+                <div onClick={() => doContextAction('delete')} style={{ ..._menuItemStyle, color: '#ff7b72' }}><Trash2 size={14} /> {t('删除分组')}</div>
               </>
             ) : (
               <>
-                <div onClick={() => doContextAction('execute')} style={menuItemStyle}><Rocket size={14} /> {t('执行')}</div>
-                <div onClick={() => doContextAction('edit')} style={menuItemStyle}><SquarePen size={14} /> {t('编辑')}</div>
-                <div style={menuSepStyle} />
-                <div onClick={() => doContextAction('delete')} style={{ ...menuItemStyle, color: '#ff7b72' }}><Trash2 size={14} /> {t('删除')}</div>
+                <div onClick={() => doContextAction('execute')} style={_menuItemStyle}><Rocket size={14} /> {t('执行')}</div>
+                <div onClick={() => doContextAction('edit')} style={_menuItemStyle}><SquarePen size={14} /> {t('编辑')}</div>
+                <div style={_menuSepStyle} />
+                <div onClick={() => doContextAction('delete')} style={{ ..._menuItemStyle, color: '#ff7b72' }}><Trash2 size={14} /> {t('删除')}</div>
               </>
             )}
           </div>
@@ -1332,19 +1353,19 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           <div onClick={handleConfirmCancel} style={{ position: 'fixed', inset: 0, zIndex: Z.DIALOG_BACKDROP, background: 'rgba(0,0,0,0.4)' }} />
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: Z.DIALOG,
-            width: 360, background: '#1c2128', border: '1px solid #30363d', borderRadius: 8,
+            width: 360, background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 8,
             boxShadow: '0 12px 40px rgba(0,0,0,0.6)', padding: '16px 20px',
           }}>
-            <div style={{ fontSize: 14, color: '#cdd9e5', marginBottom: 14, fontWeight: 600 }}>
+            <div style={{ fontSize: 14, color: C.inputColor, marginBottom: 14, fontWeight: 600 }}>
               {t('未保存的修改')}
             </div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: C.statusBarColor, marginBottom: 16 }}>
               {t('当前命令有未保存的修改，是否保存？')}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
                 onClick={handleConfirmCancel}
-                style={{ background: 'transparent', border: '1px solid #30363d', color: '#8b949e', borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
+                style={{ background: 'transparent', border: '1px solid ' + C.btnBorder, color: C.statusBarColor, borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
               >{t('取消')}</button>
               <button
                 onClick={handleConfirmDiscard}
@@ -1365,16 +1386,16 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           <div onClick={() => setShowGroupPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: Z.DIALOG_BACKDROP, background: 'rgba(0,0,0,0.4)' }} />
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: Z.DIALOG,
-            width: 480, background: '#1c2128', border: '1px solid #30363d', borderRadius: 8,
+            width: 480, background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 8,
             boxShadow: '0 12px 40px rgba(0,0,0,0.6)', padding: '16px 20px',
           }}>
-            <div style={{ fontSize: 14, color: '#cdd9e5', marginBottom: 14, fontWeight: 600 }}>
+            <div style={{ fontSize: 14, color: C.inputColor, marginBottom: 14, fontWeight: 600 }}>
               {dialog.type === 'addGroup' ? t('添加分组') : dialog.type === 'editGroup' ? t('重命名分组') : dialog.type === 'add' ? t('添加命令') : t('编辑命令')}
             </div>
 
             {/* 添加到提示（仅添加命令时显示） */}
             {dialog.type === 'add' && (
-              <div style={{ fontSize: 12, color: '#6e7681', marginBottom: 12, userSelect: 'none' }}>
+              <div style={{ fontSize: 12, color: C.mutedColor, marginBottom: 12, userSelect: 'none' }}>
                 <span style={{ marginRight: 6 }}>{t('添加到:')}</span>
                 <span
                   ref={groupPickerRef}
@@ -1410,7 +1431,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
             {/* 名称 */}
             <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>{t('名称')}</label>
+              <label style={_labelStyle}>{t('名称')}</label>
               <input
                 type="text"
                 value={dlgName}
@@ -1427,7 +1448,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
               <>
               <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <label style={labelStyle}>{t('命令')}</label>
+                <label style={_labelStyle}>{t('命令')}</label>
                 <div style={{ display: 'flex', gap: 3 }}>
                   {[1,2,3,4,5].map(n => (
                     <button
@@ -1435,8 +1456,8 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                       onClick={() => insertParam(n)}
                       title={t('插入参数 p#') + n}
                       style={{
-                        background: 'transparent', border: '1px solid #30363d', borderRadius: 3,
-                        color: '#8b949e', fontSize: 10, cursor: 'pointer', padding: '1px 6px',
+                        background: 'transparent', border: '1px solid ' + C.btnBorder, borderRadius: 3,
+                        color: C.statusBarColor, fontSize: 10, cursor: 'pointer', padding: '1px 6px',
                         fontFamily: 'monospace',
                       }}
                     >{t('参数')}{n}</button>
@@ -1466,7 +1487,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
             {/* 末尾添加回车符 */}
             {dialog.type !== 'addGroup' && dialog.type !== 'editGroup' && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, cursor: 'pointer', fontSize: 12, color: '#8b949e' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, cursor: 'pointer', fontSize: 12, color: C.statusBarColor }}>
               <input
                 type="checkbox"
                 checked={dlgAddCR}
@@ -1481,7 +1502,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
                 onClick={() => { setShowGroupPicker(false); setDialog(null); }}
-                style={{ background: 'transparent', border: '1px solid #30363d', color: '#8b949e', borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
+                style={{ background: 'transparent', border: '1px solid ' + C.btnBorder, color: C.statusBarColor, borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
               >{t('取消')}</button>
               <button
                 onClick={handleDlgSave}
@@ -1508,7 +1529,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
               <div style={{
                 position: 'fixed', left: groupPickerPos.x, top: groupPickerPos.y, zIndex: Z.SUBMENU,
                 minWidth: 160, maxHeight: 220, overflowY: 'auto',
-                background: '#1c2128', border: '1px solid #30363d', borderRadius: 6,
+                background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 6,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.5)', padding: '4px 0',
               }}>
                 {/* 根目录 */}
@@ -1518,7 +1539,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                     setShowGroupPicker(false);
                   }}
                   style={{
-                    padding: '5px 14px', fontSize: 12, color: '#cdd9e5', cursor: 'pointer',
+                    padding: '5px 14px', fontSize: 12, color: C.inputColor, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(88,166,255,0.08)'}
@@ -1528,7 +1549,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 {(() => {
                   const groups = collectGroups(commands);
                   return groups.length === 0 ? (
-                    <div style={{ padding: '6px 14px', fontSize: 11, color: '#484f58' }}>{t('暂无分组')}</div>
+                    <div style={{ padding: '6px 14px', fontSize: 11, color: C.btnMuted }}>{t('暂无分组')}</div>
                   ) : groups.map((g, i) => (
                     <div
                       key={i}
@@ -1545,7 +1566,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                         setShowGroupPicker(false);
                       }}
                       style={{
-                        padding: '5px 14px', fontSize: 12, color: '#cdd9e5', cursor: 'pointer',
+                        padding: '5px 14px', fontSize: 12, color: C.inputColor, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none',
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(88,166,255,0.08)'}
@@ -1565,18 +1586,3 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
 export default QuickCommands;
 
-// ── 通用样式对象 ──────────────────────────────────
-const menuItemStyle = {
-  padding: '6px 14px', cursor: 'pointer', color: '#cdd9e5',
-  display: 'flex', alignItems: 'center', gap: 6,
-  transition: 'background 0.1s',
-  _hover: { background: 'rgba(88,166,255,0.1)' },
-};
-
-const menuSepStyle = {
-  height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 0',
-};
-
-const labelStyle = {
-  fontSize: 11, color: '#8b949e', display: 'block', marginBottom: 4,
-};

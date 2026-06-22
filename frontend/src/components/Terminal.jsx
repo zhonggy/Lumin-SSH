@@ -10,6 +10,7 @@ import '@xterm/xterm/css/xterm.css';
 import { useTranslation } from '../i18n.js';
 import defaultTermBg from '../assets/term_bg.png';
 import { Z } from '../constants/zIndex';
+import { getTerminalTheme } from '../utils/theme.js';
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -34,71 +35,11 @@ const iconBtnStyle = (color, bg) => ({
   transition: 'all 0.1s',
 });
 
-// ── 多套终端主题定义 ──────────────────────────────────────────────
-const TERMINAL_THEMES = {
-  'lumin': {
-    name: 'Lumin Default',
-    swatches: ['#22c55e', '#58a6ff', '#bc8cff', '#0d1117'],
-    theme: {
-      background: '#00000000', foreground: '#cdd9e5', cursor: '#22c55e',
-      cursorAccent: '#0d1117', selectionBackground: 'rgba(34,197,94,0.40)',
-      selectionForeground: '#0d1117',
-      black: '#484f58', red: '#ff7b72', green: '#3fb950', yellow: '#d29922',
-      blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39c5cf', white: '#b1bac4',
-      brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
-      brightYellow: '#e3b341', brightBlue: '#79c0ff', brightMagenta: '#d2a8ff',
-      brightCyan: '#56d4dd', brightWhite: '#f0f6fc',
-    },
-  },
-  'tokyo-night': {
-    name: 'Tokyo Night',
-    swatches: ['#7aa2f7', '#bb9af7', '#73daca', '#1a1b26'],
-    theme: {
-      background: '#00000000', foreground: '#a9b1d6', cursor: '#7aa2f7',
-      cursorAccent: '#1a1b26', selectionBackground: 'rgba(122,162,247,0.40)',
-      selectionForeground: '#1a1b26',
-      black: '#32344a', red: '#f7768e', green: '#9ece6a', yellow: '#e0af68',
-      blue: '#7aa2f7', magenta: '#ad8ee6', cyan: '#449dab', white: '#787c99',
-      brightBlack: '#444b6a', brightRed: '#ff7a93', brightGreen: '#b9f27c',
-      brightYellow: '#ff9e64', brightBlue: '#7da6ff', brightMagenta: '#bb9af7',
-      brightCyan: '#0db9d7', brightWhite: '#acb0d0',
-    },
-  },
-  'catppuccin': {
-    name: 'Catppuccin',
-    swatches: ['#cba6f7', '#89b4fa', '#a6e3a1', '#1e1e2e'],
-    theme: {
-      background: '#00000000', foreground: '#cdd6f4', cursor: '#f5c2e7',
-      cursorAccent: '#1e1e2e', selectionBackground: 'rgba(203,166,247,0.40)',
-      selectionForeground: '#1e1e2e',
-      black: '#45475a', red: '#f38ba8', green: '#a6e3a1', yellow: '#f9e2af',
-      blue: '#89b4fa', magenta: '#f5c2e7', cyan: '#94e2d5', white: '#bac2de',
-      brightBlack: '#585b70', brightRed: '#f38ba8', brightGreen: '#a6e3a1',
-      brightYellow: '#f9e2af', brightBlue: '#89b4fa', brightMagenta: '#f5c2e7',
-      brightCyan: '#94e2d5', brightWhite: '#a6adc8',
-    },
-  },
-  'dracula': {
-    name: 'Dracula',
-    swatches: ['#ff79c6', '#bd93f9', '#50fa7b', '#282a36'],
-    theme: {
-      background: '#00000000', foreground: '#f8f8f2', cursor: '#f8f8f2',
-      cursorAccent: '#282a36', selectionBackground: 'rgba(189,147,249,0.40)',
-      selectionForeground: '#282a36',
-      black: '#21222c', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c',
-      blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#f8f8f2',
-      brightBlack: '#6272a4', brightRed: '#ff6e6e', brightGreen: '#69ff94',
-      brightYellow: '#ffffa5', brightBlue: '#d6acff', brightMagenta: '#ff92df',
-      brightCyan: '#a4ffff', brightWhite: '#ffffff',
-    },
-  },
-};
+// ── 多套终端主题定义（每个主题含 dark/light 两套配色）─────────────
 
-// 根据 localStorage 获取当前主题
-function getXtermTheme() {
-  const key = localStorage.getItem('terminalColorTheme') || 'lumin';
-  return (TERMINAL_THEMES[key] || TERMINAL_THEMES['lumin']).theme;
-}
+
+// 获取当前终端主题（含 xterm 主题和容器颜色）
+
 
 export default function Terminal({ sessionId, serverId, historyServerId, status, isActive, serverName, connectedSessions = [] }) {
   const { t } = useTranslation();
@@ -108,6 +49,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   const wsRef          = useRef(null);
   const serverIdRef    = useRef(serverId);
   serverIdRef.current  = serverId;
+  const [themeToggle, setThemeToggle]     = useState(0); // 用于强制重渲染（浅色/深色模式切换）
   const [contextMenu, setContextMenu]         = useState(null);
   const [contextHasSelection, setContextHasSelection] = useState(false);
   const [justConnected, setJustConnected]     = useState(false);
@@ -144,7 +86,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     const fontSize = parseInt(localStorage.getItem('terminalFontSize') || '13', 10);
 
     const term = new XTerm({
-      theme:            getXtermTheme(),
+      theme:            getTerminalTheme().xterm,
       fontFamily:       "'JetBrains Mono', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Fira Code', monospace",
       fontSize:         fontSize,
       lineHeight:       1.22,
@@ -588,14 +530,26 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   }, []);
 
   // 监听终端颜色主题切换，即时更新 xterm 主题
+  // 同时监听 App 浅色/深色模式切换
   useEffect(() => {
     const handleThemeChange = () => {
       if (termRef.current) {
-        termRef.current.options.theme = getXtermTheme();
+        termRef.current.options.theme = getTerminalTheme().xterm;
       }
     };
+    const handleModeChange = () => {
+      if (termRef.current) {
+        termRef.current.options.theme = getTerminalTheme().xterm;
+      }
+      // 强制重新渲染以更新容器颜色
+      setThemeToggle(v => v + 1);
+    };
     window.addEventListener('terminal-theme-changed', handleThemeChange);
-    return () => window.removeEventListener('terminal-theme-changed', handleThemeChange);
+    window.addEventListener('theme-mode-changed', handleModeChange);
+    return () => {
+      window.removeEventListener('terminal-theme-changed', handleThemeChange);
+      window.removeEventListener('theme-mode-changed', handleModeChange);
+    };
   }, []);
 
   // 监听快捷键 & 本地回显变更，同步更新 ref 缓存（保持设置即时生效）
@@ -828,7 +782,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: '#0d1117', // Fallback color
+        background: bgInfo.image ? 'transparent' : getTerminalTheme().container.containerBg,
         overflow: 'hidden',
       }}
     >
@@ -852,11 +806,11 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         alignItems: 'center',
         gap: 8,
         padding: '8px 14px',
-        background: 'rgba(22, 27, 34, 0.75)',
+        background: getTerminalTheme().container.statusBarBg,
         backdropFilter: 'blur(8px)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: getTerminalTheme().container.statusBarBorder,
         fontSize: 12,
-        color: '#8b949e',
+        color: getTerminalTheme().container.statusBarColor,
         userSelect: 'none',
         flexShrink: 0,
       }}>
@@ -868,7 +822,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
           isError      ? 'offline' : '',
           !isConnected && !isConnecting && !isError ? 'offline' : '',
         ].filter(Boolean).join(' ')} style={{ flexShrink: 0 }} />
-        <span style={{ color: '#cdd9e5', fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
+        <span style={{ color: getTerminalTheme().container.serverNameColor, fontWeight: 500, fontFamily: 'var(--font-mono)' }}>
           {serverName || 'Terminal'}
         </span>
         
@@ -928,9 +882,9 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         alignItems: 'center',
         gap: 6,
         padding: '6px 10px',
-        background: 'rgba(22, 27, 34, 0.85)',
+        background: getTerminalTheme().container.inputBarBg,
         backdropFilter: 'blur(8px)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
+        borderTop: getTerminalTheme().container.inputBarBorder,
         flexShrink: 0,
         position: 'relative',
       }}>
@@ -951,7 +905,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             fontFamily: "'JetBrains Mono', monospace",
             padding: '7px 10px',
             minHeight: 32,
-            background: 'rgba(13,17,23,0.8)',
+            background: getTerminalTheme().container.inputBg,
             borderColor: cmdInput ? 'rgba(34,197,94,0.3)' : 'rgba(48,54,61,0.5)',
           }}
         />
@@ -965,9 +919,9 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             display: 'flex', alignItems: 'center', gap: 4,
             padding: '6px 10px',
             fontSize: 11,
-            color: showHistory ? '#22c55e' : '#8b949e',
+            color: showHistory ? '#22c55e' : getTerminalTheme().container.statusBarColor,
             background: showHistory ? 'rgba(34,197,94,0.1)' : 'transparent',
-            border: `1px solid ${showHistory ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}`,
+            border: `1px solid ${showHistory ? 'rgba(34,197,94,0.3)' : getTerminalTheme().container.btnBorder}`,
             borderRadius: 4,
             cursor: 'pointer',
             whiteSpace: 'nowrap',
@@ -987,9 +941,9 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             display: 'flex', alignItems: 'center', gap: 4,
             padding: '6px 10px',
             fontSize: 11,
-            color: showCommands ? '#22c55e' : '#8b949e',
+            color: showCommands ? '#22c55e' : getTerminalTheme().container.statusBarColor,
             background: showCommands ? 'rgba(34,197,94,0.1)' : 'transparent',
-            border: `1px solid ${showCommands ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}`,
+            border: `1px solid ${showCommands ? 'rgba(34,197,94,0.3)' : getTerminalTheme().container.btnBorder}`,
             borderRadius: 4,
             cursor: 'pointer',
             whiteSpace: 'nowrap',
@@ -1009,9 +963,9 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 30, height: 30,
             background: (cmdTrimmed && isConnected) ? 'rgba(34,197,94,0.15)' : 'transparent',
-            border: `1px solid ${(cmdTrimmed && isConnected) ? 'rgba(34,197,94,0.35)' : 'rgba(255,255,255,0.08)'}`,
+            border: `1px solid ${(cmdTrimmed && isConnected) ? 'rgba(34,197,94,0.35)' : getTerminalTheme().container.btnBorder}`,
             borderRadius: 4,
-            color: (cmdTrimmed && isConnected) ? '#22c55e' : '#484f58',
+            color: (cmdTrimmed && isConnected) ? '#22c55e' : getTerminalTheme().container.btnMuted,
             cursor: (cmdTrimmed && isConnected) ? 'pointer' : 'not-allowed',
             transition: 'all 0.15s',
             flexShrink: 0,
@@ -1029,9 +983,9 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 30, height: 30,
             background: cmdTrimmed ? 'rgba(88,166,255,0.15)' : 'transparent',
-            border: `1px solid ${cmdTrimmed ? 'rgba(88,166,255,0.35)' : 'rgba(255,255,255,0.08)'}`,
+            border: `1px solid ${cmdTrimmed ? 'rgba(88,166,255,0.35)' : getTerminalTheme().container.btnBorder}`,
             borderRadius: 4,
-            color: cmdTrimmed ? '#58a6ff' : '#484f58',
+            color: cmdTrimmed ? '#58a6ff' : getTerminalTheme().container.btnMuted,
             cursor: cmdTrimmed ? 'pointer' : 'not-allowed',
             transition: 'all 0.15s',
             flexShrink: 0,
@@ -1060,10 +1014,10 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             width: 480,
             maxHeight: 280,
             display: 'flex', flexDirection: 'column',
-            background: '#161b22',
-            border: '1px solid rgba(48,54,61,0.9)',
+            background: getTerminalTheme().container.popupBg,
+            border: getTerminalTheme().container.popupBorder,
             borderRadius: 8,
-            boxShadow: '0 -8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)',
+            boxShadow: getTerminalTheme().container.popupShadow,
             zIndex: Z.POPUP,
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 12,
@@ -1072,10 +1026,10 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '8px 10px',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              borderBottom: `1px solid ${getTerminalTheme().container.separator}`,
               flexShrink: 0,
             }}>
-              <span style={{ color: '#8b949e', fontSize: 11 }}>{t('历史命令')}</span>
+              <span style={{ color: getTerminalTheme().container.statusBarColor, fontSize: 11 }}>{t('历史命令')}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button
                   onClick={() => {
@@ -1103,7 +1057,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             {/* 历史列表（可滚动） */}
             <div ref={historyScrollRef} style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {filteredHistory.length === 0 ? (
-              <div style={{ padding: 20, textAlign: 'center', color: '#6e7681', fontSize: 12 }}>
+              <div style={{ padding: 20, textAlign: 'center', color: getTerminalTheme().container.mutedColor, fontSize: 12 }}>
                 {searchQuery ? t('无匹配结果') : t('暂无历史记录')}
               </div>
             ) : displayHistory.map(item => (
@@ -1113,7 +1067,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '6px 10px',
                   cursor: 'pointer',
-                  borderBottom: '1px solid rgba(255,255,255,0.03)',
+                  borderBottom: `1px solid ${getTerminalTheme().container.separator}`,
                   transition: 'background 0.1s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.06)'}
@@ -1123,7 +1077,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                   onClick={() => selectHistoryCmd(item.command)}
                   style={{
                     flex: 1,
-                    color: '#cdd9e5',
+                    color: getTerminalTheme().container.inputColor,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -1166,7 +1120,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             <div style={{
               display: 'flex', gap: 6, alignItems: 'center',
               padding: '6px 10px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
+              borderTop: `1px solid ${getTerminalTheme().container.separator}`,
               flexShrink: 0,
             }}>
               <input
@@ -1176,10 +1130,10 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                 style={{
                   flex: 1,
                   padding: '4px 8px',
-                  background: '#0d1117',
-                  border: '1px solid rgba(48,54,61,0.8)',
+                  background: getTerminalTheme().container.inputBg,
+                  border: `1px solid ${getTerminalTheme().container.btnBorder}`,
                   borderRadius: 4,
-                  color: '#cdd9e5',
+                  color: getTerminalTheme().container.inputColor,
                   fontSize: 12,
                   outline: 'none',
                 }}
@@ -1191,7 +1145,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                   borderRadius: 4,
                   padding: '3px 8px',
                   background: historyMode === 'server' ? 'rgba(88,166,255,0.15)' : 'transparent',
-                  color: historyMode === 'server' ? '#58a6ff' : '#6e7681',
+                  color: historyMode === 'server' ? '#58a6ff' : getTerminalTheme().container.mutedColor,
                   cursor: 'pointer', fontSize: 10,
                   whiteSpace: 'nowrap',
                 }}
@@ -1205,7 +1159,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                   borderRadius: 4,
                   padding: '3px 8px',
                   background: historyMode === 'global' ? 'rgba(88,166,255,0.15)' : 'transparent',
-                  color: historyMode === 'global' ? '#58a6ff' : '#6e7681',
+                  color: historyMode === 'global' ? '#58a6ff' : getTerminalTheme().container.mutedColor,
                   cursor: 'pointer', fontSize: 10,
                   whiteSpace: 'nowrap',
                 }}
@@ -1241,10 +1195,10 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             bottom: commandsPopupPos.bottom,
             width: 680,
             height: 420,
-            background: '#161b22',
-            border: '1px solid rgba(48,54,61,0.9)',
+            background: getTerminalTheme().container.popupBg,
+            border: getTerminalTheme().container.popupBorder,
             borderRadius: 8,
-            boxShadow: '0 -8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)',
+            boxShadow: getTerminalTheme().container.popupShadow,
             zIndex: Z.POPUP,
             overflow: 'hidden',
           }}>
@@ -1262,10 +1216,10 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             position: 'fixed',
             left: contextMenu.x,
             top: contextMenu.y,
-            backgroundColor: '#161b22',
-            border: '1px solid rgba(48,54,61,0.9)',
+            backgroundColor: getTerminalTheme().container.contextBg,
+            border: getTerminalTheme().container.contextBorder,
             borderRadius: '8px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)',
+            boxShadow: getTerminalTheme().container.contextShadow,
             zIndex: Z.MODAL,
             padding: '4px 0',
             minWidth: '190px',

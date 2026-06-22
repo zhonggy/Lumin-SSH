@@ -597,7 +597,7 @@ a { color: var(--blue); text-decoration: none; }
   max-width: 200px;
   background: var(--bg-3);
   border: 1px solid var(--text-4);
-  opacity: 0.7;
+  opacity: 0.85;
 }
 .tab-item:hover {
   background: var(--bg-4);
