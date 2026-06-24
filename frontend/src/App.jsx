@@ -748,13 +748,23 @@ export default function App() {
 
   // ── Connect to server ──────────────────────────────────────
   const connectServer = useCallback(async (server) => {
-    const existing = sessionsRef.current.find((s) => s.serverId === server.id && s.status !== 'closed');
+    const existing = sessionsRef.current.find((s) => s.serverId === server.id && s.status !== 'closed' && s.status !== 'error');
     if (existing) {
       setActiveSessionId(existing.id);
       const lastTid = lastTerminalRef.current[existing.id];
       const validTerminal = existing.terminals?.find(t => t.id === lastTid);
       setActiveTerminalId(validTerminal ? validTerminal.id : (existing.terminals?.[0]?.id || existing.id));
       setContentTab('terminal');
+      return;
+    }
+
+    // 复用已关闭/失败的同服务器 session，避免 tab 重复
+    const closedSession = sessionsRef.current.find((s) => s.serverId === server.id && (s.status === 'closed' || s.status === 'error'));
+    if (closedSession) {
+      setActiveSessionId(closedSession.id);
+      setActiveTerminalId(closedSession.terminals?.[0]?.id || closedSession.id);
+      setContentTab('terminal');
+      await reconnectSession(closedSession);
       return;
     }
 
@@ -789,7 +799,7 @@ export default function App() {
     } catch (err) {
       handleConnectError(sessionId, err);
     }
-  }, [handleConnectError]);
+  }, [handleConnectError, reconnectSession]);
 
   // ── Close session ──────────────────────────────────────────
   const closeSession = useCallback(async (sessionId, e) => {
