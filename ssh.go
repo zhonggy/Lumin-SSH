@@ -114,6 +114,10 @@ func isTransientNetError(err error) bool {
 func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 	// 去除密码首尾空白（防止复制粘贴带入不可见字符）
 	conn.Password = strings.TrimSpace(conn.Password)
+	// 诊断：密码为空时记录日志，帮助定位"记住密码后重启密码错误"问题
+	if conn.AuthMethod == "password" && conn.Password == "" {
+		log.Printf("[Connect] WARNING: password is empty for %s@%s:%d (connId=%s)", conn.Username, conn.Host, conn.Port, conn.ID)
+	}
 	// ponytail: connKey 包含服务器 ID，防止不同服务器条目共享连接
 	connKey := conn.ID
 	if connKey == "" {

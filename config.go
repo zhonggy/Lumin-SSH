@@ -32,16 +32,17 @@ func parseIntOrDefault(s string, def int) int {
 
 // Connection struct
 type Connection struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Username   string `json:"username"`
-	Password   string `json:"password,omitempty"`
-	AuthMethod string `json:"authMethod"`
-	PrivateKey string `json:"privateKey,omitempty"`
-	Passphrase string `json:"passphrase,omitempty"`
-	Os         string `json:"os,omitempty"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Host         string `json:"host"`
+	Port         int    `json:"port"`
+	Username     string `json:"username"`
+	Password     string `json:"password,omitempty"`
+	AuthMethod   string `json:"authMethod"`
+	PrivateKey   string `json:"privateKey,omitempty"`
+	Passphrase   string `json:"passphrase,omitempty"`
+	Os           string `json:"os,omitempty"`
+	LastModified int64  `json:"last_modified,omitempty"` // Unix 毫秒时间戳，合并时判断新旧
 }
 
 type ConfigManager struct {
@@ -51,6 +52,8 @@ type ConfigManager struct {
 	key            []byte
 	gcm            cipher.AEAD // ponytail: 缓存 GCM cipher，避免每次 encrypt/decrypt 重建
 	syncModeFile   string
+	syncTimeFile   string // 本地快照时间戳文件
+	lastSyncFile   string // 上次同步时间戳文件（仅在同步完成时更新）
 	quickCmdFile   string
 	paramHistFile  string
 	historyDir     string
@@ -118,6 +121,8 @@ func NewConfigManager() *ConfigManager {
 		key:            key,
 		gcm:            gcm,
 		syncModeFile:   filepath.Join(dir, "sync_mode.json"),
+		syncTimeFile:   filepath.Join(dir, "snapshot_time"),
+		lastSyncFile:   filepath.Join(dir, "last_sync_time"),
 		quickCmdFile:   quickCmdFile,
 		paramHistFile:  paramHistFile,
 		historyDir:     historyDir,
@@ -321,9 +326,19 @@ func (c *ConfigManager) SaveConnection(conn Connection) Connection {
 		}
 	}
 
+	conn.LastModified = time.Now().UnixMilli()
+	// 更新 conns 中对应条目的时间戳
+	for i, s := range conns {
+		if s.ID == conn.ID {
+			conns[i].LastModified = conn.LastModified
+			break
+		}
+	}
+
 	if err := c.saveConnectionsFile(conns); err != nil {
 		log.Printf("[SaveConnection] failed to save connections: %v", err)
 	}
+	c.bumpSnapshotTime()
 	c.connCacheDirty = true // 标记缓存需要刷新
 	go c.AutoSync()
 	return conn
@@ -364,17 +379,61 @@ func (c *ConfigManager) loadRawFile(path string) string {
 	return string(data)
 }
 
-// atomicWriteFile 原子写入文件：先写临时文件再 rename 覆盖，避免写入中断导致文件损坏。
-// 调用方需自行处理加锁（如涉及并发访问同一文件）。
+// atomicWriteFile 原子写入文件：先写临时文件 + fsync，再 rename 覆盖。
+// fsync 防止进程快速退出时 OS 缓存未刷盘导致数据丢失。
 func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	tmpFile := path + ".tmp"
-	if err := os.WriteFile(tmpFile, data, perm); err != nil {
+	f, err := os.OpenFile(tmpFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return fmt.Errorf("open temp file: %w", err)
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
 		return fmt.Errorf("write temp file: %w", err)
 	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return fmt.Errorf("sync temp file: %w", err)
+	}
+	f.Close()
 	if err := os.Rename(tmpFile, path); err != nil {
 		return fmt.Errorf("rename temp file: %w", err)
 	}
 	return nil
+}
+
+// loadSnapshotTime 读取本地快照时间戳
+func (c *ConfigManager) loadSnapshotTime() int64 {
+	data, err := os.ReadFile(c.syncTimeFile)
+	if err != nil {
+		return 0
+	}
+	var t int64
+	fmt.Sscanf(string(data), "%d", &t)
+	return t
+}
+
+// bumpSnapshotTime 更新本地快照时间戳为当前时间
+func (c *ConfigManager) bumpSnapshotTime() int64 {
+	now := time.Now().UnixMilli()
+	atomicWriteFile(c.syncTimeFile, []byte(fmt.Sprintf("%d", now)), 0600)
+	return now
+}
+
+// loadLastSyncTime 读取上次同步时间戳（仅在同步完成时更新，不受本地改动影响）
+func (c *ConfigManager) loadLastSyncTime() int64 {
+	data, err := os.ReadFile(c.lastSyncFile)
+	if err != nil {
+		return 0
+	}
+	var t int64
+	fmt.Sscanf(string(data), "%d", &t)
+	return t
+}
+
+// saveLastSyncTime 保存上次同步时间戳
+func (c *ConfigManager) saveLastSyncTime(t int64) {
+	atomicWriteFile(c.lastSyncFile, []byte(fmt.Sprintf("%d", t)), 0600)
 }
 
 func (c *ConfigManager) DeleteConnection(id string) bool {
@@ -390,6 +449,7 @@ func (c *ConfigManager) DeleteConnection(id string) bool {
 	if err := c.saveConnectionsFile(filtered); err != nil {
 		log.Printf("[DeleteConnection] failed to save connections: %v", err)
 	}
+	c.bumpSnapshotTime()
 	c.connCacheDirty = true // 标记缓存需要刷新
 
 	// 清理该服务器的历史文件

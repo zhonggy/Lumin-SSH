@@ -761,6 +761,21 @@ export default function App() {
     return () => { if (unbind) unbind(); };
   }, []);
 
+  // ── 监听同步状态事件 ──────────────────────────────────────
+  useEffect(() => {
+    const unbind = EventsOn('sync-status', (data) => {
+      if (data.action === 'merge') {
+        const msg = data.localChanged
+          ? t('同步完成') + `：${t('云端')} ${data.remoteCount} → ${t('合并')} ${data.mergedCount}` + (data.uploaded ? `，${t('已上传')}` : '')
+          : t('同步完成') + `：${t('数据一致，无需变更')}`;
+        addToast(msg, 'info', 4000);
+      } else if (data.action === 'upload') {
+        addToast(t('首次同步：本地数据已上传到云端'), 'info', 4000);
+      }
+    });
+    return () => { if (unbind) unbind(); };
+  }, [addToast, t]);
+
   // ── 监听终端触发的重连请求 ──────────────────────────────────
   useEffect(() => {
     const handleReconnectTrigger = (e) => {

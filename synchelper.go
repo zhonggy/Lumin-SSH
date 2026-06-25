@@ -50,6 +50,7 @@ type storageCloser interface {
 type SyncSnapshot struct {
 	Connections   []Connection `json:"connections"`
 	QuickCommands string       `json:"quick_commands,omitempty"`
+	SnapshotTime  int64        `json:"snapshot_time,omitempty"` // 快照总时间戳（Unix 毫秒），用于判断同步方向
 }
 
 // ─── 共享解密/解析 ─────────────────────────────────────────
@@ -77,60 +78,6 @@ func (c *ConfigManager) decryptAndParseSnapshot(data string, key []byte) (*SyncS
 }
 
 // ─── 共享合并/比较 ─────────────────────────────────────────
-
-// mergeAndDedupe 合并本地和远程连接列表：
-// 1. 按 ID 合并（远端覆盖同名）
-// 2. 按 host:port+username 去重，保留信息更完整的记录
-func (c *ConfigManager) mergeAndDedupe(localConns, remoteConns []Connection) []Connection {
-	mergedMap := make(map[string]Connection)
-	for _, lc := range localConns {
-		mergedMap[lc.ID] = lc
-	}
-	for _, rc := range remoteConns {
-		mergedMap[rc.ID] = rc
-	}
-
-	merged := make([]Connection, 0, len(mergedMap))
-	for _, v := range mergedMap {
-		merged = append(merged, v)
-	}
-	// 按 ID 排序，保证去重结果稳定可重现（避免 map 迭代顺序随机）
-	sort.Slice(merged, func(i, j int) bool {
-		return merged[i].ID < merged[j].ID
-	})
-
-	type hpKey struct {
-		host string
-		port int
-		user string
-	}
-	hostPortMap := make(map[hpKey]int)
-	var deduped []Connection
-	for _, v := range merged {
-		key := hpKey{v.Host, v.Port, v.Username}
-		if idx, ok := hostPortMap[key]; ok {
-			// 字段级合并：仅用 v 填补 existing 中缺失的字段，避免整条覆盖丢失数据
-			existing := deduped[idx]
-			if existing.Password == "" && v.Password != "" {
-				existing.Password = v.Password
-			}
-			if existing.PrivateKey == "" && v.PrivateKey != "" {
-				existing.PrivateKey = v.PrivateKey
-			}
-			if existing.Passphrase == "" && v.Passphrase != "" {
-				existing.Passphrase = v.Passphrase
-			}
-			if v.Name != "" && existing.Name == "" {
-				existing.Name = v.Name
-			}
-			deduped[idx] = existing
-		} else {
-			hostPortMap[key] = len(deduped)
-			deduped = append(deduped, v)
-		}
-	}
-	return deduped
-}
 
 // connsEqual 比较两个连接列表是否内容一致（按 ID 建 map 逐字段比较）
 func connsEqual(a, b []Connection) bool {
@@ -200,6 +147,7 @@ func (c *ConfigManager) backupConnections(s RemoteStorage, maxBackups int) (map[
 	snap := SyncSnapshot{
 		Connections:   c.GetConnections(),
 		QuickCommands: c.loadRawFile(c.quickCmdFile),
+		SnapshotTime:  c.loadSnapshotTime(),
 	}
 	data, _ := json.MarshalIndent(snap, "", "  ")
 	encrypted, err := c.encryptWithKey(string(data), s.EncryptKey())
@@ -287,9 +235,10 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 		return nil, err
 	}
 
-	// 合并连接（双向：按 ID 去重合并）
+	// 合并连接（重叠按 LastModified 取最新，单侧独有按 lastSyncTime 判断删除）
 	localConns := c.GetConnections()
-	deduped := c.mergeAndDedupe(localConns, remoteSnap.Connections)
+	lastSyncTime := c.loadLastSyncTime()
+	deduped := c.mergeWithDeletionPropagation(localConns, remoteSnap.Connections, lastSyncTime)
 	// 加锁保存并失效缓存（saveConnectionsFile 要求调用方持有 c.mu）
 	c.mu.Lock()
 	if err := c.saveConnectionsFile(deduped); err != nil {
@@ -310,6 +259,7 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 	changed := !connsEqual(deduped, remoteSnap.Connections) ||
 		mergedQuickCmds != remoteSnap.QuickCommands
 	if changed {
+		c.bumpSnapshotTime() // 手动同步后更新总时间戳，确保下次自动同步方向正确
 		// 通过可选接口获取后端配置的 maxBackups，未实现者默认 0（不清理）
 		maxBackups := 0
 		if mb, ok := s.(maxBackupsProvider); ok {
@@ -321,6 +271,7 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 		}
 		backupResult = br
 	}
+	c.saveLastSyncTime(time.Now().UnixMilli())
 
 	return map[string]interface{}{
 		"success":     true,
@@ -331,28 +282,170 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 	}, nil
 }
 
-// autoSyncProvider 自动同步：以本地为准推送变更到云端，无变化则跳过
-func (c *ConfigManager) autoSyncProvider(s RemoteStorage, maxBackups int) error {
-	localSnap := &SyncSnapshot{
-		Connections:   c.GetConnections(),
-		QuickCommands: c.loadRawFile(c.quickCmdFile),
+// emitSyncEvent 向前端发送同步状态事件（ponytail: wailsCtx 可能为 nil，静默跳过）
+func (c *ConfigManager) emitSyncEvent(event string, data map[string]interface{}) {
+	if c.wailsCtx != nil {
+		runtime.EventsEmit(c.wailsCtx, event, data)
 	}
+}
 
+// autoSyncProvider 自动同步：按快照总时间戳判断方向，按 lastSyncTime 判断删除
+// - 所有方向：重叠连接按 per-connection LastModified 取最新，单侧独有按 lastSyncTime 判断删除
+// - 云端更新 → 快捷命令以云端为准
+// - 本地更新 → 快捷命令以本地为准
+// - 相同 → 快捷命令合并
+func (c *ConfigManager) autoSyncProvider(s RemoteStorage, maxBackups int) error {
 	remoteSnap, err := c.fetchLatestBackup(s)
 	if err != nil {
-		// 尝试上传一次；如果上传也失败，说明是网络问题，返回错误触发重试
+		// 云端无备份或网络不可达，尝试首次上传
 		if _, berr := c.backupConnections(s, maxBackups); berr != nil {
 			return fmt.Errorf("云端访问失败: %w", berr)
 		}
-		return nil // 云端确实无备份，首次上传成功
+		c.emitSyncEvent("sync-status", map[string]interface{}{
+			"action": "upload",
+			"reason": "no_remote_backup",
+		})
+		return nil
 	}
 
-	if !snapshotEqual(localSnap, remoteSnap) {
+	localSnapTime := c.loadSnapshotTime()
+	remoteSnapTime := remoteSnap.SnapshotTime
+	lastSyncTime := c.loadLastSyncTime()
+
+	localConns := c.GetConnections()
+
+	// 连接合并：重叠按 LastModified 取最新，单侧独有按 lastSyncTime 判断删除
+	merged := c.mergeWithDeletionPropagation(localConns, remoteSnap.Connections, lastSyncTime)
+
+	// 快捷命令按方向处理
+	localQuickCmds := c.loadRawFile(c.quickCmdFile)
+	var mergedQuickCmds string
+	var action string
+
+	switch {
+	case remoteSnapTime > localSnapTime:
+		mergedQuickCmds = remoteSnap.QuickCommands
+		action = "download"
+	case localSnapTime > remoteSnapTime:
+		mergedQuickCmds = localQuickCmds
+		action = "upload"
+	default:
+		mergedQuickCmds = c.mergeQuickCommands(localQuickCmds, remoteSnap.QuickCommands)
+		action = "merge"
+	}
+
+	// 本地有变化 → 保存
+	localChanged := !connsEqual(merged, localConns) || mergedQuickCmds != localQuickCmds
+	if localChanged {
+		c.mu.Lock()
+		if err := c.saveConnectionsFile(merged); err != nil {
+			log.Printf("[autoSyncProvider] save: %v", err)
+		}
+		c.connCacheDirty = true
+		c.mu.Unlock()
+		if mergedQuickCmds != localQuickCmds {
+			atomicWriteFile(c.quickCmdFile, []byte(mergedQuickCmds), 0600)
+		}
+		c.CleanupOrphanedHistory()
+	}
+
+	// 云端有变化 → 上传
+	cloudChanged := !connsEqual(merged, remoteSnap.Connections) || mergedQuickCmds != remoteSnap.QuickCommands
+	if cloudChanged {
+		c.bumpSnapshotTime()
 		if _, berr := c.backupConnections(s, maxBackups); berr != nil {
-			return fmt.Errorf("增量同步失败: %w", berr)
+			log.Printf("[autoSyncProvider] backup failed: %v", berr)
+		}
+	} else if localChanged {
+		c.bumpSnapshotTime()
+	}
+
+	// 更新本地时间戳为双方最大值，保持同步
+	if remoteSnapTime > localSnapTime {
+		atomicWriteFile(c.syncTimeFile, []byte(fmt.Sprintf("%d", remoteSnapTime)), 0600)
+	}
+	c.saveLastSyncTime(time.Now().UnixMilli())
+
+	c.emitSyncEvent("sync-status", map[string]interface{}{
+		"action":       action,
+		"localCount":   len(localConns),
+		"remoteCount":  len(remoteSnap.Connections),
+		"mergedCount":  len(merged),
+		"localChanged": localChanged,
+		"cloudChanged": cloudChanged,
+	})
+
+	return nil
+}
+
+// mergeWithDeletionPropagation 合并本地和云端连接：
+// 1. 重叠连接（两边都有）→ 按 per-connection LastModified 取最新
+// 2. 单侧独有 → LastModified > lastSyncTime 则保留（新增），否则删除
+func (c *ConfigManager) mergeWithDeletionPropagation(localConns, remoteConns []Connection, lastSyncTime int64) []Connection {
+	localMap := make(map[string]Connection, len(localConns))
+	for _, lc := range localConns {
+		localMap[lc.ID] = lc
+	}
+	remoteMap := make(map[string]Connection, len(remoteConns))
+	for _, rc := range remoteConns {
+		remoteMap[rc.ID] = rc
+	}
+
+	// 收集所有 ID
+	allIDs := make(map[string]struct{})
+	for id := range localMap {
+		allIDs[id] = struct{}{}
+	}
+	for id := range remoteMap {
+		allIDs[id] = struct{}{}
+	}
+
+	merged := make([]Connection, 0, len(allIDs))
+	for id := range allIDs {
+		lc, hasLocal := localMap[id]
+		rc, hasRemote := remoteMap[id]
+
+		switch {
+		case hasLocal && hasRemote:
+			// 重叠：按 LastModified 取最新
+			if lc.LastModified >= rc.LastModified {
+				merged = append(merged, lc)
+			} else {
+				merged = append(merged, rc)
+			}
+		case hasLocal:
+			// 本地独有：LastModified > lastSyncTime → 新增保留，否则视为被云端删除
+			if lc.LastModified > lastSyncTime {
+				merged = append(merged, lc)
+			}
+		case hasRemote:
+			// 云端独有：LastModified > lastSyncTime → 新增保留，否则视为被本地删除
+			if rc.LastModified > lastSyncTime {
+				merged = append(merged, rc)
+			}
 		}
 	}
-	return nil
+
+	// host:port+username 去重（按 LastModified 保留最新的）
+	type hpKey struct {
+		host string
+		port int
+		user string
+	}
+	hostPortMap := make(map[hpKey]int)
+	var deduped []Connection
+	for _, v := range merged {
+		key := hpKey{v.Host, v.Port, v.Username}
+		if idx, ok := hostPortMap[key]; ok {
+			if v.LastModified > deduped[idx].LastModified {
+				deduped[idx] = v
+			}
+		} else {
+			hostPortMap[key] = len(deduped)
+			deduped = append(deduped, v)
+		}
+	}
+	return deduped
 }
 
 // ─── 同步模式分发 ─────────────────────────────────────────
@@ -395,7 +488,8 @@ type providerEntry struct {
 	maxBackups int
 }
 
-// AutoSync 自动同步：以本地为准推送变更到所有已配置的云端。
+// AutoSync 自动同步：下载云端 → 双向合并(本地优先) → 上传到所有已配置的云端。
+// 启动时也会调用，确保多设备间数据一致。
 // 失败时最多重试 3 次（间隔 2s/4s/8s），仍失败则通过 Wails 事件通知前端。
 func (c *ConfigManager) AutoSync() {
 	providers := c.getSyncProviders()
@@ -601,6 +695,7 @@ func (c *ConfigManager) restoreFromProvider(s RemoteStorage, filename string) er
 		return err
 	}
 	c.restoreSnapshotToLocal(snap)
+	c.bumpSnapshotTime() // 恢复后更新总时间戳，确保下次自动同步方向正确
 	return nil
 }
 

@@ -532,6 +532,12 @@ const dict = {
     "同步未完成": "同步未完成",
     "仍然退出": "仍然退出",
     "重试同步": "重试同步",
+    "同步完成": "同步完成",
+    "云端": "云端",
+    "合并": "合并",
+    "已上传": "已上传",
+    "数据一致，无需变更": "数据一致，无需变更",
+    "首次同步：本地数据已上传到云端": "首次同步：本地数据已上传到云端",
   },
   "en-US": {
     "闪电直连": "Quick Connect",
@@ -1066,6 +1072,12 @@ const dict = {
     "同步未完成": "Sync Incomplete",
     "仍然退出": "Quit Anyway",
     "重试同步": "Retry Sync",
+    "同步完成": "Sync Complete",
+    "云端": "cloud",
+    "合并": "merged",
+    "已上传": "uploaded",
+    "数据一致，无需变更": "Data is in sync, no changes needed",
+    "首次同步：本地数据已上传到云端": "Initial sync: local data uploaded to cloud",
   }
 };
 
