@@ -98,7 +98,11 @@ func NewSSHManager() *SSHManager {
 func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 	// 去除密码首尾空白（防止复制粘贴带入不可见字符）
 	conn.Password = strings.TrimSpace(conn.Password)
-	connKey := fmt.Sprintf("%s@%s", conn.Username, dialAddr(conn.Host, conn.Port))
+	// ponytail: connKey 包含服务器 ID，防止不同服务器条目共享连接
+	connKey := conn.ID
+	if connKey == "" {
+		connKey = fmt.Sprintf("%s@%s", conn.Username, dialAddr(conn.Host, conn.Port))
+	}
 
 	m.mu.RLock()
 	existingEntry, clientExists := m.clients[connKey]
