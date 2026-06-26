@@ -1004,7 +1004,7 @@ export default function App() {
   // ── Server CRUD ────────────────────────────────────────────
   const handleSaveServer = useCallback(async (data) => {
     try {
-      await AppGo.SaveConnection(data);
+      await AppGo.SaveConnection(data, false);
       await loadServers();
       addToast(data.id ? t('服务器配置已更新') : t('服务器添加成功'), 'success');
     } catch (err) {

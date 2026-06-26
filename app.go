@@ -243,8 +243,8 @@ func (a *App) GetConnectionsMasked() []Connection {
 }
 
 // SaveConnection saves a new or existing connection
-func (a *App) SaveConnection(conn Connection, noSync ...bool) Connection {
-	return a.configManager.SaveConnection(conn, noSync...)
+func (a *App) SaveConnection(conn Connection, noSync bool) Connection {
+	return a.configManager.SaveConnection(conn, noSync)
 }
 
 // DeleteConnection removes a connection by ID

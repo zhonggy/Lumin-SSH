@@ -288,7 +288,7 @@ func (c *ConfigManager) GetConnectionsMasked() []Connection {
 	return conns
 }
 
-func (c *ConfigManager) SaveConnection(conn Connection, noSync ...bool) Connection {
+func (c *ConfigManager) SaveConnection(conn Connection, noSync bool) Connection {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	conns := c.getConnectionsLocked()
@@ -340,7 +340,7 @@ func (c *ConfigManager) SaveConnection(conn Connection, noSync ...bool) Connecti
 		log.Printf("[SaveConnection] failed to save connections: %v", err)
 	}
 	c.connCacheDirty = true // 标记缓存需要刷新
-	if len(noSync) > 0 && noSync[0] {
+	if noSync {
 		// ponytail: 连接前仅写盘不触发同步，等 OS 更新后一起同步，避免两次上传
 	} else {
 		c.bumpSnapshotTime()
