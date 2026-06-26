@@ -346,6 +346,9 @@ export default function ServerList({
                 gridColumn: '1 / -1',
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '6px 0', marginBottom: item.collapsed ? 0 : 8,
+                marginTop: 8,
+                borderTop: '1px solid var(--border)',
+                paddingTop: 10,
                 color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
                 userSelect: 'none',
               }}
