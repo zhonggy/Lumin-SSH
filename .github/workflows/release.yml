@@ -109,20 +109,20 @@ jobs:
           export PATH=$HOME/go/bin:$PATH
           wails build -clean -o Lumin
 
-      - name: Package .app to .zip
+      - name: Package .app to .dmg
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           cp -r build/bin/Lumin.app build/Lumin.app
-          ditto -c -k --sequesterRsrc --keepParent build/Lumin.app build/Lumin-${VERSION}.zip
-          sha256sum build/Lumin-${VERSION}.zip > build/Lumin-${VERSION}.zip.sha256
-          echo "app_zip=${{ github.workspace }}/build/Lumin-${VERSION}.zip" >> $GITHUB_ENV
-          echo "app_sha=${{ github.workspace }}/build/Lumin-${VERSION}.zip.sha256" >> $GITHUB_ENV
+          hdiutil create -volname "Lumin" -srcfolder build/Lumin.app -ov -format UDZO build/Lumin-${VERSION}.dmg
+          sha256sum build/Lumin-${VERSION}.dmg > build/Lumin-${VERSION}.dmg.sha256
+          echo "app_dmg=${{ github.workspace }}/build/Lumin-${VERSION}.dmg" >> $GITHUB_ENV
+          echo "app_sha=${{ github.workspace }}/build/Lumin-${VERSION}.dmg.sha256" >> $GITHUB_ENV
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.app_zip }}
+            ${{ env.app_dmg }}
             ${{ env.app_sha }}
 
   build-windows:
