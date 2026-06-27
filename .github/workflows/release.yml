@@ -57,7 +57,7 @@ jobs:
           echo "deb=${{ github.workspace }}/build/lumin_${VERSION}_amd64.deb" >> $GITHUB_ENV
           echo "deb_sha=${{ github.workspace }}/build/lumin_${VERSION}_amd64.deb.sha256" >> $GITHUB_ENV
           # Convert .deb to .rpm via alien
-          sudo alien -r build/lumin_${VERSION}_amd64.deb -g -v 2>/dev/null || true
+          sudo alien -r build/lumin_${VERSION}_amd64.deb --scripts 2>/dev/null || echo "alien_rpm_failed=true" >> $GITHUB_ENV
           RPM_FILE=$(find . -name "*.rpm" 2>/dev/null | head -1)
           if [ -n "$RPM_FILE" ]; then
             mv "$RPM_FILE" build/
@@ -159,11 +159,11 @@ jobs:
         shell: pwsh
         run: |
           $VERSION = "$env:GITHUB_REF_NAME" -replace "^v", ""
-          Compress-Archive -Path build/bin/Lumin.exe -DestinationPath "build/Lumin-$VERSION-portable.zip"
-          $hash = (CertUtil -hashfile "build/Lumin-$VERSION-portable.zip" SHA256)[1] -replace " ",""
-          Set-Content -Path "build/Lumin-$VERSION-portable.zip.sha256" -Value "$hash  Lumin-$VERSION-portable.zip"
-          echo "portable=${{ github.workspace }}\build\Lumin-$VERSION-portable.zip" >> $env:GITHUB_ENV
-          echo "portable_sha=${{ github.workspace }}\build\Lumin-$VERSION-portable.zip.sha256" >> $env:GITHUB_ENV
+          Copy-Item build/bin/Lumin.exe "build/Lumin-$VERSION-portable.exe"
+          $hash = (CertUtil -hashfile "build/Lumin-$VERSION-portable.exe" SHA256)[1] -replace " ",""
+          Set-Content -Path "build/Lumin-$VERSION-portable.exe.sha256" -Value "$hash  Lumin-$VERSION-portable.exe"
+          echo "portable=${{ github.workspace }}\build\Lumin-$VERSION-portable.exe" >> $env:GITHUB_ENV
+          echo "portable_sha=${{ github.workspace }}\build\Lumin-$VERSION-portable.exe.sha256" >> $env:GITHUB_ENV
 
       - name: Copy NSIS installer
         shell: pwsh
