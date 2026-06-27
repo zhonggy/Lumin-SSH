@@ -52,6 +52,8 @@ jobs:
           mkdir -p build/deb/usr/bin
           cp build/bin/Lumin build/deb/usr/bin/lumin
           sudo chown root:root build/deb/usr/bin/lumin
+          # 更新 DEBIAN/control 中的版本号
+          sed -i "s/^Version:.*/Version: ${VERSION}/" build/deb/DEBIAN/control
           sudo dpkg-deb --root-owner-group --build build/deb build/lumin_${VERSION}_amd64.deb
           sha256sum build/lumin_${VERSION}_amd64.deb > build/lumin_${VERSION}_amd64.deb.sha256
           echo "deb=${{ github.workspace }}/build/lumin_${VERSION}_amd64.deb" >> $GITHUB_ENV
