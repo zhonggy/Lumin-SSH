@@ -1,4 +1,4 @@
-//go:build linux
+//go:build darwin
 
 package main
 
@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 )
 
 //go:embed build/appicon.png
@@ -18,10 +19,10 @@ var icon []byte
 // singletonLock holds the lock file descriptor to prevent GC from closing it
 var singletonLock *os.File
 
-// findAndShowWindow 在 Linux 上为空实现
+// findAndShowWindow 在 macOS 上为空实现
 func findAndShowWindow() {}
 
-// ensureSingleInstance 使用 flock 检查是否已有实例运行
+// ensureSingleInstance 使用 flock 检查是否已有实例运行（macOS 支持 flock）
 func ensureSingleInstance() {
 	lockFile := filepath.Join(os.TempDir(), "lumin-ssh.lock")
 	f, err := os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0600)
@@ -37,5 +38,16 @@ func ensureSingleInstance() {
 	singletonLock = f
 }
 
-// applyPlatformOptions 在 Linux 上无额外选项
-func applyPlatformOptions(opts *options.App) {}
+// applyPlatformOptions 设置 macOS 特定窗口选项
+func applyPlatformOptions(opts *options.App) {
+	opts.Mac = &mac.Options{
+		TitleBar:             mac.TitleBarHiddenInset(), // 隐藏标题栏但保留红绿灯按钮
+		Appearance:           mac.DefaultAppearance,
+		WebviewIsTransparent: false,
+		WindowIsTranslucent:  false,
+		About: &mac.AboutInfo{
+			Title:   "Lumin",
+			Message: "Lightweight SSH Client",
+		},
+	}
+}

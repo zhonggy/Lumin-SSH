@@ -65,15 +65,6 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
-	// Setup systray
-	onReady := func() {
-		setupSystray(app)
-	}
-	onExit := func() {}
-
-	// Run systray in background
-	go systray.Run(onReady, onExit)
-
 	// Create application with options
 	opts := &options.App{
 		Title:     "Lumin",
@@ -86,6 +77,12 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 8, G: 12, B: 20, A: 255}, // #080c14
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
+			// macOS: 等 Wails 初始化完成后再启动托盘，避免 NSApplication 冲突
+			onReady := func() {
+				setupSystray(app)
+			}
+			onExit := func() {}
+			go systray.Run(onReady, onExit)
 		},
 		// 拦截窗口关闭：弹出对话框让用户选择退出 / 系统托盘 / 取消
 		OnBeforeClose: func(ctx context.Context) bool {
