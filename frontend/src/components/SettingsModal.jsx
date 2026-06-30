@@ -448,45 +448,45 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
 
 
   useEffect(() => {
+    let cancelled = false;
     let hasWebdav = false;
     let hasR2 = false;
 
     Promise.all([
       AppGo.GetWebdavConfig().then((data) => {
-        if (data) {
-          setWebdavForm((f) => ({
-            ...f,
-            url: data.url || f.url,
-            username: data.username || '',
-            password: data.password || '',
-            remotePath: data.remotePath || f.remotePath,
-            maxBackups: data.maxBackups || '',
-          }));
-          if (data.username) {
-            setIsConfigured(true);
-            hasWebdav = true;
-          }
+        if (cancelled || !data) return;
+        setWebdavForm((f) => ({
+          ...f,
+          url: data.url || f.url,
+          username: data.username || '',
+          password: data.password || '',
+          remotePath: data.remotePath || f.remotePath,
+          maxBackups: data.maxBackups || '',
+        }));
+        if (data.username) {
+          setIsConfigured(true);
+          hasWebdav = true;
         }
       }).catch(() => {}),
       AppGo.GetR2Config().then((data) => {
-        if (data) {
-          setR2Form((f) => ({
-            ...f,
-            accessKeyId: data.accessKeyId || '',
-            secretAccessKey: data.secretAccessKey || '',
-            bucket: data.bucket || '',
-            endpoint: data.endpoint || '',
-            region: data.region || f.region,
-            prefix: data.prefix || f.prefix,
-            maxBackups: data.maxBackups || '',
-          }));
-          if (data.bucket && data.endpoint) {
-            setR2Configured(true);
-            hasR2 = true;
-          }
+        if (cancelled || !data) return;
+        setR2Form((f) => ({
+          ...f,
+          accessKeyId: data.accessKeyId || '',
+          secretAccessKey: data.secretAccessKey || '',
+          bucket: data.bucket || '',
+          endpoint: data.endpoint || '',
+          region: data.region || f.region,
+          prefix: data.prefix || f.prefix,
+          maxBackups: data.maxBackups || '',
+        }));
+        if (data.bucket && data.endpoint) {
+          setR2Configured(true);
+          hasR2 = true;
         }
       }).catch(() => {}),
     ]).then(() => {
+      if (cancelled) return;
       // Auto-select provider: R2 if only R2 configured, else WebDAV
       if (hasR2 && !hasWebdav) {
         setSyncProvider('r2');
@@ -496,25 +496,25 @@ export default function SettingsModal({ onClose, addToast, onRestored }) {
     // Load sync mode
     AppGo.GetSyncMode()
       .then((mode) => {
-        if (mode) setSyncMode(mode);
+        if (!cancelled && mode) setSyncMode(mode);
       })
       .catch(() => {});
 
     // Load FTP config
     Promise.all([
       AppGo.GetFTPConfig().then(c => {
-        if (c && c.host) {
-          setFtpForm(prev => ({ ...prev, host: c.host, port: c.port, username: c.username, password: c.password, remoteDir: c.remoteDir, maxBackups: c.maxBackups || '' }));
-          setFtpConfigured(true);
-        }
+        if (cancelled || !c || !c.host) return;
+        setFtpForm(prev => ({ ...prev, host: c.host, port: c.port, username: c.username, password: c.password, remoteDir: c.remoteDir, maxBackups: c.maxBackups || '' }));
+        setFtpConfigured(true);
       }).catch(() => {}),
       AppGo.GetSFTPConfig().then(c => {
-        if (c && c.host) {
-          setSftpForm(prev => ({ ...prev, host: c.host, port: c.port, username: c.username, password: c.password, authMethod: c.authMethod || 'password', privateKey: c.privateKey || '', remoteDir: c.remoteDir, maxBackups: c.maxBackups || '' }));
-          setSftpConfigured(true);
-        }
+        if (cancelled || !c || !c.host) return;
+        setSftpForm(prev => ({ ...prev, host: c.host, port: c.port, username: c.username, password: c.password, authMethod: c.authMethod || 'password', privateKey: c.privateKey || '', remoteDir: c.remoteDir, maxBackups: c.maxBackups || '' }));
+        setSftpConfigured(true);
       }).catch(() => {}),
     ]);
+
+    return () => { cancelled = true; };
   }, []);
 
   const setWebdav = (key) => (e) => setWebdavForm((f) => ({ ...f, [key]: e.target.value }));

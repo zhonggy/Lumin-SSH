@@ -735,7 +735,10 @@ export default function App() {
     if (choice === 'quit') {
       AppGo.DoQuit();
     } else if (choice === 'tray') {
+      AppGo.AckClose();
       WindowHide();
+    } else if (choice === 'cancel') {
+      AppGo.AckClose();
     }
   }, [t, syncFailed, addToast]);
 
@@ -1409,7 +1412,7 @@ export default function App() {
                           <ProcessPage
                             sessionId={s.id}
                             addToast={addToast}
-                            active={contentTab === 'process'}
+                            active={contentTab === 'process' && activeSessionId === s.id}
                           />
                         </div>
                       )}

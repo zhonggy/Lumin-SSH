@@ -131,6 +131,7 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 
 	var client *ssh.Client
 	var sftpClient *sftp.Client
+	clientCreated := false
 
 	if clientExists {
 		client = existingEntry.Client
@@ -348,6 +349,7 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 
 			// 握手成功
 			client = ssh.NewClient(sshConn, chans, reqs)
+			clientCreated = true
 			break
 		}
 
@@ -379,6 +381,7 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 			client.Close()
 			client = existing.Client
 			sftpClient = existing.SFTP
+			clientCreated = false
 		} else {
 			m.clients[connKey] = &sshClientEntry{Client: client, SFTP: sftpClient}
 			m.connTerminals[connKey] = []string{}
@@ -448,17 +451,20 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 
 	err := m.setupSession(client, connKey, sessionId, "", launchCmd, remoteHistoryActive)
 	if err != nil {
-		// setupSession 失败（如 PTY 请求失败），清理刚创建的客户端
+		// setupSession 失败（如 PTY 请求失败）：仅清理本路径新建的 client/sftp，
+		// 复用的共享 client 不能关，否则会级联断开同连接的其他终端
 		m.mu.Lock()
 		if entry, ok := m.clients[connKey]; ok && entry.Client == client {
 			delete(m.clients, connKey)
 			delete(m.connTerminals, connKey)
 		}
 		m.mu.Unlock()
-		if sftpClient != nil {
-			sftpClient.Close()
+		if clientCreated {
+			if sftpClient != nil {
+				sftpClient.Close()
+			}
+			client.Close()
 		}
-		client.Close()
 	}
 	return err
 }
@@ -643,6 +649,8 @@ func (m *SSHManager) Disconnect(sessionId string) {
 	delete(m.sessions, sessionId)
 	// 清理该会话临时接受的主机密钥记录，避免无限累积
 	delete(m.tempAcceptedKeys, sessionId)
+	// 清理可能残留的主机密钥变更待确认条目（用户关掉弹窗未响应时）
+	delete(m.pendingHostKeys, sessionId)
 
 	// 收集需要关闭的资源（避免在锁内执行可能阻塞的 Close 操作）
 	stdin := s.Stdin
@@ -679,10 +687,22 @@ func (m *SSHManager) Disconnect(sessionId string) {
 		sshSess.Close()
 	}
 	if sftpToClose != nil {
-		sftpToClose.Close()
+		closeWithTimeout(sftpToClose, 3*time.Second)
 	}
 	if clientToClose != nil {
-		clientToClose.Close()
+		closeWithTimeout(clientToClose, 3*time.Second)
+	}
+}
+
+// closeWithTimeout 关闭资源，最多等待 timeout，超时放弃避免半死服务端卡住调用方
+// ponytail: 超时后底层 goroutine 仍在 Close 上阻塞，等连接真正断开或进程退出才回收；
+// SSH client 无 CloseWithDeadline，这是唯一能保证调用方不卡死的轻量手段
+func closeWithTimeout(c io.Closer, timeout time.Duration) {
+	done := make(chan struct{})
+	go func() { c.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(timeout):
 	}
 }
 
@@ -857,7 +877,10 @@ func (m *SSHManager) AcceptHostKeyChange(sessionId string, action int) error {
 				return fmt.Errorf("无法备份 known_hosts: %w", err)
 			}
 			if err := os.Rename(tmpPath, knownHostsPath); err != nil {
-				os.Rename(knownHostsPath+".bak", knownHostsPath) // 回滚
+				// 回滚：若回滚也失败需明确报告，否则 known_hosts 已被上一步 rename 走且无法恢复
+				if rerr := os.Rename(knownHostsPath+".bak", knownHostsPath); rerr != nil && !os.IsNotExist(rerr) {
+					return fmt.Errorf("无法写入 known_hosts（回滚失败，原文件可能丢失）: %w (原始错误: %v)", rerr, err)
+				}
 				return fmt.Errorf("无法写入 known_hosts: %w", err)
 			}
 			os.Remove(knownHostsPath + ".bak")
@@ -977,6 +1000,8 @@ func runCommandWithSession(session *ssh.Session, cmd string, timeout time.Durati
 	case <-timer.C:
 		// ponytail: session.Close() may block if server is unresponsive.
 		// The goroutine will be cleaned up when the parent SSH client is closed.
+		// 切到 Discard 避免超时后远端持续输出把 stdoutBuf 撑爆（Close 生效前的窗口期）
+		session.Stdout = io.Discard
 		go session.Close()
 		return "", fmt.Errorf("command timed out after %v", timeout)
 	}
@@ -1057,6 +1082,7 @@ func (m *SSHManager) deployProbeScript(sftpClient *sftp.Client, connKey string) 
 
 	m.mu.Lock()
 	m.probeDeployed[connKey] = true
+	delete(m.probeFailed, connKey) // 成功后重置失败计数，避免历史累计误判永久禁用
 	m.mu.Unlock()
 	return nil
 }
@@ -1527,6 +1553,9 @@ func (m *SSHManager) GetFullProcessList(sessionId string) ([]map[string]interfac
 
 // KillProcess 终止指定 PID 的进程
 func (m *SSHManager) KillProcess(sessionId string, pid string) error {
+	if _, err := strconv.Atoi(pid); err != nil {
+		return fmt.Errorf("invalid pid: %s", pid)
+	}
 	client, _, err := m.getClientEntry(sessionId)
 	if err != nil {
 		return err
@@ -1537,6 +1566,9 @@ func (m *SSHManager) KillProcess(sessionId string, pid string) error {
 
 // GetProcessEnv 获取指定进程的环境变量列表
 func (m *SSHManager) GetProcessEnv(sessionId string, pid string) ([]string, error) {
+	if _, err := strconv.Atoi(pid); err != nil {
+		return nil, fmt.Errorf("invalid pid: %s", pid)
+	}
 	client, _, err := m.getClientEntry(sessionId)
 	if err != nil {
 		return nil, err

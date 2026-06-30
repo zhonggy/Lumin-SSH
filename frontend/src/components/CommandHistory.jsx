@@ -35,13 +35,14 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
         const raw = historyMode === 'global'
           ? await AppGo.GetGlobalCommandHistory()
           : await AppGo.GetCommandHistory(historyServerId);
+        if (!mountedRef.current) return;
         const arr = JSON.parse(raw);
         setHistory(Array.isArray(arr) ? arr : []);
         if (historyMode === 'server') {
           perServerRef.current = Array.isArray(arr) ? arr : [];
         }
       } catch {
-        setHistory([]);
+        if (mountedRef.current) setHistory([]);
       }
     })();
   }, [historyServerId, historyMode]);
@@ -143,6 +144,7 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
     } else {
       // 全局模式：从全局历史文件中删除
       AppGo.GetGlobalCommandHistory().then(raw => {
+        if (!mountedRef.current) return;
         const list = JSON.parse(raw);
         if (!Array.isArray(list)) return;
         const next = list.filter(item => item.id !== id);

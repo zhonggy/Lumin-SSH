@@ -33,6 +33,7 @@ type App struct {
 	wsServer      *http.Server        // WebSocket HTTP 服务器，用于优雅关闭
 	wsListener    net.Listener        // WebSocket 监听器，用于关闭时释放端口
 	quitting      atomic.Bool         // 标记用户确认退出，OnBeforeClose 放行（跨 goroutine 访问需原子操作）
+	closeAck      atomic.Bool         // 前端已响应关闭请求（tray/cancel），取消 5s 兜底强制退出
 }
 
 // wsEntry 包装一个 WebSocket 连接及其独立写锁。
@@ -152,6 +153,11 @@ func (a *App) startup(ctx context.Context) {
 	// 启动时清理孤儿历史文件 + 后台同步
 	a.configManager.CleanupOrphanedHistory()
 	go a.configManager.AutoSync()
+}
+
+// AckClose 前端响应了关闭弹窗（tray/cancel），取消 5s 兜底强制退出
+func (a *App) AckClose() {
+	a.closeAck.Store(true)
 }
 
 // DoQuit 用户确认退出，设标记让 OnBeforeClose 放行

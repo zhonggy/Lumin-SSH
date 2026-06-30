@@ -257,8 +257,22 @@ func (c *ConfigManager) getConnectionsLocked() []Connection {
 	for i := range conns {
 		conns[i].Password = c.decrypt(conns[i].Password)
 		conns[i].Passphrase = c.decrypt(conns[i].Passphrase)
+		conns[i].PrivateKey = c.decryptOrPassthrough(conns[i].PrivateKey)
 	}
 	return conns
+}
+
+// decryptOrPassthrough 尝试解密 PrivateKey，失败则原样返回
+// 用于明文私钥到加密私钥的平滑迁移：旧配置里 PrivateKey 是明文 PEM，加密后是 hex
+// ponytail: 用 "-----BEGIN" 前缀区分明文与密文，PEM 头固定以此开头，hex 不含
+func (c *ConfigManager) decryptOrPassthrough(text string) string {
+	if text == "" {
+		return ""
+	}
+	if strings.HasPrefix(text, "-----BEGIN") {
+		return text
+	}
+	return c.decrypt(text)
 }
 
 // GetConnectionByID 按 ID 返回连接的深拷贝。
@@ -364,8 +378,13 @@ func (c *ConfigManager) saveConnectionsFile(conns []Connection) error {
 		if err != nil {
 			return fmt.Errorf("encrypt passphrase: %w", err)
 		}
+		encKey, err := c.encrypt(toSave[i].PrivateKey)
+		if err != nil {
+			return fmt.Errorf("encrypt privateKey: %w", err)
+		}
 		toSave[i].Password = encPass
 		toSave[i].Passphrase = encPhrase
+		toSave[i].PrivateKey = encKey
 	}
 	data, err := json.MarshalIndent(toSave, "", "  ")
 	if err != nil {

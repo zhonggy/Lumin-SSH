@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -360,7 +361,9 @@ func (c *ConfigManager) autoSyncProvider(s RemoteStorage, maxBackups int) error 
 		c.connCacheDirty = true
 		if !quickCmdsEqual(mergedQuickCmds, localQuickCmds) {
 			// staleness check: 重读文件确认没有被并发 SaveQuickCommands 覆盖
-			if quickCmdsEqual(c.loadRawFile(c.quickCmdFile), localQuickCmds) {
+			// ponytail: 已持写锁，不能再调 loadRawFile（它会 RLock 自死锁），直接 os.ReadFile
+			data, _ := os.ReadFile(c.quickCmdFile)
+			if quickCmdsEqual(string(data), localQuickCmds) {
 				atomicWriteFile(c.quickCmdFile, []byte(mergedQuickCmds), 0600)
 			}
 		}

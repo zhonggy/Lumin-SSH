@@ -386,6 +386,8 @@ export default function FileManager({ sessionId, addToast, isActive = true }) {
     }
   };
   const [loading, setLoading] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   const [contextMenu, setContextMenu] = useState(null); // { pos, item }
   const [renamingItem, setRenamingItem] = useState(null);
   const [renameValue, setRenameValue] = useState('');
@@ -427,10 +429,12 @@ export default function FileManager({ sessionId, addToast, isActive = true }) {
     setLoading(true);
     try {
       const data = await AppGo.ListDir(sessionId, path);
+      if (!mountedRef.current) return false;
       setItems(data || []);
       setCurrentPath(path);
       return true;
     } catch (err) {
+      if (!mountedRef.current) return false;
       if (!silent) {
         const msg = String(err).toLowerCase().includes('permission denied')
           ? `${t('权限不足')}: SFTP ${t('仍以')} ${sessionId ? t('原用户') : ''} ${t('身份运行，终端内 sudo 不影响文件管理器')}`
@@ -439,7 +443,7 @@ export default function FileManager({ sessionId, addToast, isActive = true }) {
       }
       return false;
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, [sessionId, addToast, t]);
 
@@ -525,7 +529,7 @@ export default function FileManager({ sessionId, addToast, isActive = true }) {
     } catch (err) {
       if (err) addToast(`${t('上传失败')}: ${err}`, 'error');
     } finally {
-      setTransferInfo(null);
+      if (mountedRef.current) setTransferInfo(null);
     }
   };
 
@@ -915,7 +919,7 @@ export default function FileManager({ sessionId, addToast, isActive = true }) {
     } catch (err) {
       if (err) addToast(`${t('上传失败')}: ${err}`, 'error');
     } finally {
-      setTransferInfo(null);
+      if (mountedRef.current) setTransferInfo(null);
     }
   };
 

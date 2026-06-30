@@ -89,11 +89,13 @@ func main() {
 			if app.quitting.Load() {
 				return false // 用户确认退出，放行
 			}
+			app.closeAck.Store(false) // 重置，等待本次前端响应
 			runtime.EventsEmit(ctx, "close-request")
-			// 超时兜底：如果前端 5 秒内没有响应（崩溃/JS 异常），强制允许关闭
+			// 超时兜底：仅当前端 5 秒内无响应（崩溃/JS 异常）时强制退出；
+			// 前端选 tray/cancel 会调 AckClose 置位 closeAck，跳过强制退出
 			go func() {
 				time.Sleep(5 * time.Second)
-				if !app.quitting.Load() {
+				if !app.quitting.Load() && !app.closeAck.Load() {
 					app.quitting.Store(true)
 					runtime.Quit(ctx)
 				}

@@ -73,6 +73,12 @@ export default function ProcessPage({ sessionId, addToast, active }) {
   const timerRef = useRef(null);
   const detailRef = useRef(null);
   const colDragging = useRef(false);
+  const scrollRef = useRef(null);
+  // ponytail: 可视区切片，避免数百进程全量渲染。行高固定 33px（6px*2 padding + ~21px 内容）
+  // 上限约 300 行无虚拟化也无压力，超出靠此切片；O(n) 滚动计算在 60fps 内可接受
+  const ROW_H = 33;
+  const OVERSCAN = 5;
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 });
 
   useEffect(() => {
     mountedRef.current = true;
@@ -104,9 +110,18 @@ export default function ProcessPage({ sessionId, addToast, active }) {
   useEffect(() => {
     if (!active) return;
     load();
-    const interval = parseInt(localStorage.getItem('probeInterval') || '3', 10);
-    timerRef.current = setInterval(load, Math.max(interval, 1) * 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    const startInterval = () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      const interval = parseInt(localStorage.getItem('probeInterval') || '3', 10);
+      timerRef.current = setInterval(load, Math.max(interval, 1) * 1000);
+    };
+    startInterval();
+    const onIntervalChange = () => startInterval();
+    window.addEventListener('probeIntervalChanged', onIntervalChange);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      window.removeEventListener('probeIntervalChanged', onIntervalChange);
+    };
   }, [load, active]);
 
   // 选中进程时加载环境变量
@@ -241,6 +256,20 @@ export default function ProcessPage({ sessionId, addToast, active }) {
     document.addEventListener('mouseup', onUp);
   }, [colWidths]);
 
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const start = Math.max(0, Math.floor(el.scrollTop / ROW_H) - OVERSCAN);
+    const end = Math.min(filtered.length, start + Math.ceil(el.clientHeight / ROW_H) + OVERSCAN * 2);
+    setVisibleRange(prev => (prev.start === start && prev.end === end ? prev : { start, end }));
+  }, [filtered.length]);
+
+  // 排序/搜索变化时回到顶部，避免可视区错位
+  useEffect(() => {
+    setVisibleRange({ start: 0, end: 50 });
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [sortKey, sortAsc, searchQuery]);
+
   return (
     <div style={{ padding: '24px 32px', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-raised)' }}>
       {/* 标题行 */}
@@ -360,7 +389,8 @@ export default function ProcessPage({ sessionId, addToast, active }) {
             </div>
             {/* 行 */}
             <div>
-              {filtered.map((p) => (
+              <div style={{ height: visibleRange.start * ROW_H }} />
+              {filtered.slice(visibleRange.start, visibleRange.end).map((p) => (
                 <div key={p.pid} style={{
                   display: 'grid',
                   gridTemplateColumns: `32px ${colWidths.pid}px ${colWidths.cpu}px ${colWidths.mem}px ${colWidths.user}px ${colWidths.name}px 1fr`,
@@ -390,6 +420,7 @@ export default function ProcessPage({ sessionId, addToast, active }) {
                   <div style={{ padding: '6px 6px', textAlign: 'left', color: 'var(--text-tertiary)', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.loc} onClick={() => handleRowClick(p)}>{p.loc}</div>
                 </div>
               ))}
+              <div style={{ height: Math.max(0, (filtered.length - visibleRange.end) * ROW_H) }} />
             </div>
           </div>
         )}
