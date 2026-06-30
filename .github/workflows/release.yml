@@ -46,7 +46,7 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           wails build -clean -tags webkit2_41 -o Lumin
           cp build/bin/Lumin "build/Lumin-V${VERSION}-linux-amd64"
-          sha256sum "build/Lumin-V${VERSION}-linux-amd64" > "build/Lumin-V${VERSION}-linux-amd64.sha256"
+          sha256sum "build/Lumin-V${VERSION}-linux-amd64" | sed 's|build/||' > "build/Lumin-V${VERSION}-linux-amd64.sha256"
           echo "binary=${{ github.workspace }}/build/Lumin-V${VERSION}-linux-amd64" >> $GITHUB_ENV
           echo "binary_sha=${{ github.workspace }}/build/Lumin-V${VERSION}-linux-amd64.sha256" >> $GITHUB_ENV
 
@@ -180,7 +180,7 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           cp -r build/bin/Lumin.app build/Lumin.app
           hdiutil create -volname "Lumin" -srcfolder build/Lumin.app -ov -format UDZO "build/Lumin-V${VERSION}.dmg"
-          sha256sum "build/Lumin-V${VERSION}.dmg" > "build/Lumin-V${VERSION}.dmg.sha256"
+          sha256sum "build/Lumin-V${VERSION}.dmg" | sed 's|build/||' > "build/Lumin-V${VERSION}.dmg.sha256"
           echo "app_dmg=${{ github.workspace }}/build/Lumin-V${VERSION}.dmg" >> $GITHUB_ENV
           echo "app_sha=${{ github.workspace }}/build/Lumin-V${VERSION}.dmg.sha256" >> $GITHUB_ENV
 
