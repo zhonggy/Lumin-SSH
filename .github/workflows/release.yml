@@ -75,7 +75,7 @@ jobs:
           cp build/appicon.png build/deb/usr/share/icons/hicolor/256x256/apps/lumin.png
           cp build/linux/lumin.desktop build/deb/usr/share/applications/lumin.desktop
           sudo dpkg-deb --root-owner-group --build build/deb "build/lumin_V${VERSION}-amd64.deb"
-          sha256sum "build/lumin_V${VERSION}-amd64.deb" > "build/lumin_V${VERSION}-amd64.deb.sha256"
+          sha256sum "build/lumin_V${VERSION}-amd64.deb" | sed 's|build/||' > "build/lumin_V${VERSION}-amd64.deb.sha256"
           echo "deb=${{ github.workspace }}/build/lumin_V${VERSION}-amd64.deb" >> $GITHUB_ENV
           echo "deb_sha=${{ github.workspace }}/build/lumin_V${VERSION}-amd64.deb.sha256" >> $GITHUB_ENV
           # Convert .deb to .rpm via alien
@@ -90,7 +90,7 @@ jobs:
               mv "build/$RPM_BASENAME" "build/$RPM_BASENAME_CLEAN"
               RPM_BASENAME="$RPM_BASENAME_CLEAN"
             fi
-            sha256sum "build/$RPM_BASENAME" > "build/$RPM_BASENAME.sha256"
+            sha256sum "build/$RPM_BASENAME" | sed 's|build/||' > "build/$RPM_BASENAME.sha256"
             echo "rpm=${{ github.workspace }}/build/$RPM_BASENAME" >> $GITHUB_ENV
             echo "rpm_sha=${{ github.workspace }}/build/$RPM_BASENAME.sha256" >> $GITHUB_ENV
           fi

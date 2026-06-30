@@ -401,23 +401,27 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         wsRef.current.send(textEncoder.encode(data));
       }
 
-      // ── 命令记录：回车时从 xterm buffer 提取当前行命令 ──
-      // ponytail: 直接从 buffer 读（比逐字符累加可靠，能捕获方向键调出/Tab 补全/粘贴的命令）。
-      // 局限：命令含 # 或 $ 时 lastIndexOf 可能误切提示符；多行命令只取最后一行
+      // ── 命令记录：回车时优先用逐字符累加的命令（用户真实输入），
+      // 累加为空才 fallback 到 xterm buffer（方向键调历史 / Tab 补全 / 粘贴）。
+      // ponytail: buffer 提取用 $/# 切提示符，交互脚本输出也含 $ 导致误抓整行，
+      // 优先用 pendingCmdRef 可排除 y/1/3 等单字符脚本应答。
       if (data.includes('\r') || data.includes('\n')) {
         const nlIdx = data.search(/[\r\n]/);
         if (nlIdx > 0) {
           pendingCmdRef.current += data.slice(0, nlIdx).replace(/[\x00-\x1F\x7F]/g, '');
         }
-        let cmd = '';
-        const buf = term.buffer.active;
-        const bufLine = buf.getLine(buf.baseY + buf.cursorY);
-        if (bufLine) {
-          const text = bufLine.translateToString(true);
-          const idx = Math.max(text.lastIndexOf('#'), text.lastIndexOf('$'));
-          cmd = idx >= 0 ? text.slice(idx + 1).trim() : text.trim();
+        let cmd = pendingCmdRef.current.trim();
+        if (!cmd) {
+          const buf = term.buffer.active;
+          const bufLine = buf.getLine(buf.baseY + buf.cursorY);
+          if (bufLine) {
+            const text = bufLine.translateToString(true);
+            const idx = Math.max(text.lastIndexOf('#'), text.lastIndexOf('$'));
+            cmd = idx >= 0 ? text.slice(idx + 1).trim() : text.trim();
+            // ponytail: buffer 提取含中文等非 ASCII 字符说明是脚本提示行，不是真实命令
+            if (/[^\x20-\x7E]/.test(cmd)) cmd = '';
+          }
         }
-        if (!cmd) cmd = pendingCmdRef.current.trim();
         if (!awaitingPasswordRef.current && cmd.length > 1 && !/^\d+$/.test(cmd)) {
           window.dispatchEvent(new CustomEvent('ssh-command-history', {
             detail: { sessionId: serverIdRef.current, command: cmd, time: new Date().toISOString(), source: 'input' }
