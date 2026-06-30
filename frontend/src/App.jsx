@@ -9,6 +9,7 @@ import FileManager from './components/FileManager.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import Toast from './components/Toast.jsx';
 import CommandHistory from './components/CommandHistory.jsx';
+import ProcessPage from './components/ProcessPage.jsx';
 import GlobalDialog from './components/GlobalDialog.jsx';
 import GlobalContextMenu from './components/GlobalContextMenu.jsx';
 import { clampPanelWidth } from './components/probeFormatting.js';
@@ -18,7 +19,7 @@ import { useUpdateChecker } from './hooks/useUpdateChecker.js';
 import ConnectingCard from './components/ConnectingCard.jsx';
 import UpdateModal from './components/UpdateModal.jsx';
 import Dashboard from './components/Dashboard.jsx';
-import { Settings, House, Minus, Square, X, Plus, Monitor, RefreshCw, Terminal as TerminalIcon, Folder, ScrollText } from 'lucide-react';
+import { Settings, House, Minus, Square, X, Plus, Monitor, RefreshCw, Terminal as TerminalIcon, Folder, ScrollText, ClipboardList } from 'lucide-react';
 import { Z } from './constants/zIndex';
 
 import logoImg from './assets/logo.png';
@@ -1195,6 +1196,13 @@ export default function App() {
                   >
                     <ScrollText size={14} /> {t('历史指令')}
                   </button>
+                  <button
+                    className={`content-tab ${contentTab === 'process' ? 'active' : ''}`}
+                    onClick={() => setContentTab('process')}
+                    disabled={activeSession.status !== 'connected'}
+                  >
+                    <ClipboardList size={14} /> {t('进程管理')}
+                  </button>
                 </div>
                 
                 {activeSession.status === 'connected' && (
@@ -1269,7 +1277,7 @@ export default function App() {
                       }}
                     >
                     {/* 辅助视口 (分屏模式下的文件管理器，如果是左侧则排在前面) */}
-                    {s.status === 'connected' && fileManagerPosition === 'left' && mountedSessions.has(s.id) && (
+                    {s.status === 'connected' && fileManagerPosition === 'left' && contentTab !== 'process' && mountedSessions.has(s.id) && (
                       <>
                         <div style={{
                           width: leftSplitWidth + 'px',
@@ -1340,10 +1348,18 @@ export default function App() {
                           />
                         </div>
                       )}
+                      {s.status === 'connected' && mountedSessions.has(s.id) && (
+                        <div style={{ display: contentTab === 'process' ? 'block' : 'none', height: '100%', flex: 1 }}>
+                          <ProcessPage
+                            sessionId={s.id}
+                            addToast={addToast}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* 辅助视口 (分屏模式下的文件管理器，如果是底部则排在后面) */}
-                    {s.status === 'connected' && fileManagerPosition === 'bottom' && mountedSessions.has(s.id) && (
+                    {s.status === 'connected' && fileManagerPosition === 'bottom' && contentTab !== 'process' && mountedSessions.has(s.id) && (
                       <>
                         <div
                           className="split-resizer-h"
@@ -1429,6 +1445,7 @@ export default function App() {
                     addToast={addToast}
                     enabled={!!monitoringEnabled[activeSession.id]}
                     onEnable={() => setMonitoringEnabled(prev => ({ ...prev, [activeSession.id]: true }))}
+                    onShowAllProcesses={() => setContentTab('process')}
                   />
                   </div>
                 </>

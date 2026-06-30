@@ -1470,6 +1470,92 @@ func (m *SSHManager) GetSystemInfo(sessionId string) (result map[string]interfac
 	}, nil
 }
 
+// GetFullProcessList 获取服务器上所有进程列表（无 head 限制）
+func (m *SSHManager) GetFullProcessList(sessionId string) ([]map[string]interface{}, error) {
+	client, _, err := m.getClientEntry(sessionId)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := m.executeCmdWithClient(client, `ps -eo pid,pcpu,rss,user,comm,stat,nlwp,etime,args --sort=-pcpu 2>/dev/null`)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	var processes []map[string]interface{}
+	for _, l := range lines {
+		fields := strings.Fields(l)
+		if len(fields) < 9 {
+			continue
+		}
+		if fields[0] == "PID" {
+			continue
+		}
+		cpu, _ := strconv.ParseFloat(fields[1], 64)
+		rss, _ := strconv.ParseUint(fields[2], 10, 64)
+		nlwp, _ := strconv.ParseUint(fields[6], 10, 64)
+
+		name := fields[4]
+		stat := fields[5]
+		etime := fields[7]
+		args := strings.Join(fields[8:], " ")
+
+		// "位置" 取 args 的第一个词（可执行路径）
+		var loc string
+		if idx := strings.Index(args, " "); idx > 0 {
+			loc = args[:idx]
+		} else {
+			loc = args
+		}
+
+		processes = append(processes, map[string]interface{}{
+			"pid":   fields[0],
+			"cpu":   cpu,
+			"mem":   float64(rss) / 1024.0,
+			"user":  fields[3],
+			"name":  name,
+			"cmd":   args,
+			"loc":   loc,
+			"stat":  stat,
+			"nlwp":  nlwp,
+			"etime": etime,
+		})
+	}
+	return processes, nil
+}
+
+// KillProcess 终止指定 PID 的进程
+func (m *SSHManager) KillProcess(sessionId string, pid string) error {
+	client, _, err := m.getClientEntry(sessionId)
+	if err != nil {
+		return err
+	}
+	_, err = m.executeCmdWithClient(client, "kill -9 "+pid+" 2>/dev/null")
+	return err
+}
+
+// GetProcessEnv 获取指定进程的环境变量列表
+func (m *SSHManager) GetProcessEnv(sessionId string, pid string) ([]string, error) {
+	client, _, err := m.getClientEntry(sessionId)
+	if err != nil {
+		return nil, err
+	}
+	out, err := m.executeCmdWithClient(client, "cat /proc/"+pid+"/environ 2>/dev/null | tr '\\0' '\\n'")
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	// 过滤掉空行
+	var result []string
+	for _, l := range lines {
+		if l != "" {
+			result = append(result, l)
+		}
+	}
+	return result, nil
+}
+
 // GetServerStaticInfo 获取服务器静态信息（OS/时区/主机名/CPU 型号），只在连接时调用一次
 func (m *SSHManager) GetServerStaticInfo(sessionId string) (result map[string]interface{}, err error) {
 	defer func() {

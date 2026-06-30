@@ -326,6 +326,21 @@ func (a *App) GetServerStaticInfo(sessionId string) (map[string]interface{}, err
 	return a.sshManager.GetServerStaticInfo(sessionId)
 }
 
+// GetFullProcessList retrieves all process list from the remote server
+func (a *App) GetFullProcessList(sessionId string) ([]map[string]interface{}, error) {
+	return a.sshManager.GetFullProcessList(sessionId)
+}
+
+// KillProcess kills a process by PID on the remote server
+func (a *App) KillProcess(sessionId string, pid string) error {
+	return a.sshManager.KillProcess(sessionId, pid)
+}
+
+// GetProcessEnv returns environment variables of a remote process
+func (a *App) GetProcessEnv(sessionId string, pid string) ([]string, error) {
+	return a.sshManager.GetProcessEnv(sessionId, pid)
+}
+
 // GetTerminalCwd retrieves current working directory of the shell
 func (a *App) GetTerminalCwd(sessionId string) (string, error) {
 	return a.sshManager.GetTerminalCwd(sessionId)

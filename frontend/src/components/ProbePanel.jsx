@@ -139,7 +139,7 @@ function isInternalIP(ip) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-export default function ProbePanel({ sessionId, host, addToast, enabled, onEnable }) {
+export default function ProbePanel({ sessionId, host, addToast, enabled, onEnable, onShowAllProcesses }) {
   const { t } = useTranslation();
   const [info, setInfo] = useState(null);
   // ponytail: 合并 3 个历史数组为 1 个状态更新，减少 3 次渲染为 1 次
@@ -182,6 +182,11 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
       }
     })();
   }, [enabled, sessionId]);
+
+  const handleShowAllProcesses = useCallback(() => {
+    if (!sessionId || !onShowAllProcesses) return;
+    onShowAllProcesses();
+  }, [sessionId, onShowAllProcesses]);
 
   const fetchInfo = useCallback(async () => {
     if (!sessionId || !enabled) return;
@@ -533,7 +538,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', color: 'var(--text-tertiary)' }}><ClipboardList size={14} /></span>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>{t('进程管理')}</span>
-          <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>TOP CPU</span>
+          <span onClick={handleShowAllProcesses} style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', userSelect: 'none' }}>{t('查看全部')}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '44px 56px 1fr', gap: '4px 8px' }}>
           <span style={{ fontSize: 11.5, color: 'var(--text-tertiary)', fontWeight: 700 }}>CPU</span>
@@ -550,6 +555,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
           )}
         </div>
       </Card>
+
     </div>
   );
 }
