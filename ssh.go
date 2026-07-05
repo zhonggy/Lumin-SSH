@@ -1480,10 +1480,8 @@ func (m *SSHManager) GetSystemInfo(sessionId string) (result map[string]interfac
 			"used":      memUsedMB,
 			"cache":     memCacheMB,
 			"free":      memFreeMB,
-			"available": float64(memAvailable) / 1024.0,
 			"swapTotal": swapTotalMB,
 			"swapUsed":  swapUsedMB,
-			"swapFree":  swapFreeMB,
 		},
 		"disk": map[string]interface{}{
 			"device":     diskDevice,
@@ -1613,11 +1611,8 @@ func (m *SSHManager) GetServerStaticInfo(sessionId string) (result map[string]in
 
 	out, err := m.executeCmdWithClient(client, `echo ---OS---
 grep PRETTY_NAME /etc/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/issue 2>/dev/null | head -1 || uname -s -r
-grep ^VERSION_ID= /etc/os-release 2>/dev/null
 echo ---TZ---
-cat /etc/timezone 2>/dev/null || date +'%Z'
-echo ---HOSTNAME---
-hostname
+timedatectl show -p Timezone --value 2>/dev/null || readlink -f /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||' || cat /etc/timezone 2>/dev/null || date +'%z'
 echo ---CPUINFO---
 grep 'model name' /proc/cpuinfo | head -1
 echo ---IP---
@@ -1638,25 +1633,14 @@ ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print $2}' || 
 			osName = strings.Trim(strings.TrimPrefix(t, "PRETTY_NAME="), "\"")
 			break
 		}
-		// /etc/redhat-release, /etc/issue, uname 等返回的纯文本
-		if !strings.HasPrefix(t, "VERSION_ID=") {
-			osName = t
-			break
-		}
+		osName = t
+		break
 	}
 	tzStr := "UTC"
-	for _, l := range extractSection(lines, "---TZ---", "---HOSTNAME---") {
+	for _, l := range extractSection(lines, "---TZ---", "---CPUINFO---") {
 		t := strings.TrimSpace(l)
 		if t != "" {
 			tzStr = t
-			break
-		}
-	}
-	hostname := ""
-	for _, l := range extractSection(lines, "---HOSTNAME---", "---CPUINFO---") {
-		t := strings.TrimSpace(l)
-		if t != "" {
-			hostname = t
 			break
 		}
 	}
@@ -1682,7 +1666,6 @@ ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print $2}' || 
 	return map[string]interface{}{
 		"os":       osName,
 		"timezone": tzStr,
-		"hostname": hostname,
 		"ip":       ipAddr,
 		"cpu": map[string]interface{}{
 			"model": cpuModel,

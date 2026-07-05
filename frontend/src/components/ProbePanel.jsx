@@ -178,13 +178,12 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         staticInfoRef.current = {
           os: data.os || 'Linux',
           timezone: data.timezone || 'UTC',
-          hostname: data.hostname || '',
           cpuModel: data.cpu?.model || '',
           ip: data.ip || '',
         };
       } catch (_) {
         if (!active) return;
-        staticInfoRef.current = { os: 'Linux', timezone: 'UTC', hostname: '', cpuModel: '', ip: '' };
+        staticInfoRef.current = { os: 'Linux', timezone: 'UTC', cpuModel: '', ip: '' };
       }
     })();
     return () => { active = false; };
@@ -200,7 +199,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
     try {
       const data = await AppGo.SystemInfo(sessionId);
       if (activeSessionIdRef.current !== sessionId) return; // 切换服务器后丢弃旧响应
-      const si = staticInfoRef.current || { os: 'Linux', timezone: 'UTC', hostname: '', cpuModel: '' };
+      const si = staticInfoRef.current || { os: 'Linux', timezone: 'UTC', cpuModel: '' };
       const uptimeData = data.uptime || {};
       let uptimeStr = t('0 小时');
       if (uptimeData.days > 0) {
@@ -221,7 +220,6 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         memFree: data.memory?.free || 0,
         swapTotal: data.memory?.swapTotal || 0,
         swapUsed: data.memory?.swapUsed || 0,
-        swapFree: data.memory?.swapFree || 0,
         diskDevice: data.disk?.device || 'disk',
         diskType: data.disk?.type || 'ext4',
         diskTotal: data.disk?.total || 0,
