@@ -887,17 +887,19 @@ export default function App() {
   // ── 监听同步状态事件 ──────────────────────────────────────
   useEffect(() => {
     const unbind = EventsOn('sync-status', (data) => {
-      if (data.action === 'merge') {
+      if (data.action === 'merge' || data.action === 'download') {
         const msg = data.localChanged
           ? t('同步完成') + `：${t('云端')} ${data.remoteCount} → ${t('合并')} ${data.mergedCount}` + (data.uploaded ? `，${t('已上传')}` : '')
           : t('同步完成') + `：${t('数据一致，无需变更')}`;
         addToast(msg, 'info', 4000);
+        // merge/download 意味着本地数据已变更，刷新列表
+        if (data.localChanged) loadServers();
       } else if (data.action === 'upload') {
         addToast(t('本地数据已同步到云端'), 'info', 4000);
       }
     });
     return () => { if (unbind) unbind(); };
-  }, [addToast, t]);
+  }, [addToast, t, loadServers]);
 
   useEffect(() => {
     const unbind = EventsOn('ai-chat-stream', (payload) => {
