@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -30,8 +31,23 @@ func restartApp(exePath string) error {
 	return nil
 }
 
+func quoteBatchArg(value string) string {
+	replacer := strings.NewReplacer(
+		"^", "^^",
+		"%", "%%",
+		"&", "^&",
+		"|", "^|",
+		"<", "^<",
+		">", "^>",
+		"\"", "^\"",
+	)
+	return replacer.Replace(value)
+}
+
 // applyUpdateElevated 通过临时批处理提权替换便携版
 func applyUpdateElevated(targetPath, exePath string) error {
+	targetPath = quoteBatchArg(targetPath)
+	exePath = quoteBatchArg(exePath)
 	script := fmt.Sprintf(`@echo off
 title Lumin Updater
 tasklist /FI "PID eq %s" 2>NUL | find "%s" >NUL

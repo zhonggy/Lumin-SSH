@@ -15,14 +15,16 @@ import (
 
 var luminExitCodePattern = regexp.MustCompile(`\[Lumin_EXIT_CODE_(\d+)\]`)
 
+const maxInteractiveCapturedOutputBytes = 1 << 20
+
 func (m *SSHManager) ExecuteCommandInTerminal(sessionID string, command string, purpose string, isMutating bool, cwd string, shellType string, timeout time.Duration) (mcpserver.CommandExecutionResult, error) {
 	result := mcpserver.CommandExecutionResult{
-		SessionID: sessionID,
-		Command: command,
-		Purpose: purpose,
+		SessionID:  sessionID,
+		Command:    command,
+		Purpose:    purpose,
 		IsMutating: isMutating,
-		CWD: cwd,
-		ShellType: shellType,
+		CWD:        cwd,
+		ShellType:  shellType,
 	}
 	if timeout <= 0 {
 		timeout = 5 * time.Minute
@@ -53,7 +55,7 @@ func (m *SSHManager) ExecuteCommandInTerminal(sessionID string, command string, 
 		case chunk, ok := <-outputChannel:
 			raw := captured.String()
 			if ok {
-				captured.Write(chunk)
+				writeLimitedInteractiveOutput(&captured, chunk)
 				raw = captured.String()
 			}
 			if strings.Contains(raw, endMarker) || !ok {
@@ -79,12 +81,12 @@ func (m *SSHManager) ExecuteCommandInTerminal(sessionID string, command string, 
 
 func (m *SSHManager) ExecuteCommandInTerminalControlled(sessionID string, command string, purpose string, isMutating bool, cwd string, shellType string, timeout time.Duration, control <-chan ai.ToolExecutionAction, onCommandOutput func(string)) (mcpserver.CommandExecutionResult, ai.ToolExecutionAction, error) {
 	result := mcpserver.CommandExecutionResult{
-		SessionID: sessionID,
-		Command: command,
-		Purpose: purpose,
+		SessionID:  sessionID,
+		Command:    command,
+		Purpose:    purpose,
 		IsMutating: isMutating,
-		CWD: cwd,
-		ShellType: shellType,
+		CWD:        cwd,
+		ShellType:  shellType,
 	}
 	if timeout <= 0 {
 		timeout = 5 * time.Minute
@@ -145,7 +147,7 @@ func (m *SSHManager) ExecuteCommandInTerminalControlled(sessionID string, comman
 		case chunk, ok := <-outputChannel:
 			raw := captured.String()
 			if ok {
-				captured.Write(chunk)
+				writeLimitedInteractiveOutput(&captured, chunk)
 				raw = captured.String()
 			}
 			snapshot := sanitizeInteractiveCommandOutput(raw, startMarker, endMarker)
@@ -283,6 +285,22 @@ func buildCmdInteractiveCommandWrapper(command string, cwd string, startMarker s
 		`powershell -NoProfile -Command "$p = Join-Path $env:TEMP 'lumin_mcp_` + token + `.cmd'; [System.IO.File]::WriteAllBytes($p, [System.Convert]::FromBase64String('` + encodedScript + `'))"`,
 		`call "%TEMP%\lumin_mcp_` + token + `.cmd"`,
 	}, "\r\n")
+}
+
+func writeLimitedInteractiveOutput(captured *strings.Builder, chunk []byte) {
+	if len(chunk) == 0 {
+		return
+	}
+	if captured.Len()+len(chunk) <= maxInteractiveCapturedOutputBytes {
+		captured.Write(chunk)
+		return
+	}
+	combined := captured.String() + string(chunk)
+	if len(combined) > maxInteractiveCapturedOutputBytes {
+		combined = combined[len(combined)-maxInteractiveCapturedOutputBytes:]
+	}
+	captured.Reset()
+	captured.WriteString(combined)
 }
 
 func sanitizeInteractiveCommandOutput(output string, startMarker string, endMarker string) string {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // launchInstaller 启动安装向导（Unix 下直接执行）
@@ -66,17 +67,17 @@ func installDmgPackage(_, _ string) error {
 	return fmt.Errorf("dmg packages are not supported on Linux")
 }
 
+func quoteShellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
 // applyUpdateElevated 以提权方式执行便携版热替换。
 // 当 Lumin 安装在 /usr/bin/ 等系统目录时，普通用户无写入权限，
 // 需要借助 pkexec（优先）或 sudo 执行替换操作。
-//
-// 注意：pkexec 的安全策略禁止直接执行 shell 脚本，因此通过
-// "pkexec sh -c 'cmd'" 让 pkexec 执行受信任的 /bin/sh 二进制。
 // 同时，只提权做文件替换，新程序以普通用户权限启动（更安全）。
 func applyUpdateElevated(targetPath, exePath string) error {
-	// 文件替换命令：先备份原文件，再移入新文件
-	cmdStr := fmt.Sprintf(`mv -f "%s" "%s.old" && mv -f "%s" "%s"`,
-		exePath, exePath, targetPath, exePath)
+	cmdStr := fmt.Sprintf(`mv -f -- %s %s && mv -f -- %s %s`,
+		quoteShellArg(exePath), quoteShellArg(exePath+".old"), quoteShellArg(targetPath), quoteShellArg(exePath))
 
 	// 优先使用 pkexec（显示友好的图形鉴权对话框）
 	cmd := exec.Command("pkexec", "sh", "-c", cmdStr)

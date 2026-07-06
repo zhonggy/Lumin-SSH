@@ -787,14 +787,7 @@ func initKnownHostsCallback() (ssh.HostKeyCallback, error) {
 	}
 	cb, err := knownhosts.New(knownHostsPath)
 	if err != nil {
-		// known_hosts 损坏，重建空文件后重试
-		if err := os.WriteFile(knownHostsPath, []byte(""), 0600); err != nil {
-			log.Printf("[initKnownHosts] failed to recreate known_hosts: %v", err)
-		}
-		cb, err = knownhosts.New(knownHostsPath)
-		if err != nil {
-			return nil, fmt.Errorf("无法初始化主机密钥校验: %w", err)
-		}
+		return nil, fmt.Errorf("无法初始化主机密钥校验，请检查 %s: %w", knownHostsPath, err)
 	}
 	return cb, nil
 }
@@ -1845,7 +1838,6 @@ func (m *SSHManager) WriteFileContext(ctx context.Context, sessionId string, pat
 
 	token := newCommandExecutionToken()
 	tempPath := path + ".lumin_tmp_" + token
-	backupPath := path + ".lumin_bak_" + token
 	f, err := sftpClient.Create(tempPath)
 	if err != nil {
 		return err
@@ -1863,20 +1855,9 @@ func (m *SSHManager) WriteFileContext(ctx context.Context, sessionId string, pat
 		_ = sftpClient.Remove(tempPath)
 		return err
 	}
-	if err := sftpClient.Rename(tempPath, path); err != nil {
-		if backupErr := sftpClient.Rename(path, backupPath); backupErr != nil {
-			_ = sftpClient.Remove(tempPath)
-			return err
-		}
-		if retryErr := sftpClient.Rename(tempPath, path); retryErr != nil {
-			restoreErr := sftpClient.Rename(backupPath, path)
-			_ = sftpClient.Remove(tempPath)
-			if restoreErr != nil {
-				return fmt.Errorf("replace failed: %w; restore failed: %v", retryErr, restoreErr)
-			}
-			return retryErr
-		}
-		_ = sftpClient.Remove(backupPath)
+	if err := sftpClient.PosixRename(tempPath, path); err != nil {
+		_ = sftpClient.Remove(tempPath)
+		return fmt.Errorf("replace failed: %w", err)
 	}
 	return nil
 }
