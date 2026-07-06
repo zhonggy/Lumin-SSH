@@ -880,8 +880,8 @@ export default function SettingsModal({
       </div>
       {/* 确认恢复弹窗（含列表选择） */}
       {confirmRestore && (
-        <div className="modal-overlay" style={{ zIndex: Z.MODAL, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
-          <div className="glass-card" style={{ width: 450, padding: 24, animation: 'scaleIn 0.2s ease-out' }}>
+        <div className="modal-overlay" style={{ zIndex: Z.MODAL }}>
+          <div className="glass-card" style={{ width: 450, padding: 24, animation: 'scaleIn 0.18s ease' }}>
             <div style={{ fontSize: 18, color: 'var(--text-primary)', marginBottom: 16, fontWeight: 'bold' }}>{$t('选择要恢复的云端备份')}</div>
             <div style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 14 }}>
               {$t('此操作将覆盖当前所有的本地服务器配置，且无法撤销。请选择要恢复的备份时间：')}

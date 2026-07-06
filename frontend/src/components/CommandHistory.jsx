@@ -161,64 +161,35 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
 
   // ── UI ──
   return (
-    <div style={{ padding: '24px 32px', height: '100%', overflowY: 'auto', background: 'var(--surface-raised)' }}>
+    <div className="data-page-scroll">
       {/* 标题行 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center' }}><ScrollText size={18} /></span> {t('历史指令')}
+      <div className="data-page-header">
+        <h3 className="data-page-title">
+          <ScrollText size={16} /> {t('历史指令')}
         </h3>
         {history.length > 0 && (
-          <button className="btn btn-ghost btn-sm" onClick={clear} style={{ color: 'var(--text-tertiary)' }}>
+          <button className="btn btn-ghost btn-sm" onClick={clear}>
             {t('清空列表')}
           </button>
         )}
       </div>
 
       {/* 搜索 + 模式切换 */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+      <div className="data-toolbar">
         <input
+          className="input"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder={t('搜索命令...')}
-          style={{
-            flex: 1,
-            padding: '6px 10px',
-            background: 'var(--surface-base)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            color: 'var(--text-primary)',
-            fontSize: 13,
-            outline: 'none',
-          }}
         />
-        <button
-          onClick={() => setHistoryMode('server')}
-          style={{
-            border: '1px solid ' + (historyMode === 'global' ? 'var(--border)' : 'rgba(var(--accent-rgb), 0.3)'),
-            borderRadius: 6,
-            padding: '5px 12px',
-            background: historyMode === 'server' ? 'rgba(var(--accent-rgb), 0.12)' : 'transparent',
-            color: historyMode === 'server' ? 'var(--accent)' : 'var(--text-tertiary)',
-            cursor: 'pointer', fontSize: 13,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {t('当前服务器')}
-        </button>
-        <button
-          onClick={() => setHistoryMode('global')}
-          style={{
-            border: '1px solid ' + (historyMode === 'server' ? 'var(--border)' : 'rgba(var(--accent-rgb), 0.3)'),
-            borderRadius: 6,
-            padding: '5px 12px',
-            background: historyMode === 'global' ? 'rgba(var(--accent-rgb), 0.12)' : 'transparent',
-            color: historyMode === 'global' ? 'var(--accent)' : 'var(--text-tertiary)',
-            cursor: 'pointer', fontSize: 13,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {t('全部服务器')}
-        </button>
+        <div className="segment-control">
+          <button className={historyMode === 'server' ? 'active' : ''} onClick={() => setHistoryMode('server')}>
+            {t('当前服务器')}
+          </button>
+          <button className={historyMode === 'global' ? 'active' : ''} onClick={() => setHistoryMode('global')}>
+            {t('全部服务器')}
+          </button>
+        </div>
       </div>
 
       {/* 空状态 / 列表 */}
@@ -233,27 +204,27 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
           </span>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="history-list">
           {filteredHistory.map((item) => (
-            <div key={item.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 18px', background: 'var(--surface-base)', borderColor: 'var(--border-light)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: 'var(--success)', wordBreak: 'break-all', fontWeight: 600 }}>
+            <div key={item.id} className="card history-item-card">
+              <div className="history-command-row">
+                <span className="history-command-text">
                   $ {item.command}
                 </span>
-                <span style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', marginLeft: 12, opacity: 0.8 }}>
+                <span className="history-time">
                   {new Date(item.time).toLocaleTimeString()}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 6 }}>
-                <button className="btn btn-sm" onClick={() => copy(item.command)} style={{ fontSize: 12, padding: '4px 12px', background: 'var(--surface-raised)', color: 'var(--text-secondary)', border: '1px solid var(--border-light)' }}>
-                  <Clipboard size={12} style={{ verticalAlign: 'middle', marginRight: 2 }} /> {t('复制')}
+              <div className="history-actions">
+                <button className="btn btn-sm" onClick={() => copy(item.command)}>
+                  <Clipboard size={12} /> {t('复制')}
                 </button>
-                <button className="btn btn-sm" onClick={() => deleteItem(item.id)} style={{ fontSize: 12, padding: '4px 12px', background: 'rgba(var(--danger-rgb), 0.08)', color: 'var(--danger)', border: '1px solid rgba(var(--danger-rgb), 0.15)' }}>
-                  <Trash2 size={12} style={{ verticalAlign: 'middle', marginRight: 2 }} /> {t('删除')}
+                <button className="btn btn-danger btn-sm" onClick={() => deleteItem(item.id)}>
+                  <Trash2 size={12} /> {t('删除')}
                 </button>
-                <button className="btn btn-primary btn-sm" onClick={() => exec(item.command)} style={{ fontSize: 12, padding: '4px 12px', background: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid rgba(var(--accent-rgb), 0.2)' }}>
-                  <Rocket size={13} style={{ marginRight: 4 }} /> {t('再次运行')}
+                <button className="btn btn-primary btn-sm" onClick={() => exec(item.command)}>
+                  <Rocket size={13} /> {t('再次运行')}
                 </button>
               </div>
             </div>

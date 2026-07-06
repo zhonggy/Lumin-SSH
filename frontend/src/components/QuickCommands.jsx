@@ -152,9 +152,9 @@ function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onCo
             {...commonDragProps}
             style={{
               display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', cursor: 'pointer',
-              borderRadius: 3, fontSize: 13, color: isSelected ? 'var(--accent)' : theme.inputColor,
-              background: dropPos === 'inside' ? 'rgba(var(--success-rgb), 0.15)' : isSelected ? 'rgba(var(--accent-rgb), 0.1)' : hover ? 'rgba(128,128,128,0.06)' : 'transparent',
-              outline: dropPos === 'inside' ? '1px dashed var(--success)' : 'none',
+              borderRadius: 3, fontSize: 13, color: isSelected ? 'var(--text-primary)' : theme.inputColor,
+              background: dropPos === 'inside' ? 'var(--surface-active)' : isSelected ? 'var(--surface-active)' : hover ? 'var(--surface-hover)' : 'transparent',
+              outline: dropPos === 'inside' ? '1px dashed var(--accent)' : 'none',
               userSelect: 'none',
               transition: 'background 0.1s',
             }}
@@ -218,8 +218,8 @@ function TreeNode({ item, index, path, selectedPath, onSelect, contextMenu, onCo
         {...commonDragProps}
         style={{
           display: 'flex', alignItems: 'center', padding: '5px 8px', cursor: 'pointer',
-          borderRadius: 3, fontSize: 12, color: isSelected ? 'var(--success)' : theme.inputColor,
-          background: isSelected ? 'rgba(var(--success-rgb), 0.08)' : hover ? 'rgba(128,128,128,0.06)' : 'transparent',
+          borderRadius: 3, fontSize: 12, color: isSelected ? 'var(--text-primary)' : theme.inputColor,
+          background: isSelected ? 'var(--surface-active)' : hover ? 'var(--surface-hover)' : 'transparent',
           userSelect: 'none',
         }}
       >
@@ -841,7 +841,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     padding: '6px 14px', cursor: 'pointer', color: C.inputColor,
     display: 'flex', alignItems: 'center', gap: 6,
     transition: 'background 0.1s',
-    _hover: { background: 'rgba(var(--accent-rgb), 0.1)' },
+    _hover: { background: 'var(--surface-hover)' },
   };
 
   const _menuSepStyle = {
@@ -872,11 +872,11 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
             }
             setDlgName(''); setDlgCmd(''); setDlgAddCR(true);
           }}
-          style={{ background: 'rgba(var(--success-rgb), 0.1)', border: '1px solid rgba(var(--success-rgb), 0.25)', color: 'var(--success)', borderRadius: 3, padding: '3px 8px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+          className="btn btn-primary btn-sm"
         >{t('＋ 添加命令')}</button>
         <button
+          className="btn btn-secondary btn-sm"
           onClick={() => { closeContextMenu(); setDialog({ type: 'addGroup', contextPath: '', parentList: commands }); setDlgName(''); setDlgCmd(''); setDlgAddCR(true); }}
-          style={{ background: 'rgba(var(--accent-rgb), 0.1)', border: '1px solid rgba(var(--accent-rgb), 0.25)', color: 'var(--accent)', borderRadius: 3, padding: '3px 8px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
         ><FolderPlus size={14} /> {t('添加分组')}</button>
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 10, color: C.mutedColor }}>{t('Ctrl+S 保存')}</span>
@@ -895,8 +895,8 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           style={{
             width: 220, flexShrink: 0, borderRight: '1px solid var(--border-subtle)',
             overflowY: 'auto', padding: '4px 6px',
-            background: rootDragOver ? 'rgba(var(--success-rgb), 0.08)' : C.inputBg,
-            outline: rootDragOver ? '1px dashed var(--success)' : 'none',
+            background: rootDragOver ? 'var(--surface-active)' : C.inputBg,
+            outline: rootDragOver ? '1px dashed var(--accent)' : 'none',
             display: 'flex', flexDirection: 'column',
             transition: 'background 0.1s',
           }}
@@ -978,9 +978,10 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                     r.parent[r.idx].name = editGroupName.trim() || selectedItem.name;
                     save(list);
                   }}
-                  style={{ background: 'rgba(var(--success-rgb), 0.1)', border: '1px solid rgba(var(--success-rgb), 0.25)', color: 'var(--success)', borderRadius: 3, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}
+                  className="btn btn-primary btn-sm"
                 ><Save size={13} /> {t('保存名称')}</button>
                 <button
+                  className="btn btn-secondary btn-sm"
                   onClick={() => {
                     const list = structuredClone(commands);
                     const r = resolvePath(list, selectedPath);
@@ -988,7 +989,6 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                     setDialog({ type: 'add', targetChildren: r.item.children, parentList: list, groupName: r.item.name });
                     setDlgName(''); setDlgCmd(''); setDlgAddCR(true);
                   }}
-                  style={{ background: 'rgba(var(--success-rgb), 0.1)', border: '1px solid rgba(var(--success-rgb), 0.25)', color: 'var(--success)', borderRadius: 3, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}
                 >{t('＋ 添加命令')}</button>
               </div>
               <div style={{ fontSize: 12, color: C.mutedColor, marginTop: 8 }}>
@@ -1067,24 +1067,24 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
               }}>
                 {/* 第一行：命令名 + 命令预览 + 编辑按钮 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  <span style={{ background: 'rgba(var(--success-rgb), 0.15)', color: 'var(--success)', fontSize: 11, padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+                  <span className="badge">
                     {editCmdName}
                   </span>
                   <span style={{ flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: C.inputColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {editCmdText || ''}
                   </span>
                   <button
+                    className="btn btn-primary btn-sm"
                     onClick={() => { const committed = commitCmdEdit(); save(committed || commands); setDirty(false); if (addToast) addToast(t('已保存'), 'success', 1500); }}
-                    style={{ background: 'rgba(var(--success-rgb), 0.15)', border: '1px solid rgba(var(--success-rgb), 0.3)', color: 'var(--success)', borderRadius: 3, padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}
                   >{t('保存')}</button>
                   <button
+                    className="btn btn-secondary btn-sm"
                     onClick={() => {
                       setDialog({ type: 'edit' });
                       setDlgName(editCmdName || '');
                       setDlgCmd(editCmdText || '');
                       setDlgAddCR(selectedItem.addCR !== false);
                     }}
-                    style={{ background: 'transparent', border: '1px solid ' + C.btnBorder, color: C.statusBarColor, borderRadius: 3, padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}
                   >{t('编辑')}</button>
                 </div>
 
@@ -1142,7 +1142,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                                     position: 'absolute', bottom: '100%', left: 0, zIndex: Z.POPUP,
                                     minWidth: 180, maxHeight: 200, display: 'flex', flexDirection: 'column',
                                     background: C.popupBg, border: '1px solid ' + C.btnBorder,
-                                    borderRadius: 4, boxShadow: '0 -4px 16px rgba(0,0,0,0.3)',
+                                    borderRadius: 4, boxShadow: 'var(--shadow-md)',
                                     marginBottom: 2,
                                   }}
                                 >
@@ -1206,7 +1206,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                                             fontFamily: "'JetBrains Mono', monospace",
                                             borderBottom: '1px solid var(--border-subtle)',
                                           }}
-                                          onMouseEnter={e => e.target.style.background = 'rgba(var(--accent-rgb), 0.08)'}
+                                          onMouseEnter={e => e.target.style.background = 'var(--surface-hover)'}
                                           onMouseLeave={e => e.target.style.background = 'transparent'}
                                         >{val}</div>
                                       ));
@@ -1257,12 +1257,8 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                     </select>
                   </div>
                   <button
+                    className="btn btn-primary btn-sm"
                     onClick={() => doExecute(selectedItem)}
-                    style={{
-                      background: 'rgba(var(--success-rgb), 0.15)', border: '1px solid rgba(var(--success-rgb), 0.35)',
-                      color: 'var(--success)', borderRadius: 3, padding: '4px 14px', fontSize: 12, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 4,
-                    }}
                   ><Rocket size={14} /> {t('发送')}</button>
                 </div>
               </div>
@@ -1314,15 +1310,9 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           </select>
         </div>
         <button
+          className="btn btn-primary btn-sm"
           onClick={sendQuick}
           disabled={!quickCmd.trim()}
-          style={{
-            background: quickCmd.trim() ? 'rgba(var(--success-rgb), 0.15)' : 'var(--border-subtle)',
-            border: '1px solid ' + (quickCmd.trim() ? 'rgba(var(--success-rgb), 0.35)' : 'var(--border)'),
-            color: quickCmd.trim() ? 'var(--success)' : 'var(--text-muted)',
-            borderRadius: 3, padding: '3px 12px', fontSize: 11, cursor: quickCmd.trim() ? 'pointer' : 'default',
-            transition: 'all 0.15s',
-          }}
         ><Rocket size={14} /> {t('发送')}</button>
       </div>
 
@@ -1333,7 +1323,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           <div style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: Z.MENU,
             background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 6,
-            boxShadow: 'var(--shadow-lg)', padding: '4px 0', minWidth: 160,
+            boxShadow: 'var(--shadow-md)', padding: '4px 0', minWidth: 160,
             fontSize: 12,
           }}>
             {contextMenu.type === 'group' ? (
@@ -1364,7 +1354,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: Z.DIALOG,
             width: 360, background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 8,
-            boxShadow: '0 12px 40px rgba(0,0,0,0.6)', padding: '16px 20px',
+            boxShadow: 'var(--shadow-md)', padding: '16px 20px',
           }}>
             <div style={{ fontSize: 14, color: C.inputColor, marginBottom: 14, fontWeight: 600 }}>
               {t('未保存的修改')}
@@ -1373,18 +1363,9 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
               {t('当前命令有未保存的修改，是否保存？')}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
-                onClick={handleConfirmCancel}
-                style={{ background: 'transparent', border: '1px solid ' + C.btnBorder, color: C.statusBarColor, borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
-              >{t('取消')}</button>
-              <button
-                onClick={handleConfirmDiscard}
-                style={{ background: 'transparent', border: '1px solid var(--danger)', color: 'var(--danger)', borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
-              >{t('不保存')}</button>
-              <button
-                onClick={handleConfirmSave}
-                style={{ background: 'rgba(var(--success-rgb), 0.15)', border: '1px solid rgba(var(--success-rgb), 0.3)', color: 'var(--success)', borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
-              >{t('保存')}</button>
+              <button className="btn btn-secondary btn-sm" onClick={handleConfirmCancel}>{t('取消')}</button>
+              <button className="btn btn-danger btn-sm" onClick={handleConfirmDiscard}>{t('不保存')}</button>
+              <button className="btn btn-primary btn-sm" onClick={handleConfirmSave}>{t('保存')}</button>
             </div>
           </div>
         </>
@@ -1397,7 +1378,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: Z.DIALOG,
             width: 480, background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 8,
-            boxShadow: '0 12px 40px rgba(0,0,0,0.6)', padding: '16px 20px',
+            boxShadow: 'var(--shadow-md)', padding: '16px 20px',
           }}>
             <div style={{ fontSize: 14, color: C.inputColor, marginBottom: 14, fontWeight: 600 }}>
               {dialog.type === 'addGroup' ? t('添加分组') : dialog.type === 'editGroup' ? t('重命名分组') : dialog.type === 'add' ? t('添加命令') : t('编辑命令')}
@@ -1414,24 +1395,8 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                     setGroupPickerPos({ x: rect.left, y: rect.bottom + 4 });
                     setShowGroupPicker(prev => !prev);
                   }}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    padding: '2px 10px', borderRadius: 4,
-                    background: 'rgba(var(--accent-rgb), 0.1)',
-                    border: '1px solid rgba(var(--accent-rgb), 0.25)',
-                    color: 'var(--accent)', fontWeight: 500, fontSize: 12,
-                    cursor: 'pointer', userSelect: 'none',
-                    transition: 'all 0.15s',
-                    lineHeight: '20px',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(var(--accent-rgb), 0.2)';
-                    e.currentTarget.style.borderColor = 'rgba(var(--accent-rgb), 0.4)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(var(--accent-rgb), 0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(var(--accent-rgb), 0.25)';
-                  }}
+                  className="badge"
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
                 >
                   {dialog.groupName || t('根目录')}
                   <span style={{ fontSize: 8, opacity: 0.7 }}>▼</span>
@@ -1511,18 +1476,13 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
             {/* 按钮 */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
+                className="btn btn-secondary btn-sm"
                 onClick={() => { setShowGroupPicker(false); setDialog(null); }}
-                style={{ background: 'transparent', border: '1px solid ' + C.btnBorder, color: C.statusBarColor, borderRadius: 4, padding: '5px 16px', fontSize: 12, cursor: 'pointer' }}
               >{t('取消')}</button>
               <button
+                className="btn btn-primary btn-sm"
                 onClick={handleDlgSave}
                 disabled={!dlgName.trim() || (dialog.type !== 'addGroup' && dialog.type !== 'editGroup' && !dlgCmd.trim())}
-                style={{
-                  background: 'rgba(var(--success-rgb), 0.15)', border: '1px solid rgba(var(--success-rgb), 0.35)',
-                  color: 'var(--success)', borderRadius: 4, padding: '5px 16px', fontSize: 12,
-                  cursor: (!dlgName.trim() || (dialog.type !== 'addGroup' && dialog.type !== 'editGroup' && !dlgCmd.trim())) ? 'not-allowed' : 'pointer',
-                  opacity: (!dlgName.trim() || (dialog.type !== 'addGroup' && dialog.type !== 'editGroup' && !dlgCmd.trim())) ? 0.5 : 1,
-                }}
               >{t('保存')}</button>
             </div>
           </div>
@@ -1540,7 +1500,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                 position: 'fixed', left: groupPickerPos.x, top: groupPickerPos.y, zIndex: Z.SUBMENU,
                 minWidth: 160, maxHeight: 220, overflowY: 'auto',
                 background: C.popupBg, border: '1px solid ' + C.btnBorder, borderRadius: 6,
-                boxShadow: 'var(--shadow-lg)', padding: '4px 0',
+                boxShadow: 'var(--shadow-md)', padding: '4px 0',
               }}>
                 {/* 根目录 */}
                 <div
@@ -1552,7 +1512,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                     padding: '5px 14px', fontSize: 12, color: C.inputColor, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--accent-rgb), 0.08)'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 ><Folder size={14} /> {t('根目录')}</div>
                 {/* 所有分组 */}
@@ -1579,7 +1539,7 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
                         padding: '5px 14px', fontSize: 12, color: C.inputColor, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--accent-rgb), 0.08)'}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     ><Folder size={14} /> {g.name}</div>
                   ));

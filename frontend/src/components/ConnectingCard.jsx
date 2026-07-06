@@ -13,7 +13,7 @@ export default function ConnectingCard({ connectingServer, t, onCancel }) {
     <div style={{
       position: 'fixed', inset: 0, zIndex: Z.FULLSCREEN_OVERLAY,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+      background: 'rgba(0,0,0,0.42)',
     }}>
       <div style={{
         width: 380, borderRadius: 16, overflow: 'hidden',
@@ -53,11 +53,11 @@ export default function ConnectingCard({ connectingServer, t, onCancel }) {
 
         {/* 双进度条 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--success)', flexShrink: 0, boxShadow: '0 0 8px var(--success)' }} />
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--success)', flexShrink: 0 }} />
           <div style={{ flex: 1, height: 4, borderRadius: 4, background: C.separator, overflow: 'hidden' }}>
             <div style={{
               height: '100%', borderRadius: 4,
-              background: 'linear-gradient(90deg, var(--success), var(--success))',
+              background: 'var(--success)',
               animation: 'ssh-progress-indeterminate 1.4s ease-in-out infinite',
             }} />
           </div>
@@ -65,7 +65,7 @@ export default function ConnectingCard({ connectingServer, t, onCancel }) {
           <div style={{ flex: 1, height: 4, borderRadius: 4, background: C.separator, overflow: 'hidden' }}>
             <div style={{
               height: '100%', borderRadius: 4,
-              background: 'linear-gradient(90deg, var(--success), var(--success))',
+              background: 'var(--success)',
               animation: 'ssh-progress-indeterminate 1.4s ease-in-out 0.4s infinite',
             }} />
           </div>

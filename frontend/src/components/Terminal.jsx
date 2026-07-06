@@ -82,22 +82,22 @@ function splitTrailingIncompleteEscapeSequence(input) {
 
 // 命令栏按钮样式辅助函数
 const btnStyle = (color) => ({
-  border: 'none',
-  background: 'transparent',
-  color: color === 'red' ? 'var(--danger)' : '#8b949e',
+  border: '1px solid var(--border)',
+  background: 'var(--surface-raised)',
+  color: color === 'red' ? 'var(--danger)' : 'var(--text-secondary)',
   cursor: 'pointer',
-  borderRadius: 3,
-  padding: '2px 6px',
+  borderRadius: 'var(--radius-xs)',
+  padding: '3px 8px',
 });
-const iconBtnStyle = (color, bg) => ({
+const iconBtnStyle = (color) => ({
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: 22, height: 22,
-  background: bg,
-  border: '1px solid transparent',
-  borderRadius: 3,
+  width: 24, height: 24,
+  background: 'var(--surface-raised)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-xs)',
   color,
   cursor: 'pointer',
-  transition: 'all 0.1s',
+  transition: 'var(--transition-fast)',
 });
 
 export default function Terminal({ sessionId, serverId, historyServerId, status, isActive, serverName, connectedSessions = [] }) {
@@ -1031,7 +1031,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             padding: '7px 10px',
             minHeight: 32,
             background: 'var(--term-input-bg)',
-            borderColor: cmdInput ? 'rgba(var(--success-rgb), 0.3)' : 'var(--term-btn-border)',
+            borderColor: cmdInput ? 'var(--border-focus)' : 'var(--term-btn-border)',
           }}
         />
 
@@ -1160,7 +1160,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                   <button
                     onClick={(e) => { e.stopPropagation(); executeCommand(item.command); }}
                     title={t('执行')}
-                    style={{ ...iconBtnStyle('var(--success)', 'rgba(var(--success-rgb), 0.15)') }}
+                    style={{ ...iconBtnStyle('var(--text-secondary)') }}
                   >
                     <Play size={12} />
                   </button>
@@ -1168,7 +1168,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                   <button
                     onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(item.command).catch(() => {}); }}
                     title={t('复制')}
-                    style={{ ...iconBtnStyle('var(--accent)', 'rgba(var(--accent-rgb), 0.15)') }}>
+                    style={{ ...iconBtnStyle('var(--text-secondary)') }}>
                     <Clipboard size={12} />
                   </button>
                   {/* 删除（红色） */}
@@ -1206,34 +1206,14 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
                   outline: 'none',
                 }}
               />
-              <button
-                onClick={() => setHistoryMode('server')}
-                style={{
-                  border: '1px solid ' + (historyMode === 'global' ? 'var(--term-btn-border)' : 'rgba(var(--accent-rgb), 0.3)'),
-                  borderRadius: 4,
-                  padding: '3px 8px',
-                  background: historyMode === 'server' ? 'rgba(var(--accent-rgb), 0.15)' : 'transparent',
-                  color: historyMode === 'server' ? 'var(--accent)' : 'var(--term-muted)',
-                  cursor: 'pointer', fontSize: 10,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {t('当前服务器')}
-              </button>
-              <button
-                onClick={() => setHistoryMode('global')}
-                style={{
-                  border: '1px solid ' + (historyMode === 'server' ? 'var(--term-btn-border)' : 'rgba(var(--accent-rgb), 0.3)'),
-                  borderRadius: 4,
-                  padding: '3px 8px',
-                  background: historyMode === 'global' ? 'rgba(var(--accent-rgb), 0.15)' : 'transparent',
-                  color: historyMode === 'global' ? 'var(--accent)' : 'var(--term-muted)',
-                  cursor: 'pointer', fontSize: 10,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {t('全部服务器')}
-              </button>
+              <div className="segment-control">
+                <button className={historyMode === 'server' ? 'active' : ''} onClick={() => setHistoryMode('server')}>
+                  {t('当前服务器')}
+                </button>
+                <button className={historyMode === 'global' ? 'active' : ''} onClick={() => setHistoryMode('global')}>
+                  {t('全部服务器')}
+                </button>
+              </div>
             </div>
           </div>
       )}

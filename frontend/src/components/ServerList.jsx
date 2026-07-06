@@ -254,31 +254,13 @@ export default function ServerList({
         onMouseEnter={() => setHoveredId(server.id)}
         onMouseLeave={() => setHoveredId(null)}
         title={`${server.username}@${server.host}:${server.port || 22}`}
-        style={{
-          margin: 0,
-          background: active
-            ? 'var(--success-dim)'
-            : isHovered
-            ? 'var(--surface-hover)'
-            : 'var(--surface-sunken)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          border: active
-            ? '1px solid var(--success-glow)'
-            : '1px solid var(--border)',
-          transition: 'all 0.18s ease',
-          boxShadow: active
-            ? '0 4px 20px rgba(var(--success-rgb), 0.15)'
-            : isHovered
-            ? 'var(--shadow-lg)'
-            : 'var(--shadow-md)',
-        }}
+        style={{ margin: 0 }}
       >
         <div style={{
-          width: 42, height: 42, borderRadius: 12,
+          width: 34, height: 34, borderRadius: 8,
           background: osInfo.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, flexShrink: 0,
-          boxShadow: osInfo.accentRgb ? `0 4px 12px rgba(${osInfo.accentRgb},0.2)` : 'none',
+          fontSize: 18, flexShrink: 0,
+          border: '1px solid var(--border-subtle)',
         }}>
           {osInfo.icon}
         </div>
@@ -309,7 +291,6 @@ export default function ServerList({
               <div style={{
                 width: 8, height: 8, borderRadius: '50%',
                 background: latClass === 'good' ? 'var(--success)' : latClass === 'warn' ? 'var(--warning)' : 'var(--danger)',
-                boxShadow: latClass === 'good' ? '0 0 8px var(--success-glow)' : latClass === 'warn' ? '0 0 8px var(--warning)' : '0 0 8px var(--danger-glow)',
               }} />
             </>
           ) : (

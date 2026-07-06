@@ -79,10 +79,10 @@ export default function Dashboard({
                 </div>
               </>
             )}
-            <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 12 }}>{t('立即闪连')}</button>
-	            <button type="button" className="btn btn-ghost" onClick={onOpenCredentials} style={{ width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: '1px solid var(--accent)', color: 'var(--accent)' }}>
-	              <KeyRound size={14} /> {t('凭据管理')}
-	            </button>
+            <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8 }}>{t('立即闪连')}</button>
+            <button type="button" className="btn btn-secondary btn-block" onClick={onOpenCredentials}>
+              <KeyRound size={14} /> {t('凭据管理')}
+            </button>
 	           </form>
          </div>
 

@@ -16,7 +16,7 @@ export default function AppTab({ CURRENT_VERSION, updateInfo, checkingUpdate, do
             width: 96,
             height: 96,
             borderRadius: 24,
-            boxShadow: '0 12px 28px rgba(0, 0, 0, 0.25)',
+            boxShadow: 'var(--shadow-sm)',
             border: '1px solid var(--border-light)'
           }}
         />

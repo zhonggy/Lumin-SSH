@@ -1501,20 +1501,18 @@ export default function App() {
                   {tabsOverflow && (
                     <button
                       ref={sessionListBtnRef}
-                      className="btn btn-sm no-drag"
+                      className="btn btn-icon no-drag"
                       onClick={toggleSessionList}
                       title={t('服务器列表')}
-                      style={{ padding: '2px 6px', background: 'color-mix(in srgb, var(--accent) 18%, var(--surface-raised))', color: 'var(--accent)', border: '1px solid var(--accent-border)' }}
                     >
                       <ChevronDown size={14} />
                     </button>
                   )}
                   {sessions.length >= 2 && (
                     <button
-                      className="btn btn-sm no-drag"
+                      className="btn btn-danger btn-sm no-drag"
                       onClick={closeAllSessions}
                       title={t('关闭全部')}
-                      style={{ padding: '2px 8px', fontSize: 12, background: 'color-mix(in srgb, var(--danger) 18%, var(--surface-raised))', color: 'var(--danger)', border: '1px solid rgba(var(--danger-rgb), 0.35)' }}
                     >
                       <X size={12} /> {t('关闭全部')}
                     </button>
@@ -1526,7 +1524,7 @@ export default function App() {
           {sessions.length === 0 && <div style={{ flex: 1 }}></div>}
 
           <div className="window-controls">
-            {sessions.length > 0 && <button className="btn btn-ghost btn-icon no-drag" onClick={() => setShowAIPanel(v => !v)} title={showAIPanel ? t('收起 AI 助手面板') : t('打开 AI 助手面板')} aria-label={showAIPanel ? t('收起 AI 助手面板') : t('打开 AI 助手面板')} style={{ color: showAIPanel ? 'var(--accent)' : undefined }}><Bot size={16} /></button>}
+            {activeSessionId !== null && sessions.length > 0 && <button className="btn btn-ghost btn-icon no-drag" onClick={() => setShowAIPanel(v => !v)} title={showAIPanel ? t('收起 AI 助手面板') : t('打开 AI 助手面板')} aria-label={showAIPanel ? t('收起 AI 助手面板') : t('打开 AI 助手面板')} style={{ color: showAIPanel ? 'var(--accent)' : undefined }}><Bot size={16} /></button>}
             <button className="btn btn-ghost btn-icon no-drag" onClick={() => setShowSettings(true)} title={t('设置')} aria-label={t('设置')}><Settings size={16} /></button>
             <div className="window-divider" />
             <button className="btn btn-ghost btn-icon no-drag" onClick={WindowMinimise} title={t('最小化')} aria-label={t('最小化')}><Minus size={14} /></button>
@@ -1958,11 +1956,11 @@ export default function App() {
       {syncFailed && (
         <div style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 1100,
-          width: 380, background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
-          border: '1px solid var(--glass-border)',
-          boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
-          borderRadius: 16, padding: '16px 20px',
-          animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          width: 380, background: 'var(--surface-raised)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow-md)',
+          borderRadius: 10, padding: '16px 20px',
+          animation: 'slideUp 0.18s ease'
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
             <div style={{ fontSize: 28, lineHeight: 1 }}>⚠</div>

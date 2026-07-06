@@ -216,7 +216,7 @@ export default function CredentialsModal({ onClose, onChange, addToast }) {
               </div>
             </form>
           ) : (
-            <button className="btn btn-ghost" onClick={startCreate} style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', width: '100%' }}>
+            <button className="btn btn-secondary btn-block" onClick={startCreate}>
               <Plus size={16} /> {t('新增凭据')}
             </button>
           )}

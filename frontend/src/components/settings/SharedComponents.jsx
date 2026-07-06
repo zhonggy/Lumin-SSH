@@ -9,7 +9,7 @@ export function ToggleSwitch({ checked, onChange }) {
         border: '1px solid var(--border)', flexShrink: 0 }}>
       <div style={{ position: 'absolute', left: checked ? 18 : 2, top: 1, width: 20, height: 20,
         background: '#fff', borderRadius: '50%', transition: 'left 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}></div>
+        boxShadow: 'var(--shadow-xs)' }}></div>
     </div>
   );
 }

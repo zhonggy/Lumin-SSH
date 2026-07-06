@@ -120,11 +120,12 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 
 ### Visual & Themes
 - **Dark/Light Themes** — System-follow auto-switching
+- **Minimal Compact UI** — Neutral blue-gray surfaces with unified buttons, tabs, tables, and modals
 - **Custom Accent Colors** — 10 preset color options
 - **4 Terminal Color Themes** — Lumin Default, Tokyo Night, Catppuccin, Dracula
 - **Custom Terminal Wallpaper** — Upload background images with adjustable opacity
-- **Frosted Glass & Micro-Animations** — Modal blur, menu spring-in, connection ripple
-- **Toast Notifications** — Non-intrusive frosted-glass toast messages
+- **Lightweight Motion** — Restrained transitions for menus, modals, and state changes without heavy decorative effects
+- **Toast Notifications** — Non-intrusive compact toast messages
 
 ### Layout & Splits
 - **Left/Bottom Split** — Two split modes, freely resizable via drag

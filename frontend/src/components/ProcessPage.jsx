@@ -285,50 +285,39 @@ export default function ProcessPage({ sessionId, addToast, active }) {
   }, [sortKey, sortAsc, searchQuery]);
 
   return (
-    <div style={{ padding: '24px 32px', height: '100%', width: '100%', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--surface-raised)', minWidth: 0 }}>
+    <div className="data-page">
       {/* 标题行 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
-        <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center' }}><ClipboardList size={18} /></span> {t('进程管理')}
+      <div className="data-page-header">
+        <h3 className="data-page-title">
+          <ClipboardList size={16} /> {t('进程管理')}
         </h3>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
           {selectedPids.size > 0 && (
             <button
-              className="btn btn-sm"
+              className="btn btn-danger btn-sm"
               onClick={killSelected}
               disabled={killing}
-              style={{ background: 'rgba(var(--danger-rgb), 0.12)', color: 'var(--danger)', border: '1px solid rgba(var(--danger-rgb), 0.2)' }}
             >
-              <XCircle size={12} style={{ marginRight: 4 }} />
+              <XCircle size={12} />
               {t('终止选中')} ({selectedPids.size})
             </button>
           )}
-          <button className="btn btn-ghost btn-sm" onClick={load} disabled={loading}
-            style={{ color: 'var(--text-tertiary)' }}>
-            <RefreshCw size={13} style={{ marginRight: 4, animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          <button className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>
+            <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
             {t('刷新')}
           </button>
         </div>
       </div>
 
       {/* 搜索 */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexShrink: 0 }}>
+      <div className="data-toolbar">
         <input
+          className="input"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder={t('搜索 PID / 进程名 / 用户...')}
-          style={{
-            flex: 1,
-            padding: '6px 10px',
-            background: 'var(--surface-base)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            color: 'var(--text-primary)',
-            fontSize: 13,
-            outline: 'none',
-          }}
         />
-        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+        <span className="data-count">
           {processes ? `${filtered.length} / ${processes.length}` : '—'}
         </span>
       </div>
@@ -355,7 +344,7 @@ export default function ProcessPage({ sessionId, addToast, active }) {
             </p>
           </div>
         ) : (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 8, minWidth: TABLE_MIN_WIDTH }}>
+          <div className="data-table-shell" style={{ minWidth: TABLE_MIN_WIDTH }}>
             {/* 表头 */}
             <div style={{
               display: 'grid',
@@ -390,8 +379,8 @@ export default function ProcessPage({ sessionId, addToast, active }) {
                   gap: 2,
                   position: 'relative',
                   borderRight: key === 'loc' ? 'none' : '1px solid var(--border-light)',
-                  background: key && sortKey === key ? 'rgba(var(--accent-rgb), 0.08)' : 'transparent',
-                  color: key && sortKey === key ? 'var(--accent)' : undefined,
+                  background: key && sortKey === key ? 'var(--surface-active)' : 'transparent',
+                  color: key && sortKey === key ? 'var(--text-primary)' : undefined,
                 }} onClick={(e) => { if (colDragging.current) { colDragging.current = false; return; } key && handleSort(key); }}>
                   {label} {key && renderSortIcon(key)}
                   {key !== 'loc' && (
@@ -414,7 +403,7 @@ export default function ProcessPage({ sessionId, addToast, active }) {
                   fontFamily: 'var(--font-mono)',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
-                  background: selectedPids.has(p.pid) ? 'rgba(var(--accent-rgb), 0.06)' : detailState.activePid === p.pid ? 'rgba(var(--accent-rgb), 0.1)' : 'transparent',
+                  background: selectedPids.has(p.pid) ? 'var(--surface-active)' : detailState.activePid === p.pid ? 'var(--surface-active)' : 'transparent',
                 }}>
                   <div style={{ padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid var(--border-light)' }} onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedPids.has(p.pid)}
@@ -473,15 +462,13 @@ export default function ProcessPage({ sessionId, addToast, active }) {
                       fontFamily: 'var(--font-mono)', userSelect: 'none', whiteSpace: 'nowrap',
                       border: '1px solid',
                       borderColor: detailState.activePid === p.pid ? 'var(--accent)' : 'var(--border)',
-                      background: detailState.activePid === p.pid
-                        ? 'linear-gradient(180deg, var(--surface-hover) 0%, var(--surface-sunken) 100%)'
-                        : 'linear-gradient(180deg, var(--surface-sunken) 0%, var(--surface-base) 100%)',
+                      background: detailState.activePid === p.pid ? 'var(--surface-active)' : 'var(--surface-sunken)',
                       color: detailState.activePid === p.pid ? 'var(--text-primary)' : 'var(--text-secondary)',
                       fontWeight: detailState.activePid === p.pid ? 500 : 400,
                       transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => { if (detailState.activePid !== p.pid) { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'linear-gradient(180deg, var(--surface-hover) 0%, var(--surface-sunken) 100%)'; e.currentTarget.style.color = 'var(--text-primary)'; }}}
-                    onMouseLeave={e => { if (detailState.activePid !== p.pid) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'linear-gradient(180deg, var(--surface-sunken) 0%, var(--surface-base) 100%)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}}
+                    onMouseEnter={e => { if (detailState.activePid !== p.pid) { e.currentTarget.style.borderColor = 'var(--border-focus)'; e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}}
+                    onMouseLeave={e => { if (detailState.activePid !== p.pid) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface-sunken)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}}
                   >
                     <span>{p.pid}</span>
                     <span style={{

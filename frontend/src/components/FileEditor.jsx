@@ -664,7 +664,7 @@ export default function FileEditor({
           background: 'var(--surface-overlay)',
           border: '1px solid var(--border)',
           borderRadius: 10,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          boxShadow: 'var(--shadow-md)',
           cursor: 'pointer',
           userSelect: 'none',
           animation: 'fadeIn 0.15s ease',
@@ -700,7 +700,7 @@ export default function FileEditor({
           background: 'var(--surface-raised)',
           border: '1px solid var(--border)',
           borderRadius: 10,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+          boxShadow: 'var(--shadow-md)',
           overflow: 'hidden',
         }}
         onContextMenu={handleContextMenu}

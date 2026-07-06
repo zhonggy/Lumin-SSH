@@ -106,8 +106,8 @@ const SectionHeader = React.memo(function SectionHeader({ icon, title, badge, ri
       {badge && (
         <span style={{
           fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600,
-          color: 'var(--success)', background: 'rgba(var(--accent-rgb),0.1)',
-          border: '1px solid rgba(var(--accent-rgb),0.3)',
+          color: 'var(--text-secondary)', background: 'var(--surface-overlay)',
+          border: '1px solid var(--border)',
           padding: '2px 7px', borderRadius: 4,
         }}>{badge}</span>
       )}
@@ -300,9 +300,8 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
   if (!enabled) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--surface-base)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 35%, rgba(var(--accent-rgb),0.06) 0%, transparent 65%)', pointerEvents: 'none' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 16px', gap: 16 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(var(--accent-rgb),0.08)', border: '1px solid rgba(var(--accent-rgb),0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--success)' }}><BarChart3 size={26} /></div>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--surface-raised)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}><BarChart3 size={26} /></div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>{t('系统监控')}</div>
             <div style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6, maxWidth: 220 }}>{t('实时查看服务器 CPU、内存、网络和磁盘使用情况')}</div>
@@ -315,13 +314,13 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
               </div>
             ))}
           </div>
-          <button onClick={() => setShowConfirm(true)} className="probe-btn" style={{ marginTop: 8, padding: '9px 26px', borderRadius: 8, border: '1px solid rgba(var(--accent-rgb),0.5)', background: 'rgba(var(--accent-rgb),0.12)', color: 'var(--success)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.5px' }}>
+          <button onClick={() => setShowConfirm(true)} className="btn btn-primary" style={{ marginTop: 8 }}>
             {t('开启监控')}
           </button>
         </div>
         {showConfirm && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, zIndex: Z.COMPONENT_OVERLAY }}>
-            <div style={{ background: 'var(--surface-raised)', border: '1px solid rgba(var(--accent-rgb),0.22)', borderRadius: 14, padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: 'var(--shadow-xl)', maxWidth: 260 }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, zIndex: Z.COMPONENT_OVERLAY }}>
+            <div style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', borderRadius: 10, padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: 'var(--shadow-md)', maxWidth: 260 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)' }}><Search size={16} /></span>
                 <div>
@@ -330,7 +329,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
                 </div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.7 }}>
-                {t('将在服务器写入')} <code style={{ color: 'var(--success)', background: 'rgba(var(--accent-rgb),0.08)', padding: '2px 5px', borderRadius: 3, fontSize: 11 }}>~/.lumin/probe.sh</code>{t('，轻量监控脚本。')}
+                {t('将在服务器写入')} <code style={{ color: 'var(--text-primary)', background: 'var(--surface-sunken)', padding: '2px 5px', borderRadius: 3, fontSize: 11 }}>~/.lumin/probe.sh</code>{t('，轻量监控脚本。')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {[
@@ -341,8 +340,8 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
                 ]}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={() => setShowConfirm(false)} style={{ flex: 1, padding: '8.5px 0', borderRadius: 7, border: '1px solid var(--border-light)', background: 'transparent', color: 'var(--text-tertiary)', fontSize: 12.5, cursor: 'pointer' }}>{t('取消')}</button>
-                <button onClick={handleConfirm} disabled={enabling} style={{ flex: 1, padding: '8.5px 0', borderRadius: 7, border: '1px solid rgba(var(--accent-rgb),0.5)', background: enabling ? 'rgba(var(--accent-rgb),0.05)' : 'rgba(var(--accent-rgb),0.15)', color: enabling ? 'var(--text-tertiary)' : 'var(--success)', fontSize: 12.5, fontWeight: 700, cursor: enabling ? 'default' : 'pointer' }}>
+                <button onClick={() => setShowConfirm(false)} className="btn btn-secondary btn-sm" style={{ flex: 1 }}>{t('取消')}</button>
+                <button onClick={handleConfirm} disabled={enabling} className="btn btn-primary btn-sm" style={{ flex: 1 }}>
                   {enabling ? t('注入中...') : t('确认开启')}
                 </button>
               </div>
@@ -361,8 +360,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
           <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(var(--danger-rgb,255,77,77),0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', fontSize: 22 }}>✕</div>
           <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600, textAlign: 'center' }}>{t('写入失败，请重试')}</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-tertiary)', textAlign: 'center', maxWidth: 200, lineHeight: 1.5 }}>{t('监控脚本写入服务器失败，请检查连接或权限')}</div>
-          <button onClick={() => { setProbeError(false); probeErrorCountRef.current = 0; }}
-            style={{ marginTop: 4, padding: '7px 20px', borderRadius: 7, border: '1px solid rgba(var(--accent-rgb),0.5)', background: 'rgba(var(--accent-rgb),0.12)', color: 'var(--success)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+          <button onClick={() => { setProbeError(false); probeErrorCountRef.current = 0; }} className="btn btn-primary btn-sm" style={{ marginTop: 4 }}>
             {t('重试')}
           </button>
         </div>
@@ -420,7 +418,7 @@ export default function ProbePanel({ sessionId, host, addToast, enabled, onEnabl
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           <span style={{ display: 'flex', alignItems: 'center', color: 'var(--info)' }}><Cpu size={14} /></span>
           <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>CPU {cores.length > 0 ? `${cores.length}${t('核')}` : ''}</span>
-          <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--success)', background: 'rgba(var(--accent-rgb),0.1)', border: '1px solid rgba(var(--accent-rgb),0.3)', padding: '2px 7px', borderRadius: 4 }}>{cpuAvg}%</span>
+          <span className="badge" style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{cpuAvg}%</span>
         </div>
         <div style={{ marginBottom: 8 }}>
           <Sparkline data={hist.cpu} color="var(--info)" height={36} />

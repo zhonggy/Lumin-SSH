@@ -7,14 +7,14 @@ export default function UpdateModal({ visible, updateInfo, downloadProgress, t, 
   return (
     <div style={{
       position: 'fixed', bottom: 24, right: 24, zIndex: Z.MODAL,
-      width: 340, background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
-      border: '1px solid var(--glass-border)',
-      boxShadow: '0 16px 40px rgba(0,0,0,0.4)',
-      borderRadius: 16, padding: '16px 20px',
-      animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+      width: 340, background: 'var(--surface-raised)',
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow-md)',
+      borderRadius: 10, padding: '16px 20px',
+      animation: 'slideUp 0.18s ease'
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-        <div style={{ fontSize: 28, lineHeight: 1, filter: 'drop-shadow(0 4px 8px rgba(16,185,129,0.3))' }}><Rocket size={28} color="var(--success)" /></div>
+        <div style={{ fontSize: 28, lineHeight: 1, color: 'var(--text-secondary)' }}><Rocket size={28} /></div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
             {t('发现新版本')} <span style={{ color: 'var(--success)', fontSize: 13, background: 'var(--success-dim)', padding: '2px 6px', borderRadius: 6 }}>{updateInfo.version}</span>

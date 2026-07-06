@@ -23,14 +23,14 @@ function ProviderCard({ provider, providerKey, form, configured, editing, onEdit
       {configured && !editing ? (
         <div style={{
           position: 'relative',
-          background: `linear-gradient(135deg, rgba(${accentRgb},0.05) 0%, var(--surface-raised) 100%)`,
-          border: `1px solid rgba(${accentRgb}, 0.2)`,
-          borderRadius: 'var(--radius-lg)',
+          background: 'var(--surface-raised)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
           padding: '24px',
           display: 'flex',
           flexDirection: 'column',
           gap: 20,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+          boxShadow: 'none',
           overflow: 'hidden'
         }}>
           <div style={{
@@ -40,7 +40,7 @@ function ProviderCard({ provider, providerKey, form, configured, editing, onEdit
           }} />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: accent, boxShadow: `0 0 10px ${accent}` }}></div>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: accent }}></div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.3px' }}>{$t(provider.successMsgKey)}</div>
             </div>
             <button onClick={onEdit} style={{
