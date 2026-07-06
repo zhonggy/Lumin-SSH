@@ -32,6 +32,14 @@ function getTerminalBufferSnapshotText(term) {
   return lines.join('\n').trim()
 }
 
+function isInteractivePromptText(value) {
+  const text = String(value || '').trim()
+  if (!text) return false
+  if (/^(choose|select|enter|input|please enter|press enter|would you like|do you have|port to use)\b/i.test(text)) return true
+  if (/\b(default|leave empty|skip|y\/n|yes\/no|option|selection)\b/i.test(text) && /[:?]\s*(?:\d+)?\s*$/.test(text)) return true
+  return /\[[yn0-9/\-]+\]:?\s*(?:\d+)?\s*$/i.test(text)
+}
+
 function splitTrailingIncompleteEscapeSequence(input) {
   if (!input) {
     return { complete: '', carry: '' }
@@ -493,8 +501,8 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
             const text = bufLine.translateToString(true);
             const idx = Math.max(text.lastIndexOf('#'), text.lastIndexOf('$'));
             cmd = idx >= 0 ? text.slice(idx + 1).trim() : text.trim();
-            // ponytail: buffer 提取含中文等非 ASCII 字符说明是脚本提示行，不是真实命令
-            if (/[^\x20-\x7E]/.test(cmd)) cmd = '';
+            // ponytail: buffer 提取只作兜底，过滤安装向导这类交互提示，避免把问题文本当命令。
+            if (/[^\x20-\x7E]/.test(cmd) || isInteractivePromptText(cmd)) cmd = '';
           }
         }
         if (!awaitingPasswordRef.current && cmd.length > 1 && !/^\d+$/.test(cmd)) {
@@ -903,7 +911,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       console.error('WriteTerminal failed:', err);
     });
     termRef.current?.scrollToBottom();
-    if (text && text.length > 1 && !/^\d+$/.test(text) && !awaitingPasswordRef.current) {
+    if (text && text.length > 1 && !/^\d+$/.test(text) && !isInteractivePromptText(text) && !awaitingPasswordRef.current) {
       window.dispatchEvent(new CustomEvent('ssh-command-history', {
         detail: { sessionId: serverId, command: text, time: new Date().toISOString(), source: 'input' }
       }));

@@ -84,6 +84,28 @@ func (s *commandHistoryStream) Process(chunk []byte) ([]byte, []string) {
 	return out, commands
 }
 
+func isInteractiveHistoryPrompt(command string) bool {
+	text := strings.TrimSpace(command)
+	lower := strings.ToLower(text)
+	if text == "" {
+		return true
+	}
+	for _, prefix := range []string{"choose ", "select ", "enter ", "input ", "please enter ", "press enter ", "would you like ", "do you have ", "port to use "} {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	if !strings.HasSuffix(text, ":") && !strings.HasSuffix(text, "?") {
+		return false
+	}
+	for _, marker := range []string{"default", "leave empty", "skip", "y/n", "yes/no", "option", "selection"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func decodeHistoryMarkerPayload(payload []byte) string {
 	if len(payload) == 0 {
 		return ""
@@ -94,7 +116,11 @@ func decodeHistoryMarkerPayload(payload []byte) string {
 		return ""
 	}
 
-	return strings.TrimSpace(string(decoded))
+	command := strings.TrimSpace(string(decoded))
+	if isInteractiveHistoryPrompt(command) {
+		return ""
+	}
+	return command
 }
 
 func trailingMarkerPrefixLen(data []byte) int {
