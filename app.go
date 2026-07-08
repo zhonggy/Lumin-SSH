@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -262,6 +263,11 @@ func (a *App) IsPortableVersion() bool {
 		return false
 	}
 	return true
+}
+
+// GetArch returns the current executable's CPU architecture (amd64, arm64, etc.)
+func (a *App) GetArch() string {
+	return goruntime.GOARCH
 }
 
 // GetConnections returns all saved SSH connections

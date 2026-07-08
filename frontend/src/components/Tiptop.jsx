@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 export default function Tiptop({
@@ -10,6 +10,7 @@ export default function Tiptop({
   triggerClassName = '',
 }) {
   const triggerRef = useRef(null)
+  const bubbleRef = useRef(null)
   const [visible, setVisible] = useState(false)
   const [position, setPosition] = useState(null)
   const hasText = text !== null && text !== undefined && text !== ''
@@ -38,6 +39,22 @@ export default function Tiptop({
       window.removeEventListener('scroll', updatePosition, true)
     }
   }, [updatePosition, visible])
+
+  // ponytail: 用 bubbleRef 实际宽度 clamp，比字符估算准确；useLayoutEffect 绘制前执行不闪烁。
+  useLayoutEffect(() => {
+    if (!visible || !position || !bubbleRef.current) return
+    const bubbleWidth = bubbleRef.current.offsetWidth
+    if (bubbleWidth === 0) return
+    const margin = 8
+    const halfWidth = bubbleWidth / 2
+    const clampedX = Math.max(
+      halfWidth + margin,
+      Math.min(position.left, window.innerWidth - halfWidth - margin),
+    )
+    if (Math.abs(clampedX - position.left) > 0.5) {
+      setPosition((prev) => (prev ? { ...prev, left: clampedX } : prev))
+    }
+  }, [visible, position, text])
 
   const show = useCallback(() => {
     if (!hasText) {
@@ -72,6 +89,7 @@ export default function Tiptop({
       {visible && position && typeof document !== 'undefined'
         ? createPortal(
             <div
+              ref={bubbleRef}
               className={bubbleClassName}
               style={{
                 position: 'fixed',

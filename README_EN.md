@@ -41,6 +41,7 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 - **Search & Filter** — Real-time search by server name, host, tags
 - **Smart Latency Detection** — **SSH Banner RTT** (proxy-aware, recommended with Clash/V2Ray) and **TCP Dial** protocols
 - **Configurable Ping Interval** — Auto-refresh interval for latency checks
+- **Tab Overflow Dropdown** — Excess server tabs collapse into a searchable dropdown list
 
 ### Server Management
 - **Auto-Save** — Quick-connected servers are automatically saved after successful connection
@@ -55,12 +56,14 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 - **Real-Time Metrics** — Per-core CPU chart, memory donut, network throughput line chart, disk I/O, partition usage
 - **GPU & RAID Support** — Additional GPU and RAID info queries
 - **Process Management** — Real-time process viewer with search, sort, signal send
+- **Network Monitor Details** — View active connections, traffic stats, and network breakdowns
 - **Configurable Refresh Interval** — Adjustable in Settings
 
 ### Remote File Manager
 - **Full File Operations** — Browse, upload, download, delete, rename, create directories/files
 - **Built-in Code Editor** — Edit remote files directly with syntax highlighting (up to 5MB)
 - **Compress/Extract** — tar.gz / zip support
+- **Compressed Transfer** — Multi-file uploads packed locally as tar.gz, auto-extracted on the remote side
 - **Permission Editing (chmod)** — Visual permission editor with octal mode
 - **Drag-and-Drop Upload** — Drop files from local directly onto the panel
 - **Copy Path** — Right-click any file or folder to copy the full remote path
@@ -83,7 +86,7 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 - **Slash Commands & @Mentions** — Type `/` to trigger custom commands, type `@` to reference terminal output or remote files/directories
 - **Tool Approval & Execution** — Approval cards for AI tool calls, approve/reject individually, configurable auto-approve (read/write/execute)
 - **Smart Context Compression** — One-click token compression when conversations grow long
-- **Built-in MCP Server** — Auto-starts a Streamable HTTP MCP server on app launch, exposing SSH session access to AI tools
+- **Built-in MCP Server** — Toggleable Streamable HTTP MCP server in AI panel settings, exposing SSH session access to AI tools
 - **AI Agent Panel** — In-session panel showing MCP server URL, available tools list, and connection guide
 - **Visibility Control** — Toggle AI panel on/off in Settings (default: off)
 - **Terminal Isolation** — Create independent AI panels and runtime sessions per terminal
@@ -116,7 +119,7 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 - **Confirmation Dialogs** — Close connection, close all, close window all support secondary confirmation
 - **"Don't Ask Again" Option** — Per-action skip with independent toggles in Settings
 - **Host Key Verification** — First-connect fingerprint check + change detection for MITM protection
-- **Connection Animation** — Visual progress card during connection
+- **Concurrent Connection Progress** — Visual progress cards supporting multiple simultaneous connections
 
 ### Visual & Themes
 - **Dark/Light Themes** — System-follow auto-switching
@@ -139,8 +142,9 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 - **Terminal Local Echo** — Disable echo for sensitive input
 - **Internationalization** — 简体中文 / English toggle
 
-### Window Memory
+### Workspace Memory
 - **Remember Window Size** — Auto-restores the last window size and maximized state on startup
+- **Remember Session Layout** — Optionally auto-restores last connections, terminal tabs, and split layout
 - **Adaptive Screen** — Adjusts initial window size based on screen resolution (10% margin)
 
 ---
@@ -217,10 +221,10 @@ Lumin provides a comprehensive settings panel organized in tabs:
 
 | Tab | Features |
 |-----|----------|
-| **General** | Language, close session confirmation, close all confirmation, window close behavior |
+| **General** | Language, workspace memory, close session confirmation, close all confirmation, window close behavior |
 | **Network** | Ping protocol (SSH Banner RTT / TCP Dial), probe & ping refresh intervals |
+| **File Manager** | Follow terminal CWD, compressed transfer, upload concurrency, download save strategy, filename conflict handling |
 | **Appearance** | Terminal font size, local echo, color theme, UI theme, accent colors, terminal wallpaper |
-| **AI Integration** | AI chat panel visibility, terminal isolation, MCP terminal output line/character limits |
 | **Shortcuts** | All terminal operation shortcut rebinding |
 | **Sync & Cloud** | WebDAV / R2 / FTP / SFTP configuration and auto-sync strategy |
 | **About** | Version info, update check, community links |
@@ -271,7 +275,9 @@ wails build -nsis
 - **Sync Conflict** — When syncing across devices, the auto-merge strategy handles conflicts. Review the sync mode in Settings → Sync & Cloud.
 
 ### MCP / AI Integration
-- **Fixed Local Port** — The built-in MCP server binds to `127.0.0.1:5779`. Ensure this port is not occupied by other services.
+- **Service Toggle** — MCP service is off by default; enable on demand in AI panel settings
+- **Browser Call Control** — Control whether browser requests with an Origin header can access the local MCP service
+- **Fixed Local Port** — The MCP server binds to `127.0.0.1:5779`. Ensure this port is not occupied by other services.
 - **Local Only** — The MCP server only listens on localhost, so AI editors must run on the same machine.
 
 ---
@@ -296,7 +302,7 @@ Credentials extract authentication into reusable entities linked to multiple ser
 
 ### How does the AI agent (MCP) integration work?
 
-Lumin runs a built-in MCP (Model Context Protocol) server on `127.0.0.1:5779` at startup. AI editors (Windsurf, Cursor, Copilot, etc.) connect via standard MCP client configuration. AI can read terminal output and execute commands. Panel visibility and output limits are configurable in Settings → AI Integration.
+Lumin has a built-in MCP (Model Context Protocol) server, off by default and toggleable in AI panel settings. When enabled, it listens on `127.0.0.1:5779`. AI editors (Windsurf, Cursor, Copilot, etc.) connect via standard MCP client configuration. AI can read terminal output and execute commands. Browser call access and terminal output limits are also configurable.
 
 ### Which platforms are supported?
 

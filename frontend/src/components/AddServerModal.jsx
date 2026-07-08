@@ -36,6 +36,7 @@ export default function AddServerModal({ server, onSave, onSaveAndConnect, onClo
 
   const [authMode, setAuthMode] = useState('custom'); // 'custom' | 'credential'
   const [selectedCredId, setSelectedCredId] = useState('');
+  const [clearAfterAdd, setClearAfterAdd] = useState(true);
 
   const isEditing = !!server?.id;
   const suppressSubmitUntilRef = useRef(0);
@@ -155,9 +156,11 @@ export default function AddServerModal({ server, onSave, onSaveAndConnect, onClo
       if (server?.id) data.id = server.id;
 
       if (submitAction === 'connect' && !server?.id && onSaveAndConnect) {
-        await onSaveAndConnect(data);
+        const result = await onSaveAndConnect(data);
+        if (clearAfterAdd && result) resetInlineForm();
       } else {
-        await onSave(data);
+        const result = await onSave(data);
+        if (!server?.id && clearAfterAdd && result) resetInlineForm();
       }
     } finally {
       setSaving(false);
@@ -233,7 +236,6 @@ export default function AddServerModal({ server, onSave, onSaveAndConnect, onClo
                       placeholder={t('192.168.1.1 或 example.com')}
                       value={form.host}
                       onChange={set('host')}
-                      required
                     />
                   </div>
                 </div>
@@ -262,7 +264,6 @@ export default function AddServerModal({ server, onSave, onSaveAndConnect, onClo
                     placeholder="root"
                     value={form.username}
                     onChange={set('username')}
-                    required
                   />
                 </div>
               </div>
@@ -544,6 +545,10 @@ export default function AddServerModal({ server, onSave, onSaveAndConnect, onClo
                   {t('取消')}
                 </button>
               )}
+              <label className="server-editor-clear-check" title={t('添加成功后清空表单，方便连续添加多台服务器')}>
+                <input type="checkbox" checked={clearAfterAdd} onChange={(e) => setClearAfterAdd(e.target.checked)} />
+                {t('添加后清空')}
+              </label>
               <button type="button" data-submit-action="save" className="btn btn-primary" disabled={saving} onClick={() => void submitForm('save')}>
                 {saving ? t('保存中...') : t('添加')}
               </button>

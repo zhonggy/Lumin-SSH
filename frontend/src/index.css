@@ -1007,6 +1007,7 @@ body.theme-light .update-bubble::after {
   gap: var(--space-2);
   padding: 8px 10px;
   margin: 0;
+  width: 100%;
   min-height: 54px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -2916,6 +2917,17 @@ body.theme-light .dashboard-server-editor {
   background: var(--editor-head);
   flex-shrink: 0;
 }
+.server-editor-clear-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.server-editor-clear-check input { cursor: pointer; }
 
 /* 状态面板 */
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }

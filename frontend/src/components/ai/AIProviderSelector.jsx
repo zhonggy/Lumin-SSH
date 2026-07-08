@@ -9,6 +9,7 @@ import { getAIProviderState, normalizeAIProviderState, saveAIProviderState } fro
 const defaultProviders = []
 const summaryTooltipDelay = 300
 const tokenStoreUrl = 'https://aichatp.callmy.vip/app'
+const tokenStoreBaseDomain = 'callmy.vip'
 
 const cacheStrategyLabelKeys = {
   model: '基于模型能力',
@@ -71,6 +72,14 @@ export default function AIProviderSelector({
     () => providerList.find((item) => item.id === effectiveSelectedId) || null,
     [providerList, effectiveSelectedId],
   )
+  const tokenStoreAvailable = useMemo(() => {
+    try {
+      const host = new URL(selectedProvider?.baseUrl || '').hostname
+      return host === tokenStoreBaseDomain || host.endsWith(`.${tokenStoreBaseDomain}`)
+    } catch {
+      return false
+    }
+  }, [selectedProvider])
 
   const providerSummaryRows = useMemo(() => ([
     { label: t('供应商'), value: selectedProvider?.name || t('选择供应商') },
@@ -595,33 +604,35 @@ export default function AIProviderSelector({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{t('供应商列表')}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    type="button"
-                    aria-label={t('打开 Token 中心')}
-                    onClick={() => {
-                      closeTooltip()
-                      setOpen(false)
-                      setTokenStoreLoading(true)
-                      setTokenStoreOpen(true)
-                    }}
-                    style={{
-                      height: 28,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0 10px',
-                      borderRadius: 8,
-                      border: `1px solid ${tokenStoreOpen ? 'var(--accent-border)' : 'var(--border)'}`,
-                      background: tokenStoreOpen ? 'rgba(var(--accent-rgb), 0.12)' : 'transparent',
-                      color: tokenStoreOpen ? 'var(--accent)' : 'var(--text-secondary)',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      transition: 'var(--transition)',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {t('Token 中心')}
-                  </button>
+                  {tokenStoreAvailable && (
+                    <button
+                      type="button"
+                      aria-label={t('打开 Token 中心')}
+                      onClick={() => {
+                        closeTooltip()
+                        setOpen(false)
+                        setTokenStoreLoading(true)
+                        setTokenStoreOpen(true)
+                      }}
+                      style={{
+                        height: 28,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0 10px',
+                        borderRadius: 8,
+                        border: `1px solid ${tokenStoreOpen ? 'var(--accent-border)' : 'var(--border)'}`,
+                        background: tokenStoreOpen ? 'rgba(var(--accent-rgb), 0.12)' : 'transparent',
+                        color: tokenStoreOpen ? 'var(--accent)' : 'var(--text-secondary)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        transition: 'var(--transition)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {t('Token 中心')}
+                    </button>
+                  )}
                   <Tiptop text={t('添加供应商')}>
                     <button
                       type="button"

@@ -3087,22 +3087,24 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
   const handleSaveServer = useCallback(async (data) => {
     try {
       const savedServer = await saveServerConfig(data);
-      if (!savedServer) return;
+      if (!savedServer) return null;
       if (data.id) {
         startSaveFlowAnimation(savedServer, data);
       } else {
         addToast(t('服务器添加成功'), 'success');
         setServerEditor(null);
       }
+      return savedServer;
     } catch (err) {
       addToast(err, 'error');
+      return null;
     }
   }, [saveServerConfig, addToast, t, startSaveFlowAnimation]);
 
   const handleSaveAndConnectServer = useCallback(async (data) => {
     try {
       const savedServer = await saveServerConfig(data);
-      if (!savedServer) return;
+      if (!savedServer) return null;
 
       addToast(t('服务器添加成功'), 'success');
       setServerEditor(null);
@@ -3123,18 +3125,23 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
       setContentTab('terminal');
       setConnectingServers((prev) => [...prev, { server: savedServer, sessionId, startTime: Date.now() }]);
 
-      try {
-        await AppGo.ConnectSSH(sessionId, savedServer.id);
-        setSessions((prev) =>
-          prev.map((s) => (s.id === sessionId ? { ...s, status: 'connected' } : s))
-        );
-        setConnectingServers((prev) => prev.filter((s) => s.sessionId !== sessionId));
-        await postConnectSetup(sessionId, savedServer.id);
-      } catch (err) {
-        handleConnectError(sessionId, err);
-      }
+      // ponytail: 连接放后台，保存成功立即返回让表单可继续添加。升级：暴露连接状态回调。
+      (async () => {
+        try {
+          await AppGo.ConnectSSH(sessionId, savedServer.id);
+          setSessions((prev) =>
+            prev.map((s) => (s.id === sessionId ? { ...s, status: 'connected' } : s))
+          );
+          setConnectingServers((prev) => prev.filter((s) => s.sessionId !== sessionId));
+          await postConnectSetup(sessionId, savedServer.id);
+        } catch (err) {
+          handleConnectError(sessionId, err);
+        }
+      })();
+      return savedServer;
     } catch (err) {
       addToast(err, 'error');
+      return null;
     }
   }, [saveServerConfig, addToast, t, postConnectSetup, handleConnectError]);
 

@@ -27,6 +27,8 @@ const dict = {
     "搜索服务器...": "搜索服务器...",
     "添加": "添加",
     "添加并链接": "添加并链接",
+    "添加后清空": "添加后清空",
+    "添加成功后清空表单，方便连续添加多台服务器": "添加成功后清空表单，方便连续添加多台服务器",
     "终端": "终端",
     "文件管理": "文件管理",
     "历史指令": "历史指令",
@@ -505,6 +507,9 @@ const dict = {
     "每次询问": "每次询问",
     "直接退出": "直接退出",
     "最小化到托盘": "最小化到托盘",
+    "工作区": "工作区",
+    "记忆工作区": "记忆工作区",
+    "重新启动后自动恢复上次的连接、终端标签和分屏布局": "重新启动后自动恢复上次的连接、终端标签和分屏布局",
 
     // main.jsx
     "界面渲染出错": "界面渲染出错",
@@ -1056,6 +1061,8 @@ const dict = {
     "搜索服务器...": "Search servers...",
     "添加": "Add",
     "添加并链接": "Add & Connect",
+    "添加后清空": "Clear after add",
+    "添加成功后清空表单，方便连续添加多台服务器": "Clear the form after adding, for adding multiple servers in a row",
     "终端": "Terminal",
     "文件管理": "Files",
     "历史指令": "History",
@@ -1551,6 +1558,9 @@ const dict = {
     "每次询问": "Ask every time",
     "直接退出": "Quit directly",
     "最小化到托盘": "Minimize to tray",
+    "工作区": "Workspace",
+    "记忆工作区": "Remember Workspace",
+    "重新启动后自动恢复上次的连接、终端标签和分屏布局": "Automatically restore last connections, terminal tabs and split layout after restart",
 
     // main.jsx
     "界面渲染出错": "Rendering Error",
@@ -1749,6 +1759,10 @@ const dict = {
     "AI 面板接入方式": "AI Panel Integration",
     "MCP集成": "MCP Integration",
     "接入方式": "Integration Method",
+    "启用 MCP 服务": "Enable MCP Service",
+    "控制本地 MCP 服务是否监听本机回环地址并提供工具能力": "Control whether the local MCP service listens on the loopback address and provides tool capabilities",
+    "允许浏览器调用": "Allow Browser Calls",
+    "允许带 Origin 的浏览器请求访问本地 MCP 服务。关闭后仅允许无 Origin 的本机客户端调用": "Allow browser requests with an Origin header to access the local MCP service. When disabled, only local clients without an Origin header are allowed.",
     "自动备份": "Automatic Backups",
     "每次在发起新的 AI 请求前，都会自动备份当前对话。": "A backup is created automatically before each new AI request starts.",
     "暂无自动备份": "No automatic backups yet",

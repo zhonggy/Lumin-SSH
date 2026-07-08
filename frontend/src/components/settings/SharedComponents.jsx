@@ -20,9 +20,9 @@ export function RadioOption({ selected, label, description, onClick }) {
       <div style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 1, border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {selected && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
       </div>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: selected ? 'var(--text-primary)' : 'var(--text-secondary)', marginBottom: 2 }}>{label}</div>
-        {description && <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{description}</div>}
+        {description && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', overflowWrap: 'break-word' }}>{description}</div>}
       </div>
     </div>
   );

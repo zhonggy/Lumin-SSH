@@ -73,6 +73,7 @@ export default function CredentialsModal({ onClose, onChange, addToast }) {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return window.luminDialog?.alert(t('凭据名称'));
+    if (!form.username.trim()) return window.luminDialog?.alert(t('请填写用户名'));
     try {
       const data = { ...form };
       if (editing) data.id = editing;
@@ -165,7 +166,7 @@ export default function CredentialsModal({ onClose, onChange, addToast }) {
 
               <div className="form-group">
                 <label className="form-label">{t('凭据名称')} *</label>
-                <input className="input" value={form.name} onChange={set('name')} placeholder={t('凭据名称')} required />
+                <input className="input" value={form.name} onChange={set('name')} placeholder={t('凭据名称')} />
               </div>
 
               <div className="form-group">
@@ -178,7 +179,7 @@ export default function CredentialsModal({ onClose, onChange, addToast }) {
 
               <div className="form-group">
                 <label className="form-label">{t('用户名')} *</label>
-                <input className="input" value={form.username} onChange={set('username')} placeholder="root" required />
+                <input className="input" value={form.username} onChange={set('username')} placeholder="root" />
               </div>
 
               {form.authMethod === 'password' ? (

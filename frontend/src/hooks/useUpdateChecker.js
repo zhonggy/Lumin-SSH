@@ -37,6 +37,20 @@ function isMacOS() {
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform) || navigator.userAgent.includes('Mac OS');
 }
 
+// 判断当前 macOS 的 CPU 架构，用于选择对应的 dmg 下载
+async function getMacArch() {
+  try {
+    if (window?.go?.main?.App?.GetArch) {
+      const arch = await window.go.main.App.GetArch();
+      if (arch === 'arm64') return 'arm64';
+      if (arch === 'amd64') return 'amd64';
+    }
+  } catch {}
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('arm') || ua.includes('aarch64')) return 'arm64';
+  return 'amd64';
+}
+
 // 匹配下载资源（便携版/安装版/兜底）
 async function resolveDownloadAsset(data) {
   let isPortable = false;
@@ -46,9 +60,13 @@ async function resolveDownloadAsset(data) {
   if (data.assets && data.assets.length > 0) {
     let targetAsset = null;
 
-    // macOS: Release 使用 DMG 分发，忽略配套的 .sha256 文件
+    // macOS: Release 使用 DMG 分发，按架构选择对应的 dmg
     if (isMacOS()) {
-      targetAsset = data.assets.find(a => a.name.toLowerCase().endsWith('.dmg'));
+      const arch = await getMacArch();
+      targetAsset = data.assets.find(a => a.name.toLowerCase().includes(`-${arch}.dmg`));
+      if (!targetAsset) {
+        targetAsset = data.assets.find(a => a.name.toLowerCase().endsWith('.dmg'));
+      }
       if (targetAsset) {
         return { url: targetAsset.browser_download_url, filename: targetAsset.name };
       }
