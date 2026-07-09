@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  NODE_VERSION: '24'
+
 permissions:
   contents: write
 
@@ -29,7 +32,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -46,7 +49,7 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           wails build -clean -tags webkit2_41 -o Lumin
           cp build/bin/Lumin "build/Lumin-V${VERSION}-linux-amd64"
-          sha256sum "build/Lumin-V${VERSION}-linux-amd64" | sed 's|build/||' > "build/Lumin-V${VERSION}-linux-amd64.sha256"
+          shasum -a 256 "build/Lumin-V${VERSION}-linux-amd64" | sed 's|build/||' > "build/Lumin-V${VERSION}-linux-amd64.sha256"
           echo "binary=${{ github.workspace }}/build/Lumin-V${VERSION}-linux-amd64" >> $GITHUB_ENV
           echo "binary_sha=${{ github.workspace }}/build/Lumin-V${VERSION}-linux-amd64.sha256" >> $GITHUB_ENV
 
@@ -75,7 +78,7 @@ jobs:
           cp build/appicon.png build/deb/usr/share/icons/hicolor/256x256/apps/lumin.png
           cp build/linux/lumin.desktop build/deb/usr/share/applications/lumin.desktop
           sudo dpkg-deb --root-owner-group --build build/deb "build/Lumin-V${VERSION}-amd64.deb"
-          sha256sum "build/Lumin-V${VERSION}-amd64.deb" | sed 's|build/||' > "build/Lumin-V${VERSION}-amd64.deb.sha256"
+          shasum -a 256 "build/Lumin-V${VERSION}-amd64.deb" | sed 's|build/||' > "build/Lumin-V${VERSION}-amd64.deb.sha256"
           echo "deb=${{ github.workspace }}/build/Lumin-V${VERSION}-amd64.deb" >> $GITHUB_ENV
           echo "deb_sha=${{ github.workspace }}/build/Lumin-V${VERSION}-amd64.deb.sha256" >> $GITHUB_ENV
           # Convert .deb to .rpm via alien
@@ -90,7 +93,7 @@ jobs:
               mv "build/$RPM_BASENAME" "build/$RPM_BASENAME_CLEAN"
               RPM_BASENAME="$RPM_BASENAME_CLEAN"
             fi
-            sha256sum "build/$RPM_BASENAME" | sed 's|build/||' > "build/$RPM_BASENAME.sha256"
+            shasum -a 256 "build/$RPM_BASENAME" | sed 's|build/||' > "build/$RPM_BASENAME.sha256"
             echo "rpm=${{ github.workspace }}/build/$RPM_BASENAME" >> $GITHUB_ENV
             echo "rpm_sha=${{ github.workspace }}/build/$RPM_BASENAME.sha256" >> $GITHUB_ENV
           fi
@@ -105,11 +108,14 @@ jobs:
           name: "Lumin SSH Client ${{ github.ref_name }}"
           body: |
             ## 功能增强
+            - AI 聊天命令支持指派终端并展示候选状态
+            - 添加 WebView GPU 加速禁用设置
             - 表单清空选项、服务器克隆交互优化、移除首页添加按钮
             - 文件管理器拖拽停靠改进
             - Responses 提示缓存补齐
             - 统一 AI 与更新界面视觉风格
             - 更新 FA 图标与文档、macOS x86 构建支持
+            - 快捷命令合并采用较新一边顺序，移动排序可跨设备同步
 
             ## Bug 修复
             - 服务器配置表单取消误提交
@@ -157,7 +163,7 @@ jobs:
         include:
           - runner: macos-15
             arch: arm64
-          - runner: macos-13
+          - runner: macos-14
             arch: amd64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -169,7 +175,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -191,7 +197,7 @@ jobs:
           ARCH=${{ matrix.arch }}
           cp -r build/bin/Lumin.app build/Lumin.app
           hdiutil create -volname "Lumin" -srcfolder build/Lumin.app -ov -format UDZO "build/Lumin-V${VERSION}-${ARCH}.dmg"
-          sha256sum "build/Lumin-V${VERSION}-${ARCH}.dmg" | sed 's|build/||' > "build/Lumin-V${VERSION}-${ARCH}.dmg.sha256"
+          shasum -a 256 "build/Lumin-V${VERSION}-${ARCH}.dmg" | sed 's|build/||' > "build/Lumin-V${VERSION}-${ARCH}.dmg.sha256"
           echo "app_dmg=${{ github.workspace }}/build/Lumin-V${VERSION}-${ARCH}.dmg" >> $GITHUB_ENV
           echo "app_sha=${{ github.workspace }}/build/Lumin-V${VERSION}-${ARCH}.dmg.sha256" >> $GITHUB_ENV
 
@@ -213,7 +219,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 

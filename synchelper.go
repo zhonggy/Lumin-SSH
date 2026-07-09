@@ -809,6 +809,7 @@ func mergeFileManagerSettings(local, remote string, localSnapTime, remoteSnapTim
 }
 
 // mergeQuickCommands 合并本地和远端的快捷命令列表：
+// - 顺序跟随 last_modified 较新的一边（移动后该边 max 更大）
 // - 重叠项（同 name+command）：按 last_modified 取最新
 // - 单侧独有：last_modified > lastSyncTime → 保留，否则视为已删除
 // - 组内 children 同样逻辑
@@ -848,11 +849,20 @@ func (c *ConfigManager) mergeQuickCommands(localStr, remoteStr string, lastSyncT
 		}
 	}
 
+	// 顺序跟随 last_modified 较新的一边（移动后该边 max 更大）
+	baseIsRemote := maxQuickLastModified(remote) > maxQuickLastModified(local)
+	var base, other []interface{}
+	var otherMap map[string]cmdEntry
+	if baseIsRemote {
+		base, other, otherMap = remote, local, localMap
+	} else {
+		base, other, otherMap = local, remote, remoteMap
+	}
+
 	result := make([]interface{}, 0)
 	added := make(map[string]bool)
 
-	// 本地的每项（按原始顺序）：重叠按 last_modified 取最新，本地独有按 lastSyncTime 判断删除
-	for _, item := range local {
+	for _, item := range base {
 		m, ok := item.(map[string]interface{})
 		if !ok {
 			continue
@@ -861,7 +871,7 @@ func (c *ConfigManager) mergeQuickCommands(localStr, remoteStr string, lastSyncT
 		if added[key] {
 			continue
 		}
-		if re, inRemote := remoteMap[key]; inRemote {
+		if re, inOther := otherMap[key]; inOther {
 			// 重叠：按 last_modified 取最新
 			if cmdLastModified(re.item) > cmdLastModified(m) {
 				if lCh, ok := m["children"]; ok {
@@ -880,7 +890,7 @@ func (c *ConfigManager) mergeQuickCommands(localStr, remoteStr string, lastSyncT
 			}
 			added[key] = true
 		} else {
-			// 本地独有：last_modified > lastSyncTime → 保留（新增），否则删除
+			// 独有：last_modified > lastSyncTime → 保留（新增），否则删除
 			if cmdLastModified(m) > lastSyncTime {
 				result = append(result, m)
 			}
@@ -888,8 +898,8 @@ func (c *ConfigManager) mergeQuickCommands(localStr, remoteStr string, lastSyncT
 		}
 	}
 
-	// 远程独有（按远程原始顺序）：last_modified > lastSyncTime → 保留
-	for _, item := range remote {
+	// 另一边独有（按其原始顺序）：last_modified > lastSyncTime → 保留
+	for _, item := range other {
 		if m, ok := item.(map[string]interface{}); ok {
 			key := cmdKey(m)
 			if !added[key] && cmdLastModified(m) > lastSyncTime {
@@ -923,9 +933,19 @@ func (c *ConfigManager) mergeCmdChildren(localCh, remoteCh interface{}, lastSync
 		}
 	}
 
+	// 顺序跟随 last_modified 较新的一边
+	baseIsRemote := maxQuickLastModified(rArr) > maxQuickLastModified(lArr)
+	var base, other []interface{}
+	var otherMap map[string]map[string]interface{}
+	if baseIsRemote {
+		base, other, otherMap = rArr, lArr, lMap
+	} else {
+		base, other, otherMap = lArr, rArr, rMap
+	}
+
 	var result []interface{}
 	added := make(map[string]bool)
-	for _, item := range lArr {
+	for _, item := range base {
 		m, ok := item.(map[string]interface{})
 		if !ok {
 			continue
@@ -934,7 +954,7 @@ func (c *ConfigManager) mergeCmdChildren(localCh, remoteCh interface{}, lastSync
 		if added[key] {
 			continue
 		}
-		if rm, inRemote := rMap[key]; inRemote {
+		if rm, inOther := otherMap[key]; inOther {
 			if cmdLastModified(rm) > cmdLastModified(m) {
 				result = append(result, rm)
 			} else {
@@ -948,7 +968,7 @@ func (c *ConfigManager) mergeCmdChildren(localCh, remoteCh interface{}, lastSync
 			added[key] = true
 		}
 	}
-	for _, item := range rArr {
+	for _, item := range other {
 		if m, ok := item.(map[string]interface{}); ok {
 			key := cmdKey(m)
 			if !added[key] && cmdLastModified(m) > lastSyncTime {
@@ -957,6 +977,26 @@ func (c *ConfigManager) mergeCmdChildren(localCh, remoteCh interface{}, lastSync
 		}
 	}
 	return result
+}
+
+// maxQuickLastModified 递归计算数组中最大的 last_modified（含 children）
+func maxQuickLastModified(arr []interface{}) int64 {
+	var max int64
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if lm := cmdLastModified(m); lm > max {
+			max = lm
+		}
+		if ch, ok := m["children"].([]interface{}); ok {
+			if childMax := maxQuickLastModified(ch); childMax > max {
+				max = childMax
+			}
+		}
+	}
+	return max
 }
 
 // restoreSnapshotToLocal 将快照中的所有数据恢复到本地文件

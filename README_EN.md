@@ -90,6 +90,7 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 - **AI Agent Panel** — In-session panel showing MCP server URL, available tools list, and connection guide
 - **Visibility Control** — Toggle AI panel on/off in Settings (default: off)
 - **Terminal Isolation** — Create independent AI panels and runtime sessions per terminal
+- **AI Command Terminal Assignment** — Assign chat commands to specific terminals with candidate status and readiness indicators
 - **Terminal Output Limits** — Configurable max lines and characters for MCP terminal reads
 - **Zero-Config Setup** — AI editors (Windsurf, Cursor, VS Code + Copilot, etc.) connect via standard MCP client config
 
@@ -222,7 +223,7 @@ Lumin provides a comprehensive settings panel organized in tabs:
 | Tab | Features |
 |-----|----------|
 | **General** | Language, workspace memory, close session confirmation, close all confirmation, window close behavior |
-| **Network** | Ping protocol (SSH Banner RTT / TCP Dial), probe & ping refresh intervals |
+| **Network** | Ping protocol (SSH Banner RTT / TCP Dial), probe & ping refresh intervals, WebView GPU hardware acceleration toggle |
 | **File Manager** | Follow terminal CWD, compressed transfer, upload concurrency, download save strategy, filename conflict handling |
 | **Appearance** | Terminal font size, local echo, color theme, UI theme, accent colors, terminal wallpaper |
 | **Shortcuts** | All terminal operation shortcut rebinding |
