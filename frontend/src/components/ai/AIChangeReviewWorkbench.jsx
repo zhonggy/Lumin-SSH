@@ -449,7 +449,7 @@ function DiffEditorPair({ block, index, showBlockBadge = false, t }) {
   )
 }
 
-export default function AIChangeReviewWorkbench({ review, queueLength = 1 }) {
+export default function AIChangeReviewWorkbench({ review, queueLength = 1, previewOnly = false, onClose = null }) {
   const { t } = useTranslation()
 
   if (!review) {
@@ -508,13 +508,36 @@ export default function AIChangeReviewWorkbench({ review, queueLength = 1 }) {
               {path}
             </div>
           ) : null}
-          {queueLength > 1 ? (
+          {!previewOnly && queueLength > 1 ? (
             <div style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(var(--warning-rgb), 0.10)', color: 'var(--warning)', fontSize: 11, fontWeight: 700 }}>
               {`${t('队列')} ${queueLength}`}
             </div>
           ) : null}
         </div>
-
+        {previewOnly && typeof onClose === 'function' ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('关闭')}
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 12,
+              zIndex: 3,
+              width: 28,
+              height: 28,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 999,
+              border: '1px solid var(--border)',
+              background: 'var(--surface-base)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+            }}>
+            ×
+          </button>
+        ) : null}
         <div
           style={{
             height: '100%',
@@ -534,7 +557,6 @@ export default function AIChangeReviewWorkbench({ review, queueLength = 1 }) {
             />
           ))}
         </div>
-
       </div>
     </div>
   )

@@ -79,6 +79,14 @@ func (b *AIBindings) TerminateAIChatTool(requestID string) error {
 	return b.runtime().TerminateAIChatTool(requestID)
 }
 
+func (b *AIBindings) PreviewAIChatToolRestore(reviewID string, sessionID string) (map[string]interface{}, error) {
+	return b.runtime().PreviewAIChatToolRestore(reviewID, sessionID)
+}
+
+func (b *AIBindings) RestoreAIChatTool(reviewID string, sessionID string) error {
+	return b.runtime().RestoreAIChatTool(reviewID, sessionID)
+}
+
 func (b *AIBindings) ListAIChatCommandTerminalCandidates(requestID string) ([]ai.AIChatCommandTerminalCandidate, error) {
 	return b.runtime().ListAIChatCommandTerminalCandidates(requestID)
 }

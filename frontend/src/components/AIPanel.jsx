@@ -6,7 +6,7 @@ import AIPanelHeader from './ai/AIPanelHeader.jsx'
 import AIConversationBackupSettings from './ai/AIConversationBackupSettings.jsx'
 import AIPanelSettingsOverlay from './ai/AIPanelSettingsOverlay.jsx'
 import AIComposer from './ai/AIComposer.jsx'
-import { approveAIChatTools, assignAIChatToolTerminal, cancelAIChat, continueAIChatTool, listAIChatCommandTerminalCandidates, rejectAIChatTools, rejectAIChatToolsForQueuedSubmission, setAIChatSkipNextAutomaticRequest, startAIChat, terminateAIChatTool } from './ai/aiChatBridge.js'
+import { approveAIChatTools, assignAIChatToolTerminal, cancelAIChat, continueAIChatTool, listAIChatCommandTerminalCandidates, previewAIChatToolRestore, rejectAIChatTools, rejectAIChatToolsForQueuedSubmission, restoreAIChatTool, setAIChatSkipNextAutomaticRequest, startAIChat, terminateAIChatTool } from './ai/aiChatBridge.js'
 import { createAIConversation, deleteAIConversation, getAIConversation, listAIConversations, normalizeAIConversationSnapshot, normalizeAIConversationTaskSettings, saveAIConversation } from './ai/aiConversationBridge.js'
 import { buildExecutionContextDetails, getExecutionContextSnapshot } from './ai/aiExecutionContext.js'
 import { getAIGlobalSettings, normalizeAIGlobalSettings, saveAIGlobalSettings } from './ai/aiGlobalSettingsBridge.js'
@@ -37,6 +37,7 @@ function createEmptyPanelState() {
     resumeAfterCancelRequestId: '',
     contextTokens: 0,
     isCondensingContext: false,
+    activeChangeReview: null,
   }
 }
 
@@ -297,6 +298,24 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       return null
     }
   }, [applyMCPInfo])
+
+  const showAlert = useCallback(async (message) => {
+    const finalMessage = typeof message === 'string' && message.trim() ? message.trim() : '当前状态不支持还原'
+    if (window?.luminDialog?.alert) {
+      await window.luminDialog.alert(finalMessage, t('提示'))
+      return
+    }
+    window.alert(finalMessage)
+  }, [t])
+
+  const clearRestorePreview = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    window.dispatchEvent(new CustomEvent('ai-change-review-preview-clear', {
+      detail: { sessionId: terminalId },
+    }))
+  }, [terminalId])
 
   useEffect(() => {
     terminalPanelsRef.current = terminalPanels
@@ -738,6 +757,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             runtimePhase: 'ready',
             skipNextAutomaticRequest: false,
             resumeAfterCancelRequestId: '',
+            activeChangeReview: null,
             conversation: nextConversation || current.conversation,
             messages: nextMessages,
           }
@@ -745,6 +765,14 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         if (nextConversation) {
           void saveConversationSnapshot(nextConversation, matchedPanelKey)
         }
+        return
+      }
+
+      if (payload.kind === 'change_review_required' && payload.review) {
+        setPanelState(matchedPanelKey, (current) => ({
+          ...current,
+          activeChangeReview: payload.review,
+        }))
         return
       }
 
@@ -771,6 +799,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             activeToolExecution: null,
             toolApprovalMode: typeof payload.approvalMode === 'string' ? payload.approvalMode : '',
             requestPhase: 'awaiting_tool_approval',
+            activeChangeReview: typeof payload.approvalMode === 'string' && payload.approvalMode === 'change_review' ? current.activeChangeReview : null,
             conversation: nextConversation,
             messages: nextMessages,
           }
@@ -787,6 +816,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
           activeToolExecution: null,
           toolApprovalMode: '',
           requestPhase: 'streaming',
+          activeChangeReview: null,
         }))
         return
       }
@@ -799,6 +829,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             ...current,
             requestPhase: 'running_tool',
             toolApprovalMode: '',
+            activeChangeReview: null,
             activeToolExecution: {
               executionId: typeof payload.executionId === 'string' ? payload.executionId.trim() : '',
               allowContinue: false,
@@ -819,6 +850,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             ...current,
             requestPhase: 'awaiting_terminal_assignment',
             toolApprovalMode: '',
+            activeChangeReview: null,
             activeToolExecution: {
               executionId: typeof payload.executionId === 'string' ? payload.executionId.trim() : '',
               allowContinue: false,
@@ -839,6 +871,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             ...current,
             requestPhase: 'awaiting_command_action',
             toolApprovalMode: '',
+            activeChangeReview: null,
             activeToolExecution: {
               executionId: typeof payload.executionId === 'string' ? payload.executionId.trim() : '',
               allowContinue: payload.allowContinue === true,
@@ -857,6 +890,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
           activeToolExecution: null,
           toolApprovalMode: '',
           requestPhase: 'streaming',
+          activeChangeReview: null,
         }))
         return
       }
@@ -938,6 +972,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             runtimePhase: 'ready',
             skipNextAutomaticRequest: false,
             resumeAfterCancelRequestId: '',
+            activeChangeReview: null,
             conversation: nextConversation || current.conversation,
             messages: nextMessages,
             activeToolExecution: null,
@@ -979,6 +1014,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             toolApprovalMode: '',
             runtimePhase: 'ready',
             skipNextAutomaticRequest: false,
+            activeChangeReview: null,
             conversation: nextConversation || current.conversation,
           }
         })
@@ -1171,6 +1207,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
           toolApprovalMode: '',
           runtimePhase: 'ready',
           skipNextAutomaticRequest: false,
+          activeChangeReview: null,
           conversation: nextConversation,
           messages: nextMessages,
           apiMessages: matchedPanel.apiMessages,
@@ -1208,6 +1245,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
           toolApprovalMode: '',
           runtimePhase: 'ready',
           skipNextAutomaticRequest: false,
+          activeChangeReview: null,
           conversation: nextConversation,
           messages: nextMessages,
           apiMessages: matchedPanel.apiMessages,
@@ -1231,6 +1269,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         detail: { sessionId: terminalId },
       }))
     }
+    clearRestorePreview()
     setShowSettingsPanel(false)
     setPopupDismissVersion((current) => current + 1)
     resetComposerEditState()
@@ -1256,6 +1295,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       resumeAfterCancelRequestId: '',
       contextTokens: 0,
       isCondensingContext: false,
+      activeChangeReview: null,
     }))
   }, [panelInstanceKey, resetComposerEditState, setPanelState, terminalId])
 
@@ -1270,6 +1310,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
   }, [panelInstanceKey])
 
   const handleOpenConversation = useCallback(async (conversationId) => {
+    clearRestorePreview()
     resetComposerEditState()
     const snapshot = await getAIConversation(conversationId)
     setConversationList((prev) => upsertConversationSummary(prev, snapshot))
@@ -1290,6 +1331,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       resumeAfterCancelRequestId: '',
       contextTokens: 0,
       isCondensingContext: false,
+      activeChangeReview: null,
     })
     void refreshAIConversationContextTokens(snapshot, panelInstanceKey)
   }, [panelInstanceKey, refreshAIConversationContextTokens, resetComposerEditState, setPanelState])
@@ -1298,6 +1340,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     if (!snapshot?.id) {
       return
     }
+    clearRestorePreview()
     resetComposerEditState()
     setConversationList((prev) => upsertConversationSummary(prev, snapshot))
     setPanelState(panelInstanceKey, {
@@ -1317,11 +1360,13 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       resumeAfterCancelRequestId: '',
       contextTokens: 0,
       isCondensingContext: false,
+      activeChangeReview: null,
     })
     void refreshAIConversationContextTokens(snapshot, panelInstanceKey)
   }, [panelInstanceKey, refreshAIConversationContextTokens, resetComposerEditState, setPanelState])
 
   const handleDeleteConversation = useCallback(async (conversationId) => {
+    clearRestorePreview()
     const confirmed = await requestDeleteConfirmation(t('确定删除这条对话吗？此操作不可撤销。'))
     if (!confirmed) {
       return
@@ -1475,6 +1520,8 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     if (!nextText && messageImages.length === 0) {
       return false
     }
+
+    clearRestorePreview()
 
     const activeComposerState = overrideEditState || composerEditState
     const isEditingExistingMessage = activeComposerState?.mode === 'edit' && activeComposerState?.targetMessageId
@@ -1651,6 +1698,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         toolApprovalMode: '',
         runtimePhase: 'ready',
         skipNextAutomaticRequest: false,
+        activeChangeReview: null,
       })
       await saveConversationSnapshot(erroredConversation, panelInstanceKey)
       return false
@@ -1692,6 +1740,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     if (!activeConversation) {
       return false
     }
+    clearRestorePreview()
     if (isQueueBlocked) {
       const queuedSubmission = buildAIQueuedSubmission({
         kind: 'retry_assistant',
@@ -1809,6 +1858,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         toolApprovalMode: '',
         runtimePhase: 'ready',
         skipNextAutomaticRequest: false,
+        activeChangeReview: null,
       })
       await saveConversationSnapshot(erroredConversation, panelInstanceKey)
       return false
@@ -1833,6 +1883,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     if (!activeConversation) {
       return
     }
+    clearRestorePreview()
     const confirmed = await requestDeleteConfirmation(t('确定删除这条消息及其后续对话吗？此操作不可撤销。'))
     if (!confirmed) {
       return
@@ -1991,6 +2042,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         isFlushingQueuedSubmission: false,
         skipNextAutomaticRequest: false,
         resumeAfterCancelRequestId: '',
+        activeChangeReview: null,
       })
       await saveConversationSnapshot(erroredConversation, targetPanelKey)
       return false
@@ -2050,6 +2102,29 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     }
     await terminateAIChatTool(panelState.activeRequestId)
   }, [panelState.activeRequestId])
+
+  const handlePreviewRestore = useCallback(async (restoreArtifactPath) => {
+    try {
+      const review = await previewAIChatToolRestore(restoreArtifactPath, terminalId)
+      if (typeof window !== 'undefined' && review && typeof review === 'object') {
+        window.dispatchEvent(new CustomEvent('ai-change-review-preview', {
+          detail: { sessionId: terminalId, review },
+        }))
+      }
+    } catch (error) {
+      await showAlert(error instanceof Error ? error.message : '当前状态不支持还原')
+    }
+  }, [showAlert, terminalId])
+
+  const handleApplyRestore = useCallback(async (restoreArtifactPath) => {
+    try {
+      await restoreAIChatTool(restoreArtifactPath, terminalId)
+      clearRestorePreview()
+      await showAlert('还原成功')
+    } catch (error) {
+      await showAlert(error instanceof Error ? error.message : '当前状态不支持还原')
+    }
+  }, [clearRestorePreview, showAlert, terminalId])
 
   const handleListCommandTerminalCandidates = useCallback(async () => {
     if (!panelState.activeRequestId) {
@@ -2181,35 +2256,45 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         {conversationList.map((item) => {
           const isDeleteHovered = hoveredConversationDeleteId === item.id
           return (
-            <button
+            <div
               key={item.id}
-              type="button"
-              onClick={() => void handleOpenConversation(item.id)}
               style={{
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '10px 16px',
-                border: 'none',
                 borderBottom: '1px solid var(--border)',
                 background: panelState.activeConversationId === item.id ? 'rgba(var(--accent-rgb), 0.08)' : 'transparent',
                 borderLeft: panelState.activeConversationId === item.id ? '2px solid var(--accent)' : '2px solid transparent',
                 transition: 'var(--transition)',
-                textAlign: 'left',
               }}
             >
-              <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 4 }}>
-                <div style={{ fontSize: 15, fontWeight: panelState.activeConversationId === item.id ? 700 : 600, color: 'var(--text-primary)', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{new Date(item.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.messageCount} {t('消息')}</div>
-                </div>
-              </div>
               <button
                 type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
+                onClick={() => void handleOpenConversation(item.id)}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 16px',
+                  border: 'none',
+                  background: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 4 }}>
+                  <div style={{ fontSize: 15, fontWeight: panelState.activeConversationId === item.id ? 700 : 600, color: 'var(--text-primary)', lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{new Date(item.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.messageCount} {t('消息')}</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   setHoveredConversationDeleteId('')
                   void handleDeleteConversation(item.id)
                 }}
@@ -2220,6 +2305,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
                 style={{
                   width: 28,
                   height: 28,
+                  marginRight: 16,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2235,7 +2321,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
               >
                 ×
               </button>
-            </button>
+            </div>
           )
         })}
       </div>
@@ -2281,6 +2367,8 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
               onRetryAssistantMessage={handleRetryAssistantMessage}
               onEditUserMessage={handleEditUserMessage}
               onDeleteMessage={handleDeleteMessage}
+              onPreviewRestore={handlePreviewRestore}
+              onApplyRestore={handleApplyRestore}
               messageActionBarAtBottom={messageActionBarAtBottom}
               scrollToBottomSignal={conversationScrollSignal}
             />

@@ -360,6 +360,7 @@ export default function App() {
   useEffect(() => { connectingServersRef.current = connectingServers; }, [connectingServers]);
   const [toasts, setToasts] = useState([]);
   const [changeReviewQueue, setChangeReviewQueue] = useState([]);
+  const [restorePreviewReview, setRestorePreviewReview] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [monitoringEnabled, setMonitoringEnabled] = useState({}); // { [sessionId]: boolean }
   const [serverListViewMode, setServerListViewMode] = useState(localStorage.getItem('serverListViewMode') || 'grid'); // 'grid' | 'table'
@@ -1388,11 +1389,55 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
         return;
       }
       removeChangeReviewsBySessionId(sessionId);
+      setRestorePreviewReview((current) => {
+        if (!current) {
+          return null;
+        }
+        return current.sessionId === sessionId ? null : current;
+      });
     };
 
     window.addEventListener('ai-change-review-clear', handleClearChangeReview);
     return () => window.removeEventListener('ai-change-review-clear', handleClearChangeReview);
   }, [removeChangeReviewsBySessionId]);
+
+  useEffect(() => {
+    const handlePreviewChangeReview = (event) => {
+      const review = event?.detail?.review;
+      const sessionId = typeof event?.detail?.sessionId === 'string' ? event.detail.sessionId.trim() : '';
+      if (!review || typeof review !== 'object') {
+        return;
+      }
+      setRestorePreviewReview({
+        sessionId,
+        review,
+      });
+    };
+
+    const handleClearPreviewChangeReview = (event) => {
+      const reviewId = typeof event?.detail?.reviewId === 'string' ? event.detail.reviewId.trim() : '';
+      const sessionId = typeof event?.detail?.sessionId === 'string' ? event.detail.sessionId.trim() : '';
+      setRestorePreviewReview((current) => {
+        if (!current) {
+          return null;
+        }
+        if (sessionId && current.sessionId && current.sessionId !== sessionId) {
+          return current;
+        }
+        if (reviewId && current.review?.reviewId && current.review.reviewId !== reviewId) {
+          return current;
+        }
+        return null;
+      });
+    };
+
+    window.addEventListener('ai-change-review-preview', handlePreviewChangeReview);
+    window.addEventListener('ai-change-review-preview-clear', handleClearPreviewChangeReview);
+    return () => {
+      window.removeEventListener('ai-change-review-preview', handlePreviewChangeReview);
+      window.removeEventListener('ai-change-review-preview-clear', handleClearPreviewChangeReview);
+    };
+  }, []);
 
   // ── 连接错误通用处理 ──────────────────────────────────────
   const handleConnectError = useCallback((sessionId, err) => {
@@ -1989,6 +2034,9 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
         || payload.kind === 'cancelled'
       ) {
         removeChangeReviewsByRequestId(payload.requestId);
+        setRestorePreviewReview((current) => (
+          current?.review?.requestId === payload.requestId ? null : current
+        ));
       }
     });
     return () => {
@@ -4363,6 +4411,14 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
                 <AIChangeReviewWorkbench
                   review={activeChangeReview}
                   queueLength={changeReviewQueue.length}
+                />
+              ) : null}
+              {restorePreviewReview?.review ? (
+                <AIChangeReviewWorkbench
+                  review={restorePreviewReview.review}
+                  queueLength={1}
+                  previewOnly={true}
+                  onClose={() => setRestorePreviewReview(null)}
                 />
               ) : null}
             </div>

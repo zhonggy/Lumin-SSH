@@ -9,6 +9,7 @@ const DEFAULT_AI_GLOBAL_SETTINGS = {
   alwaysAllowWriteOutsideWorkspace: false,
   alwaysAllowWriteProtected: false,
   alwaysAllowExecute: false,
+  alwaysAllowExecuteReadOnly: false,
   alwaysAllowExecuteAllCommands: false,
   allowedCommands: [],
   deniedCommands: [],
@@ -113,6 +114,7 @@ export function normalizeAIGlobalSettings(settings) {
   const alwaysAllowReadOnly = Boolean(settings?.alwaysAllowReadOnly)
   const alwaysAllowWrite = Boolean(settings?.alwaysAllowWrite)
   const alwaysAllowExecute = Boolean(settings?.alwaysAllowExecute)
+  const alwaysAllowExecuteReadOnly = Boolean(settings?.alwaysAllowExecuteReadOnly)
   const allowedCommands = normalizeStringList(settings?.allowedCommands)
   const deniedCommands = normalizeStringList(settings?.deniedCommands)
   const slashCommands = normalizeAISlashCommands(settings?.slashCommands)
@@ -125,13 +127,14 @@ export function normalizeAIGlobalSettings(settings) {
     ...DEFAULT_AI_GLOBAL_SETTINGS,
     ...settings,
     currentProviderId: typeof settings?.currentProviderId === 'string' ? settings.currentProviderId.trim() : '',
-    autoApprovalEnabled: alwaysAllowReadOnly || alwaysAllowWrite || alwaysAllowExecute,
+    autoApprovalEnabled: alwaysAllowReadOnly || alwaysAllowWrite || alwaysAllowExecute || alwaysAllowExecuteReadOnly,
     alwaysAllowReadOnly,
     alwaysAllowReadOnlyOutsideWorkspace: Boolean(settings?.alwaysAllowReadOnlyOutsideWorkspace),
     alwaysAllowWrite,
     alwaysAllowWriteOutsideWorkspace: Boolean(settings?.alwaysAllowWriteOutsideWorkspace),
     alwaysAllowWriteProtected: Boolean(settings?.alwaysAllowWriteProtected),
     alwaysAllowExecute,
+    alwaysAllowExecuteReadOnly,
     alwaysAllowExecuteAllCommands: allowedCommands.includes('*'),
     allowedCommands,
     deniedCommands,

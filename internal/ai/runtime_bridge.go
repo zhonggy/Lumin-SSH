@@ -48,6 +48,8 @@ type App struct {
 	aiPendingFollowupBatches  map[string]*PendingToolBatch
 	aiToolExecMu              sync.Mutex
 	aiToolExecutions          map[string]*ToolExecutionState
+	aiToolRestoreMu           sync.Mutex
+	aiToolRestoreStates       map[string]*aiToolRestoreState
 	aiSkipNextAutoReqMu       sync.Mutex
 	aiSkipNextAutomaticReqMap map[string]bool
 }
@@ -71,6 +73,7 @@ func NewRuntimeApp(ctx context.Context, configDir string, sessionProvider Sessio
 		aiPendingToolBatches:      make(map[string]*PendingToolBatch),
 		aiPendingFollowupBatches:  make(map[string]*PendingToolBatch),
 		aiToolExecutions:          make(map[string]*ToolExecutionState),
+		aiToolRestoreStates:       make(map[string]*aiToolRestoreState),
 		aiSkipNextAutomaticReqMap: make(map[string]bool),
 	}
 }

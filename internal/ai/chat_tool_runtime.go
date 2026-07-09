@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,6 +37,8 @@ type ToolExecutionState struct {
 	AssistantMessageID      string
 	ToolIndex               int
 	ToolMessageID           string
+	RestoreArtifactPath     string
+	CopyContent             string
 	Tool                    aiParsedToolUse
 	Batch                   *aiPendingToolBatch
 	TargetSessionID         string
@@ -362,7 +365,7 @@ func (a *App) AssignAIChatToolTerminal(requestID string, targetSessionID string)
 			execution.Tool.Params["command"],
 			"",
 			"排队中, 等待终端空闲",
-			buildAIChatCommandMessageExtra(trimmedTargetSessionID, targetCwd),
+			buildAIChatCommandMessageExtra(trimmedTargetSessionID, targetCwd, isAIChatMutatingCommandTool(execution.Tool)),
 		),
 	)
 	return nil
@@ -376,6 +379,11 @@ func getAIToolRemainingFileEdits(tool aiParsedToolUse) int {
 	return parsedValue
 }
 
+func isAIChatMutatingCommandTool(tool aiParsedToolUse) bool {
+	parsedValue, err := strconv.Atoi(strings.TrimSpace(tool.Params["is_mutating"]))
+	return err == nil && parsedValue == 1
+}
+
 func buildToolPreviewMessage(turnID string, tool aiParsedToolUse, index int) map[string]interface{} {
 	if tool.Name == "execute_command" {
 		return map[string]interface{}{
@@ -386,6 +394,7 @@ func buildToolPreviewMessage(turnID string, tool aiParsedToolUse, index int) map
 			"command": tool.Params["command"],
 			"output":  "等待批准后执行",
 			"status":  "待批准",
+			"extra":   buildAIChatCommandMessageExtra("", "", isAIChatMutatingCommandTool(tool)),
 		}
 	}
 	if tool.Name == "ask_followup_question" {
@@ -420,7 +429,7 @@ func buildToolPreviewMessage(turnID string, tool aiParsedToolUse, index int) map
 
 func isChangeReviewTool(tool aiParsedToolUse) bool {
 	switch strings.TrimSpace(tool.Name) {
-	case "apply_diff", "write_to_file", "search_replace", "edit_file":
+	case "apply_diff", "write_to_file", "search_replace", "edit_file", "apply_patch":
 		return true
 	default:
 		return false
@@ -661,6 +670,56 @@ func (a *App) buildEditFileChangeReview(tool aiParsedToolUse, payload AIChatRequ
 	return buildChangeReviewMessage(turnID, tool, index), buildChangeReviewEnvelope(turnID, index, sessionID, remotePath, tool, rawPayload, blocks), nil
 }
 
+func (a *App) buildApplyPatchChangeReview(tool aiParsedToolUse, payload AIChatRequestPayload, turnID string, index int) (map[string]interface{}, map[string]interface{}, error) {
+	if a == nil {
+		return nil, nil, fmt.Errorf("app unavailable")
+	}
+	sessionID := strings.TrimSpace(payload.SessionID)
+	if sessionID == "" {
+		return nil, nil, fmt.Errorf("apply_patch 缺少 session_id")
+	}
+	patchPayload := tool.Params["patch"]
+	if strings.TrimSpace(patchPayload) == "" {
+		return nil, nil, fmt.Errorf("apply_patch 缺少 patch")
+	}
+	preview, err := mcpserver.BuildApplyPatchReviewPreview(patchPayload, func(remotePath string) (string, error) {
+		content, exists, readErr := a.readAIRestoreTargetState(context.Background(), sessionID, remotePath)
+		if readErr != nil {
+			return "", readErr
+		}
+		if !exists {
+			return "", os.ErrNotExist
+		}
+		return content, nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if preview.Failure != nil {
+		return nil, nil, errors.New(formatChangeReviewFailure(preview.Failure, 0))
+	}
+	reviewBlocks := make([]map[string]interface{}, 0, len(preview.Files))
+	for _, file := range preview.Files {
+		label := strings.TrimSpace(file.Path)
+		if label == "" {
+			label = fmt.Sprintf("文件 #%d", file.Index+1)
+		}
+		reviewBlocks = append(reviewBlocks, map[string]interface{}{
+			"index":  file.Index,
+			"label":  label,
+			"before": file.Before,
+			"after":  file.After,
+		})
+	}
+	reviewPath := ""
+	if len(preview.Files) == 1 {
+		reviewPath = preview.Files[0].Path
+	} else {
+		reviewPath = fmt.Sprintf("%d 个文件", len(preview.Files))
+	}
+	return buildChangeReviewMessage(turnID, tool, index), buildChangeReviewEnvelope(turnID, index, sessionID, reviewPath, tool, patchPayload, reviewBlocks), nil
+}
+
 func (a *App) buildToolChangeReview(tool aiParsedToolUse, payload AIChatRequestPayload, turnID string, index int) (map[string]interface{}, map[string]interface{}, error) {
 	switch strings.TrimSpace(tool.Name) {
 	case "apply_diff":
@@ -671,6 +730,8 @@ func (a *App) buildToolChangeReview(tool aiParsedToolUse, payload AIChatRequestP
 		return a.buildSearchReplaceChangeReview(tool, payload, turnID, index)
 	case "edit_file":
 		return a.buildEditFileChangeReview(tool, payload, turnID, index)
+	case "apply_patch":
+		return a.buildApplyPatchChangeReview(tool, payload, turnID, index)
 	default:
 		return nil, nil, fmt.Errorf("该工具当前不支持变更审阅台")
 	}
@@ -781,8 +842,10 @@ func (a *App) emitAIChatToolExecutionPersistRequested(requestID string) {
 	})
 }
 
-func buildAIChatCommandMessageExtra(targetSessionID string, targetCwd string) map[string]interface{} {
-	extra := map[string]interface{}{}
+func buildAIChatCommandMessageExtra(targetSessionID string, targetCwd string, isMutating bool) map[string]interface{} {
+	extra := map[string]interface{}{
+		"isMutating": isMutating,
+	}
 	if trimmedTargetSessionID := strings.TrimSpace(targetSessionID); trimmedTargetSessionID != "" {
 		extra["targetSessionId"] = trimmedTargetSessionID
 	}
@@ -933,6 +996,15 @@ func (a *App) advanceAIChatToolBatch(requestID string, batch *aiPendingToolBatch
 				return
 			}
 			review["requestId"] = requestID
+			reviewID := buildToolMessageID(batch.AssistantMessageID, batch.NextToolIndex)
+			restoreArtifact, restoreErr := a.persistAIChatToolRestoreArtifact(tool, batch.Payload, reviewID, requestID)
+			if restoreErr != nil {
+				a.failAIChatToolPreview(requestID, batch, tool, restoreErr.Error())
+				return
+			}
+			attachAIRestoreArtifactRef(message, restoreArtifact.ArtifactPath)
+			attachAICopyContent(message, restoreArtifact.CopyContent)
+			review["restoreArtifactPath"] = restoreArtifact.ArtifactPath
 			a.setAIChatPendingToolBatch(requestID, batch)
 			a.emitAIChatEvent(map[string]interface{}{
 				"kind":         "tool_approval_required",
@@ -984,6 +1056,15 @@ func (a *App) startAIChatToolExecution(requestID string, batch *aiPendingToolBat
 		return
 	}
 	tool := batch.ParsedTools[batch.NextToolIndex]
+	restoreArtifact := aiToolRestoreArtifactResult{}
+	if isAIRestoreSupportedTool(tool) {
+		var err error
+		restoreArtifact, err = a.persistAIChatToolRestoreArtifact(tool, batch.Payload, buildToolMessageID(batch.AssistantMessageID, batch.NextToolIndex), requestID)
+		if err != nil {
+			a.failAIChatToolPreview(requestID, batch, tool, err.Error())
+			return
+		}
+	}
 	executionID := fmt.Sprintf("%s-tool-exec-%d-%d", requestID, batch.NextToolIndex, time.Now().UnixNano())
 	executionCtx, cancel := context.WithCancel(context.Background())
 	execution := &aiToolExecutionState{
@@ -992,6 +1073,8 @@ func (a *App) startAIChatToolExecution(requestID string, batch *aiPendingToolBat
 		AssistantMessageID:      batch.AssistantMessageID,
 		ToolIndex:               batch.NextToolIndex,
 		ToolMessageID:           buildToolMessageID(batch.AssistantMessageID, batch.NextToolIndex),
+		RestoreArtifactPath:     restoreArtifact.ArtifactPath,
+		CopyContent:             restoreArtifact.CopyContent,
 		Tool:                    tool,
 		Batch:                   batch,
 		TargetSessionID:         strings.TrimSpace(batch.Payload.SessionID),
@@ -1013,8 +1096,11 @@ func (a *App) startAIChatToolExecution(requestID string, batch *aiPendingToolBat
 			tool.Params["command"],
 			"",
 			"执行中",
-			buildAIChatCommandMessageExtra(execution.TargetSessionID, ""),
+			buildAIChatCommandMessageExtra(execution.TargetSessionID, "", isAIChatMutatingCommandTool(tool)),
 		)
+	} else {
+		attachAIRestoreArtifactRef(message, execution.RestoreArtifactPath)
+		attachAICopyContent(message, execution.CopyContent)
 	}
 	a.emitAIChatToolExecutionStarted(requestID, execution, message)
 
@@ -1124,21 +1210,24 @@ func (a *App) runAIChatGenericToolExecution(execution *aiToolExecutionState) {
 	}
 	uiResultText = sanitizeAIToolResultText(uiResultText)
 
+	message := map[string]interface{}{
+		"id":                 execution.ToolMessageID,
+		"turnId":             execution.AssistantMessageID,
+		"kind":               "tool",
+		"actionLabel":        execution.Tool.Name,
+		"title":              titleForParsedToolUse(execution.Tool),
+		"summary":            summarizeParsedToolUse(execution.Tool),
+		"code":               execution.Tool.RawXML,
+		"status":             statusText,
+		"result":             uiResultText,
+		"remainingFileEdits": getAIToolRemainingFileEdits(execution.Tool),
+	}
+	attachAIRestoreArtifactRef(message, execution.RestoreArtifactPath)
+	attachAICopyContent(message, execution.CopyContent)
 	a.emitAIChatEvent(map[string]interface{}{
 		"kind":      "upsert_message",
 		"requestId": execution.RequestID,
-		"message": map[string]interface{}{
-			"id":                 execution.ToolMessageID,
-			"turnId":             execution.AssistantMessageID,
-			"kind":               "tool",
-			"actionLabel":        execution.Tool.Name,
-			"title":              titleForParsedToolUse(execution.Tool),
-			"summary":            summarizeParsedToolUse(execution.Tool),
-			"code":               execution.Tool.RawXML,
-			"status":             statusText,
-			"result":             uiResultText,
-			"remainingFileEdits": getAIToolRemainingFileEdits(execution.Tool),
-		},
+		"message":   message,
 	})
 
 	if execution.isTerminated() {
@@ -1312,7 +1401,7 @@ func (a *App) runAIChatCommandToolExecution(execution *aiToolExecutionState) {
 					command,
 					"",
 					"排队中, 等待终端空闲",
-					buildAIChatCommandMessageExtra(execution.targetSessionID(), ""),
+					buildAIChatCommandMessageExtra(execution.targetSessionID(), "", isMutating),
 				),
 			)
 		},
@@ -1330,7 +1419,7 @@ func (a *App) runAIChatCommandToolExecution(execution *aiToolExecutionState) {
 					command,
 					"",
 					"执行中",
-					buildAIChatCommandMessageExtra(execution.targetSessionID(), ""),
+					buildAIChatCommandMessageExtra(execution.targetSessionID(), "", isMutating),
 				),
 			)
 		},
@@ -1351,7 +1440,7 @@ func (a *App) runAIChatCommandToolExecution(execution *aiToolExecutionState) {
 					command,
 					safeSnapshot,
 					"等待处理",
-					buildAIChatCommandMessageExtra(execution.targetSessionID(), ""),
+					buildAIChatCommandMessageExtra(execution.targetSessionID(), "", isMutating),
 				),
 			)
 		},
@@ -1400,7 +1489,7 @@ func (a *App) runAIChatCommandToolExecution(execution *aiToolExecutionState) {
 		command,
 		uiResultText,
 		statusText,
-		buildAIChatCommandMessageExtra(execution.targetSessionID(), ""),
+		buildAIChatCommandMessageExtra(execution.targetSessionID(), "", isMutating),
 	)
 
 	if strings.TrimSpace(uiResultText) == "" {
@@ -1539,6 +1628,8 @@ func (a *App) terminateAIChatToolExecutionImmediately(execution *aiToolExecution
 	} else {
 		message["result"] = resultText
 	}
+	attachAIRestoreArtifactRef(message, execution.RestoreArtifactPath)
+	attachAICopyContent(message, execution.CopyContent)
 	a.emitAIChatEvent(map[string]interface{}{
 		"kind":      "upsert_message",
 		"requestId": execution.RequestID,

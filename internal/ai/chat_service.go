@@ -91,6 +91,11 @@ var aiSupportedToolNames = []string{
 	"live_search",
 }
 
+var aiAlwaysAutoApprovedToolNames = map[string]struct{}{
+	"list_connected_sessions": {},
+	"live_search":             {},
+}
+
 var aiSupportedToolParamNames = []string{
 	"session_id",
 	"path",
@@ -174,7 +179,8 @@ func getAIAutoApprovalCategoryForTool(toolName string) string {
 func isAIAutoApprovalEffectivelyEnabled(settings AIConversationTaskSettings) bool {
 	return settings.AlwaysAllowReadOnly ||
 		settings.AlwaysAllowWrite ||
-		settings.AlwaysAllowExecute
+		settings.AlwaysAllowExecute ||
+		settings.AlwaysAllowExecuteReadOnly
 }
 
 func aiJSStringLength(value string) int {
@@ -848,17 +854,25 @@ func getAICommandDecision(command string, allowedCommands []string, deniedComman
 	return aiApprovalDecisionAutoApprove
 }
 
-func getAIExecuteCommandDecision(settings AIConversationTaskSettings, command string) aiApprovalDecision {
-	if !isAIAutoApprovalEffectivelyEnabled(settings) || !settings.AlwaysAllowExecute {
+func getAIExecuteCommandDecision(settings AIConversationTaskSettings, command string, rawIsMutating string) aiApprovalDecision {
+	if !isAIAutoApprovalEffectivelyEnabled(settings) {
+		return aiApprovalDecisionAskUser
+	}
+
+	deniedCommands := normalizeAICommandList(settings.DeniedCommands)
+	if strings.TrimSpace(rawIsMutating) != "1" && settings.AlwaysAllowExecuteReadOnly {
+		return getAICommandDecision(command, []string{"*"}, deniedCommands)
+	}
+	if !settings.AlwaysAllowExecute {
 		return aiApprovalDecisionAskUser
 	}
 
 	allowedCommands := normalizeAICommandList(settings.AllowedCommands)
-	return getAICommandDecision(command, allowedCommands, normalizeAICommandList(settings.DeniedCommands))
+	return getAICommandDecision(command, allowedCommands, deniedCommands)
 }
 
 func getAIParsedToolUseDecision(settings AIConversationTaskSettings, tool aiParsedToolUse) aiApprovalDecision {
-	if strings.TrimSpace(tool.Name) == "list_connected_sessions" {
+	if _, ok := aiAlwaysAutoApprovedToolNames[strings.TrimSpace(tool.Name)]; ok {
 		return aiApprovalDecisionAutoApprove
 	}
 	if !isAIAutoApprovalEffectivelyEnabled(settings) {
@@ -874,7 +888,7 @@ func getAIParsedToolUseDecision(settings AIConversationTaskSettings, tool aiPars
 			return aiApprovalDecisionAutoApprove
 		}
 	case "execute":
-		return getAIExecuteCommandDecision(settings, tool.Params["command"])
+		return getAIExecuteCommandDecision(settings, tool.Params["command"], tool.Params["is_mutating"])
 	}
 	return aiApprovalDecisionAskUser
 }

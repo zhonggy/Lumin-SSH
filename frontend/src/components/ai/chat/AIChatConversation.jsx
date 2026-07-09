@@ -32,6 +32,8 @@ function renderGroupedEntry(entry, handlers, entryMeta = {}) {
           onDelete={handlers.onDeleteMessage}
           onRetry={handlers.onRetryAssistantMessage}
           onSendUserMessage={handlers.onSendUserMessage}
+          onPreviewRestore={handlers.onPreviewRestore}
+          onApplyRestore={handlers.onApplyRestore}
           messageActionBarAtBottom={Boolean(handlers.messageActionBarAtBottom)}
         />
       )
@@ -40,7 +42,7 @@ function renderGroupedEntry(entry, handlers, entryMeta = {}) {
     case 'context-condense':
       return <AIChatContextCondenseCard message={entry.message} />
     case 'tool-session':
-      return <AIChatToolSessionPane items={entry.tools} onSendUserMessage={handlers.onSendUserMessage} />
+      return <AIChatToolSessionPane items={entry.tools} onSendUserMessage={handlers.onSendUserMessage} onPreviewRestore={handlers.onPreviewRestore} onApplyRestore={handlers.onApplyRestore} />
     default:
       return null
   }
@@ -80,7 +82,7 @@ function hasSubsequentAssistantTurn(entries, currentIndex) {
   return false
 }
 
-export default function AIChatConversation({ messages = [], onSendUserMessage, onRetryUserMessage, onRetryAssistantMessage, onEditUserMessage, onDeleteMessage, messageActionBarAtBottom = false, scrollToBottomSignal = 0 }) {
+export default function AIChatConversation({ messages = [], onSendUserMessage, onRetryUserMessage, onRetryAssistantMessage, onEditUserMessage, onDeleteMessage, onPreviewRestore, onApplyRestore, messageActionBarAtBottom = false, scrollToBottomSignal = 0 }) {
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const virtuosoRef = useRef(null)
@@ -246,6 +248,8 @@ export default function AIChatConversation({ messages = [], onSendUserMessage, o
               onRetryAssistantMessage,
               onEditUserMessage,
               onDeleteMessage,
+              onPreviewRestore,
+              onApplyRestore,
               messageActionBarAtBottom,
             }, {
               isLastAssistantTurn: index === lastAssistantTurnIndex,

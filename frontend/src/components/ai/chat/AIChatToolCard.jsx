@@ -1,12 +1,14 @@
-import { ChevronDown, FileCode2, SquarePen } from 'lucide-react'
+import { ChevronDown, FileCode2, FileText, RotateCcw, SquarePen } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import Tiptop from '../../Tiptop.jsx'
 import { useTranslation } from '../../../i18n.js'
 import AIChatMarkdown from './AIChatMarkdown.jsx'
 
-export default function AIChatToolCard({ actionLabel, title, summary, code, result = '', status, remainingFileEdits = 0, isLast = false, hasSubsequentAssistantMessage = false }) {
+export default function AIChatToolCard({ restoreArtifactPath = '', copyContent = '', actionLabel, title, summary, code, result = '', status, remainingFileEdits = 0, isLast = false, hasSubsequentAssistantMessage = false, onPreviewRestore, onApplyRestore }) {
   const { t } = useTranslation()
   const [isAutoExpanded, setIsAutoExpanded] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (isLast) {
@@ -55,18 +57,110 @@ export default function AIChatToolCard({ actionLabel, title, summary, code, resu
 
   const normalizedRemainingFileEdits = Number.isFinite(Number(remainingFileEdits)) ? Math.max(0, Math.trunc(Number(remainingFileEdits))) : 0
   const showRemainingFileEdits = normalizedRemainingFileEdits > 0
+  const normalizedCopyContent = typeof copyContent === 'string' ? copyContent.trim() : ''
+  const copyCharacterCount = normalizedCopyContent ? normalizedCopyContent.length : 0
+  const showCopyCharacterCount = copyCharacterCount > 0
+  const showRevertTitleButton = ['apply_diff', 'write_to_file', 'search_replace', 'edit_file', 'apply_patch'].includes(String(actionLabel || '').trim())
 
   const handleToggleExpand = () => {
     setIsAutoExpanded(false)
     setIsExpanded((previous) => !previous)
   }
 
+  const handlePreviewRestore = () => {
+    if (!restoreArtifactPath) {
+      return
+    }
+    void onPreviewRestore?.(restoreArtifactPath)
+  }
+
+  const handleApplyRestore = () => {
+    if (!restoreArtifactPath) {
+      return
+    }
+    void onApplyRestore?.(restoreArtifactPath)
+  }
+
+  const handleCopyFullContent = async (event) => {
+    event.stopPropagation()
+    if (!normalizedCopyContent) {
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(normalizedCopyContent)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1200)
+    } catch {}
+  }
+
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 12 }}>
-        <div style={{ minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <FileCode2 size={14} color="var(--text-secondary)" />
           <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{t(title)}</span>
+          {showCopyCharacterCount ? (
+            <Tiptop text={copied ? t('已复制') : t('复制完整 diff/内容')} style={{ display: 'inline-flex' }}>
+              <button
+                type="button"
+                onClick={handleCopyFullContent}
+                style={{
+                  height: 22,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '0 8px',
+                  borderRadius: 999,
+                  border: copied ? '1px solid rgba(var(--success-rgb), 0.28)' : '1px solid rgba(var(--accent-rgb), 0.24)',
+                  background: copied ? 'rgba(var(--success-rgb), 0.10)' : 'rgba(var(--accent-rgb), 0.08)',
+                  color: copied ? 'var(--success)' : 'var(--text-secondary)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}>
+                <FileText size={11} color={copied ? 'currentColor' : 'var(--accent)'} />
+                <span>{copied ? t('已复制') : String(copyCharacterCount)}</span>
+              </button>
+            </Tiptop>
+          ) : null}
+          {showRevertTitleButton ? (
+            <Tiptop text={t('左键预览/右键还原')} style={{ display: 'inline-flex' }}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  handlePreviewRestore()
+                }}
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  handleApplyRestore()
+                }}
+                style={{
+                  height: 22,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '0 8px',
+                  borderRadius: 999,
+                  border: '1px solid rgba(var(--accent-rgb), 0.24)',
+                  background: 'rgba(var(--accent-rgb), 0.08)',
+                  color: 'var(--text-secondary)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}>
+                <RotateCcw size={11} color="var(--accent)" />
+                <span>{t('还原')}</span>
+              </button>
+            </Tiptop>
+          ) : null}
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {status ? (
