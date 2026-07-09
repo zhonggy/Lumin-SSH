@@ -1033,6 +1033,11 @@ const dict = {
     "更新下载": "更新下载",
     "优先使用镜像下载": "优先使用镜像下载",
     "优先通过多个镜像地址下载 GitHub 更新,失败后自动回退为官方直连下载": "优先通过多个镜像地址下载 GitHub 更新,失败后自动回退为官方直连下载",
+    "渲染": "渲染",
+    "禁用硬件加速": "禁用硬件加速",
+    "关闭 WebView GPU 加速，重启应用后生效": "关闭 WebView GPU 加速，重启应用后生效",
+    "设置已保存，重启后生效": "设置已保存，重启后生效",
+    "硬件加速设置保存失败": "硬件加速设置保存失败",
   },
   "en-US": {
     "闪电直连": "Quick Connect",
@@ -2087,6 +2092,11 @@ const dict = {
     "更新下载": "Update Download",
     "优先使用镜像下载": "Prefer Mirror Download",
     "优先通过多个镜像地址下载 GitHub 更新,失败后自动回退为官方直连下载": "Prefer downloading GitHub updates through multiple mirror URLs, and fall back to the official direct download on failure",
+    "渲染": "Rendering",
+    "禁用硬件加速": "Disable Hardware Acceleration",
+    "关闭 WebView GPU 加速，重启应用后生效": "Disable WebView GPU acceleration. Takes effect after restarting the app",
+    "设置已保存，重启后生效": "Setting saved. Restart the app to apply it",
+    "硬件加速设置保存失败": "Failed to save hardware acceleration setting",
   }
 };
 
