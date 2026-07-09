@@ -2,7 +2,6 @@ import React from 'react';
 import { t as $t } from '../../i18n.js';
 import * as AppGo from '../../../wailsjs/go/main/App.js';
 import { Save, Cloud, Database, Folder, FolderOpen, Lock, RefreshCw, Sparkles, Plug } from 'lucide-react';
-import { RadioOption } from './SharedComponents';
 
 const PROVIDER_ICON_CMP = { webdav: Cloud, r2: Database, ftp: Folder, sftp: Lock };
 
@@ -95,6 +94,7 @@ function ProviderCard({ provider, providerKey, form, configured, editing, onEdit
 export default function SyncTab({
   syncProvider, onSyncProviderChange,
   syncMode, onSyncModeChange,
+  autoSyncEnabled, onAutoSyncEnabledChange,
   providers, providerList,
   webdavForm, setWebdavField, webdavConfigured, webdavEditing, setWebdavEditing, webdavLoading, webdavTesting, webdavTestResult, onWebdavTest, onWebdavSave,
   r2Form, setR2Field, r2Configured, r2Editing, setR2Editing, r2Loading, r2Testing, r2TestResult, onR2Test, onR2Save,
@@ -104,6 +104,34 @@ export default function SyncTab({
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* 自动同步 */}
+      <div style={{ background: 'var(--surface-overlay)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginRight: 4 }}>{$t('自动同步')}</span>
+          <button className={autoSyncEnabled ? 'btn btn-primary' : 'btn btn-secondary'} onClick={() => onAutoSyncEnabledChange(!autoSyncEnabled)}>
+            {autoSyncEnabled ? $t('已开启') : $t('已关闭')}
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginRight: 4 }}>{$t('自动同步模式')}</span>
+          {[
+            { id: 'webdav', label: <><Cloud size={14} /> WebDAV</> },
+            { id: 'r2', label: <><Database size={14} /> R2 (S3)</> },
+            { id: 'ftp', label: <><Folder size={14} /> FTP</> },
+            { id: 'sftp', label: <><Lock size={14} /> SFTP</> },
+            { id: 'all', label: <><RefreshCw size={14} /> {$t('全部')}</> },
+          ].map(opt => (
+            <button
+              key={opt.id}
+              className={syncMode === opt.id ? 'btn btn-primary' : 'btn btn-secondary'}
+              onClick={() => onSyncModeChange(opt.id)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Provider Selector */}
       <div style={{ display: 'flex', gap: 8, background: 'var(--surface-overlay)', padding: 8, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
@@ -325,23 +353,6 @@ export default function SyncTab({
           </div>
         </ProviderCard>
       )}
-
-      {/* 自动同步模式 */}
-      <div style={{ background: 'var(--surface-overlay)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{$t('自动同步模式')}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>{$t('选择自动同步使用的云服务，启动时按偏好执行合并同步')}</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[
-            { id: 'webdav', label: <><Cloud size={14} /> WebDAV</>, desc: $t('仅使用 WebDAV 同步（默认），若未配置则尝试其他') },
-            { id: 'r2', label: <><Database size={14} /> R2 (S3)</>, desc: $t('仅使用 R2 同步，若未配置则尝试其他') },
-            { id: 'ftp', label: <><Folder size={14} /> FTP</>, desc: $t('仅使用 FTP 同步，若未配置则尝试其他') },
-            { id: 'sftp', label: <><Lock size={14} /> SFTP</>, desc: $t('仅使用 SFTP 同步，若未配置则尝试其他') },
-            { id: 'all', label: <><RefreshCw size={14} /> {$t('全部同步')}</>, desc: $t('同时同步所有已配置的云服务，按顺序分别合并') },
-          ].map(opt => (
-            <RadioOption key={opt.id} selected={syncMode === opt.id} label={opt.label} description={opt.desc} onClick={() => onSyncModeChange(opt.id)} />
-          ))}
-        </div>
-      </div>
 
       {/* 云端同步 */}
       <div style={{ background: 'var(--surface-overlay)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>

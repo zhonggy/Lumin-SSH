@@ -91,6 +91,7 @@ type ConfigManager struct {
 	key                     []byte
 	gcm                     cipher.AEAD // ponytail: 缓存 GCM cipher，避免每次 encrypt/decrypt 重建
 	syncModeFile            string
+	autoSyncEnabledFile     string
 	syncTimeFile            string // 本地快照时间戳文件
 	lastSyncFile            string // 上次同步时间戳文件（仅在同步完成时更新）
 	quickCmdFile            string
@@ -173,6 +174,7 @@ func NewConfigManager() *ConfigManager {
 		key:                     key,
 		gcm:                     gcm,
 		syncModeFile:            filepath.Join(dir, "sync_mode.json"),
+		autoSyncEnabledFile:     filepath.Join(dir, "auto_sync_enabled.json"),
 		syncTimeFile:            filepath.Join(dir, "snapshot_time"),
 		lastSyncFile:            filepath.Join(dir, "last_sync_time"),
 		quickCmdFile:            quickCmdFile,
@@ -979,6 +981,27 @@ func (c *ConfigManager) SetSyncMode(mode string) error {
 	defer c.mu.Unlock()
 	data, _ := json.Marshal(mode)
 	return atomicWriteFile(c.syncModeFile, data, 0600)
+}
+
+func (c *ConfigManager) GetAutoSyncEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	data, err := os.ReadFile(c.autoSyncEnabledFile)
+	if err != nil {
+		return false
+	}
+	var enabled bool
+	if json.Unmarshal(data, &enabled) != nil {
+		return false
+	}
+	return enabled
+}
+
+func (c *ConfigManager) SetAutoSyncEnabled(enabled bool) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	data, _ := json.Marshal(enabled)
+	return atomicWriteFile(c.autoSyncEnabledFile, data, 0600)
 }
 
 func sanitizeChmodDialogMode(mode string) string {

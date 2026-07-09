@@ -797,6 +797,18 @@ func (a *App) SetSyncMode(mode string) error {
 	return a.configManager.SetSyncMode(mode)
 }
 
+func (a *App) GetAutoSyncEnabled() bool {
+	return a.configManager.GetAutoSyncEnabled()
+}
+
+func (a *App) SetAutoSyncEnabled(enabled bool) error {
+	return a.configManager.SetAutoSyncEnabled(enabled)
+}
+
+func (a *App) SyncAllProviders() (map[string]interface{}, error) {
+	return a.configManager.SyncAllProviders()
+}
+
 // FTP Methods
 func (a *App) GetFTPConfig() map[string]interface{} {
 	conf := a.configManager.GetFTPConfig()

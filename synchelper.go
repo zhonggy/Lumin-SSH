@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -376,6 +377,83 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 	}, nil
 }
 
+func (c *ConfigManager) syncAllProviders(entries []providerEntry) (map[string]interface{}, error) {
+	if len(entries) == 0 {
+		return nil, errors.New("没有可用同步目标")
+	}
+	defer func() {
+		for _, p := range entries {
+			if cl, ok := p.storage.(storageCloser); ok {
+				cl.Close()
+			}
+		}
+	}()
+
+	lastSyncTime := c.loadLastSyncTime()
+	localSnapTime := c.loadSnapshotTime()
+	localConns := c.GetConnections()
+	localCreds := c.GetCredentials()
+	localQuickCmds := c.loadRawFile(c.quickCmdFile)
+	localFileManagerSettings := c.loadRawFile(c.fileManagerSettingsFile)
+
+	mergedConns := localConns
+	mergedCreds := localCreds
+	mergedQuickCmds := localQuickCmds
+	mergedFileManagerSettings := localFileManagerSettings
+	var errs []string
+	downloaded := 0
+
+	for _, p := range entries {
+		remoteSnap, err := c.fetchLatestBackup(p.storage)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%T 下载失败: %v", p.storage, err))
+			continue
+		}
+		downloaded++
+		mergedConns = c.mergeWithDeletionPropagation(mergedConns, remoteSnap.Connections, lastSyncTime)
+		if remoteSnap.Credentials != nil {
+			mergedCreds = c.mergeCredentials(mergedCreds, remoteSnap.Credentials, lastSyncTime)
+		}
+		mergedQuickCmds = c.mergeQuickCommands(mergedQuickCmds, remoteSnap.QuickCommands, lastSyncTime)
+		mergedFileManagerSettings = mergeFileManagerSettings(mergedFileManagerSettings, remoteSnap.FileManagerSettings, localSnapTime, remoteSnap.SnapshotTime)
+	}
+
+	c.mu.Lock()
+	if err := c.saveConnectionsFile(mergedConns); err != nil {
+		log.Printf("[syncAllProviders] save connections: %v", err)
+	}
+	c.connCacheDirty = true
+	if err := c.saveCredentialsFile(mergedCreds); err != nil {
+		log.Printf("[syncAllProviders] save credentials: %v", err)
+	}
+	c.credCacheDirty = true
+	atomicWriteFile(c.quickCmdFile, []byte(mergedQuickCmds), 0600)
+	atomicWriteFile(c.fileManagerSettingsFile, []byte(mergedFileManagerSettings), 0600)
+	c.mu.Unlock()
+	c.CleanupOrphanedHistory()
+	c.bumpSnapshotTime()
+
+	uploaded := 0
+	for _, p := range entries {
+		if _, err := c.backupConnections(p.storage, p.maxBackups); err != nil {
+			errs = append(errs, fmt.Sprintf("%T 上传失败: %v", p.storage, err))
+		} else {
+			uploaded++
+		}
+	}
+	if uploaded == 0 {
+		return nil, errors.New(strings.Join(errs, "; "))
+	}
+	c.saveLastSyncTime(time.Now().UnixMilli())
+	return map[string]interface{}{
+		"success":     true,
+		"localCount":  len(localConns),
+		"remoteCount": downloaded,
+		"mergedCount": len(mergedConns),
+		"uploaded":    uploaded,
+	}, nil
+}
+
 // emitSyncEvent 向前端发送同步状态事件（ponytail: wailsCtx 可能为 nil，静默跳过）
 func (c *ConfigManager) emitSyncEvent(event string, data map[string]interface{}) {
 	if c.wailsCtx != nil {
@@ -645,17 +723,6 @@ func (c *ConfigManager) getSyncProviders() []providerEntry {
 	add("ftp", c.newFTPStorage)
 	add("sftp", c.newSFTPStorage)
 
-	if mode != "all" && mode != "webdav" {
-		// 选中的方式不可用则回退到 webdav
-		if len(entries) == 0 {
-			log.Printf("getSyncProviders: selected provider %s not available, falling back", mode)
-			s, max, err := c.newWebdavStorage()
-			if err == nil {
-				entries = append(entries, providerEntry{storage: s, maxBackups: max})
-			}
-		}
-	}
-
 	return entries
 }
 
@@ -664,10 +731,17 @@ type providerEntry struct {
 	maxBackups int
 }
 
+func (c *ConfigManager) SyncAllProviders() (map[string]interface{}, error) {
+	return c.syncAllProviders(c.getSyncProviders())
+}
+
 // AutoSync 自动同步：下载云端 → 双向合并(本地优先) → 上传到所有已配置的云端。
 // 启动时也会调用，确保多设备间数据一致。
 // 失败时最多重试 3 次（间隔 2s/4s/8s），仍失败则通过 Wails 事件通知前端。
 func (c *ConfigManager) AutoSync() {
+	if !c.GetAutoSyncEnabled() {
+		return
+	}
 	// ponytail: 并发去重，避免多入口同时触发浪费网络资源
 	if !c.syncRunning.CompareAndSwap(false, true) {
 		return
@@ -675,6 +749,12 @@ func (c *ConfigManager) AutoSync() {
 	defer c.syncRunning.Store(false)
 
 	providers := c.getSyncProviders()
+	if c.GetSyncMode() == "all" {
+		if _, err := c.syncAllProviders(providers); err != nil {
+			log.Printf("autoSync all failed: %v", err)
+		}
+		return
+	}
 	const maxRetries = 3
 
 	var wg sync.WaitGroup
@@ -717,6 +797,13 @@ func (c *ConfigManager) AutoSync() {
 // RetrySync 前端手动重试同步，返回错误信息供前端展示
 func (c *ConfigManager) RetrySync() string {
 	providers := c.getSyncProviders()
+	if c.GetSyncMode() == "all" {
+		_, err := c.syncAllProviders(providers)
+		if err != nil {
+			return err.Error()
+		}
+		return ""
+	}
 	var errs []string
 	for _, p := range providers {
 		func() {
@@ -999,6 +1086,48 @@ func maxQuickLastModified(arr []interface{}) int64 {
 	return max
 }
 
+func markSnapshotRestored(snap *SyncSnapshot, t int64) {
+	if snap == nil {
+		return
+	}
+	for i := range snap.Connections {
+		snap.Connections[i].LastModified = t
+	}
+	for i := range snap.Credentials {
+		snap.Credentials[i].LastModified = t
+	}
+	if snap.QuickCommands != "" {
+		snap.QuickCommands = touchQuickCommands(snap.QuickCommands, t)
+	}
+	snap.SnapshotTime = t
+}
+
+func touchQuickCommands(raw string, t int64) string {
+	var arr []interface{}
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return raw
+	}
+	touchQuickArray(arr, t)
+	data, err := json.MarshalIndent(arr, "", "  ")
+	if err != nil {
+		return raw
+	}
+	return string(data)
+}
+
+func touchQuickArray(arr []interface{}, t int64) {
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		m["last_modified"] = t
+		if children, ok := m["children"].([]interface{}); ok {
+			touchQuickArray(children, t)
+		}
+	}
+}
+
 // restoreSnapshotToLocal 将快照中的所有数据恢复到本地文件
 func (c *ConfigManager) restoreSnapshotToLocal(snap *SyncSnapshot) {
 	if snap == nil {
@@ -1041,8 +1170,11 @@ func (c *ConfigManager) restoreFromProvider(s RemoteStorage, filename string) er
 	if err != nil {
 		return err
 	}
+	restoreTime := time.Now().UnixMilli()
+	markSnapshotRestored(snap, restoreTime)
 	c.restoreSnapshotToLocal(snap)
-	c.bumpSnapshotTime() // 恢复后更新总时间戳，确保下次自动同步方向正确
+	atomicWriteFile(c.syncTimeFile, []byte(fmt.Sprintf("%d", restoreTime)), 0600)
+	c.saveLastSyncTime(restoreTime - 1)
 	return nil
 }
 

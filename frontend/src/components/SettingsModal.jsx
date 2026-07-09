@@ -244,8 +244,11 @@ export default function SettingsModal({
   const [restoring, setRestoring] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
+  const [confirmRestoreProvider, setConfirmRestoreProvider] = useState(false);
   const [backupsList, setBackupsList] = useState([]);
   const [selectedBackup, setSelectedBackup] = useState(null);
+  const [restoreProvider, setRestoreProvider] = useState(null);
+  const [failedRestoreProviders, setFailedRestoreProviders] = useState([]);
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [testResult, setTestResult] = useState(null); // null | 'ok' | 'fail'
   const [lastBackup, setLastBackup] = useState(null);
@@ -255,6 +258,7 @@ export default function SettingsModal({
 
   // Auto sync mode
   const [syncMode, setSyncMode] = useState('webdav');
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
 
   // R2 state
   const [r2Form, setR2Form] = useState(defaultR2Form);
@@ -649,6 +653,11 @@ export default function SettingsModal({
         if (!cancelled && mode) setSyncMode(mode);
       })
       .catch(() => {});
+    Promise.resolve(window?.go?.main?.App?.GetAutoSyncEnabled?.())
+      .then((enabled) => {
+        if (!cancelled && typeof enabled === 'boolean') setAutoSyncEnabled(enabled);
+      })
+      .catch(() => {});
 
     Promise.resolve(window?.go?.main?.App?.GetProgramDirectory?.())
       .then((dir) => {
@@ -703,6 +712,7 @@ export default function SettingsModal({
     ftp: { form: ftpForm, setForm: setFtpForm, configured: ftpConfigured, setConfigured: setFtpConfigured, editing: ftpEditing, setEditing: setFtpEditing, loading: ftpLoading, setLoading: setFtpLoading, testing: ftpTesting, setTesting: setFtpTesting, testResult: ftpTestResult, setTestResult: setFtpTestResult },
     sftp: { form: sftpForm, setForm: setSftpForm, configured: sftpConfigured, setConfigured: setSftpConfigured, editing: sftpEditing, setEditing: setSftpEditing, loading: sftpLoading, setLoading: setSftpLoading, testing: sftpTesting, setTesting: setSftpTesting, testResult: sftpTestResult, setTestResult: setSftpTestResult },
   };
+  const configuredProviderIds = () => PROVIDER_LIST.map(p => p.id).filter(id => providerState[id]?.configured);
 
   const makeTestHandler = (key) => async () => {
     const p = PROVIDERS[key];
@@ -763,40 +773,67 @@ export default function SettingsModal({
   const handleTestSFTP = makeTestHandler('sftp');
   const handleSaveSFTP = makeSaveHandler('sftp');
 
-  const handleRestore = async () => {
+  const loadRestoreBackups = async (providerId) => {
     setLoadingBackups(true);
     try {
-      const p = PROVIDERS[syncMode] || PROVIDERS.webdav;
+      const p = PROVIDERS[providerId];
       const list = await p.list();
       if (!list || list.length === 0) {
-        addToast($t('云端未找到任何备份文件'), 'error');
+        setFailedRestoreProviders(prev => [...new Set([...prev, providerId])]);
+        addToast($t('云端未找到任何备份文件') + '，' + $t('请重新选择'), 'error');
+        if (syncMode === 'all') setConfirmRestoreProvider(true);
         return;
       }
       list.sort((a, b) => new Date(b.time) - new Date(a.time));
+      setRestoreProvider(providerId);
       setBackupsList(list);
       setSelectedBackup(list[0].name);
+      setConfirmRestoreProvider(false);
       setConfirmRestore(true);
     } catch (err) {
-      addToast($t('获取备份列表失败') + ': ' + err, 'error');
+      setFailedRestoreProviders(prev => [...new Set([...prev, providerId])]);
+      addToast($t('获取备份列表失败') + ': ' + err + '，' + $t('请重新选择'), 'error');
+      if (syncMode === 'all') setConfirmRestoreProvider(true);
     } finally {
       setLoadingBackups(false);
     }
   };
 
+  const handleRestore = async () => {
+    setFailedRestoreProviders([]);
+    if (syncMode === 'all') {
+      const availableProviders = configuredProviderIds();
+      if (availableProviders.length === 1) {
+        await loadRestoreBackups(availableProviders[0]);
+      } else {
+        setConfirmRestoreProvider(true);
+      }
+    } else {
+      await loadRestoreBackups(syncMode);
+    }
+  };
+
   const doRestore = async () => {
-    if (!selectedBackup) return;
+    if (!selectedBackup || !restoreProvider) return;
     setRestoring(true);
     try {
-      const p = PROVIDERS[syncMode] || PROVIDERS.webdav;
+      const p = PROVIDERS[restoreProvider];
       await p.restore(selectedBackup);
-      try { await p.backup(); } catch (_) {}
+      if (syncMode === 'all') {
+        await AppGo.SyncAllProviders();
+      } else {
+        await p.sync();
+      }
       addToast($t('恢复成功'), 'success');
       onRestored?.();
+      setConfirmRestore(false);
     } catch (err) {
-      addToast($t('恢复失败') + `: ${err}`, 'error');
+      setFailedRestoreProviders(prev => [...new Set([...prev, restoreProvider])]);
+      addToast($t('恢复失败') + `: ${err}，` + $t('请重新选择'), 'error');
+      setConfirmRestore(false);
+      if (syncMode === 'all') setConfirmRestoreProvider(true);
     } finally {
       setRestoring(false);
-      setConfirmRestore(false);
     }
   };
 
@@ -804,18 +841,9 @@ export default function SettingsModal({
     setSyncing(true);
     try {
       if (syncMode === 'all') {
-        let anyOk = false;
-        for (const key of ['webdav', 'r2', 'ftp', 'sftp']) {
-          const p = PROVIDERS[key];
-          try {
-            const res = await p.sync();
-            anyOk = true;
-            addToast(`${p.name} ${$t('合并同步成功！本地')} ${res.localCount} ${$t('个 + 云端')} ${res.remoteCount} ${$t('个 =')} ${res.mergedCount} ${$t('个')}`, 'success');
-          } catch (e) {
-            addToast(`${p.name} ${$t('同步失败')}: ${e}`, 'error');
-          }
-        }
-        if (anyOk) onRestored?.();
+        const res = await AppGo.SyncAllProviders();
+        addToast(`${$t('合并同步成功！本地')} ${res.localCount} ${$t('个 + 云端')} ${res.remoteCount} ${$t('个 =')} ${res.mergedCount} ${$t('个')}`, 'success');
+        onRestored?.();
       } else {
         const p = PROVIDERS[syncMode] || PROVIDERS.webdav;
         const res = await p.sync();
@@ -835,6 +863,7 @@ export default function SettingsModal({
   const handlePingIntervalChange = (s) => { setPingInterval(s); localStorage.setItem('pingInterval', String(s)); window.dispatchEvent(new Event('pingIntervalChanged')); };
   const handleTerminalColorThemeChange = (key) => { setTerminalColorTheme(key); localStorage.setItem('terminalColorTheme', key); window.dispatchEvent(new CustomEvent('terminal-theme-changed', { detail: key })); };
   const handleSyncModeChange = async (mode) => { setSyncMode(mode); try { await AppGo.SetSyncMode(mode); } catch (_) {} };
+  const handleAutoSyncEnabledChange = async (enabled) => { setAutoSyncEnabled(enabled); try { await AppGo.SetAutoSyncEnabled(enabled); } catch (_) {} };
 
   const isAnyConfigured = isConfigured || r2Configured || ftpConfigured || sftpConfigured;
 
@@ -988,7 +1017,9 @@ export default function SettingsModal({
                 syncProvider={syncProvider}
                 onSyncProviderChange={setSyncProvider}
                 syncMode={syncMode}
-                onSyncModeChange={async (id) => { setSyncMode(id); try { await AppGo.SetSyncMode(id); } catch (_) {} }}
+                onSyncModeChange={handleSyncModeChange}
+                autoSyncEnabled={autoSyncEnabled}
+                onAutoSyncEnabledChange={handleAutoSyncEnabledChange}
                 providers={PROVIDERS}
                 providerList={PROVIDER_LIST}
                 webdavForm={webdavForm}
@@ -1048,6 +1079,29 @@ export default function SettingsModal({
         </div>
 
       </div>
+      {/* 选择恢复来源 */}
+      {confirmRestoreProvider && (() => {
+        const availableProviders = configuredProviderIds().filter(id => !failedRestoreProviders.includes(id));
+        return (
+          <div className="modal-overlay" style={{ zIndex: Z.MODAL }}>
+            <div className="glass-card" style={{ width: 420, padding: 24, animation: 'scaleIn 0.18s ease' }}>
+              <div style={{ fontSize: 18, color: 'var(--text-primary)', marginBottom: 16, fontWeight: 'bold' }}>{$t('选择恢复来源')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {availableProviders.map(id => (
+                  <button key={id} className="btn btn-secondary" disabled={loadingBackups} onClick={() => loadRestoreBackups(id)}>
+                    {PROVIDER_LIST.find(p => p.id === id)?.label || id}
+                  </button>
+                ))}
+                {availableProviders.length === 0 && <div style={{ color: 'var(--text-secondary)' }}>{$t('没有可用的云端来源')}</div>}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20 }}>
+                <button className="btn btn-secondary" disabled={loadingBackups} onClick={() => setConfirmRestoreProvider(false)}>{$t('取消')}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 确认恢复弹窗（含列表选择） */}
       {confirmRestore && (
         <div className="modal-overlay" style={{ zIndex: Z.MODAL }}>
