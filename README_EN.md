@@ -223,7 +223,7 @@ Lumin provides a comprehensive settings panel organized in tabs:
 | Tab | Features |
 |-----|----------|
 | **General** | Language, workspace memory, close session confirmation, close all confirmation, window close behavior |
-| **Network** | Ping protocol (SSH Banner RTT / TCP Dial), probe & ping refresh intervals, WebView GPU hardware acceleration toggle |
+| **Network** | Ping protocol (SSH Banner RTT / TCP Dial), probe & ping refresh intervals, proxy node management, WebView GPU hardware acceleration toggle |
 | **File Manager** | Follow terminal CWD, compressed transfer, upload concurrency, download save strategy, filename conflict handling |
 | **Appearance** | Terminal font size, local echo, color theme, UI theme, accent colors, terminal wallpaper |
 | **Shortcuts** | All terminal operation shortcut rebinding |

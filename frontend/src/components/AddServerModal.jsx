@@ -4,6 +4,8 @@ import * as AppGo from '../../wailsjs/go/main/App.js';
 import { useTranslation } from '../i18n.js';
 import { getAIGlobalSettings } from './ai/aiGlobalSettingsBridge.js';
 
+const PROXY_NODES_CHANGED_EVENT = 'lumin:proxy-nodes-changed';
+
 const defaultForm = {
   name: '',
   host: '',
@@ -90,17 +92,25 @@ export default function AddServerModal({ server, onSave, onSaveAndConnect, onClo
 
   useEffect(() => {
     let cancelled = false;
-    getAIGlobalSettings()
-      .then((settings) => {
-        if (cancelled) return;
-        setProxyNodes(Array.isArray(settings?.proxyNodes) ? settings.proxyNodes : []);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setProxyNodes([]);
-      });
+    const loadProxyNodes = () => {
+      getAIGlobalSettings()
+        .then((settings) => {
+          if (cancelled) return;
+          setProxyNodes(Array.isArray(settings?.proxyNodes) ? settings.proxyNodes : []);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setProxyNodes([]);
+        });
+    };
+    const handleProxyNodesChanged = (event) => {
+      setProxyNodes(Array.isArray(event?.detail) ? event.detail : []);
+    };
+    loadProxyNodes();
+    window.addEventListener(PROXY_NODES_CHANGED_EVENT, handleProxyNodesChanged);
     return () => {
       cancelled = true;
+      window.removeEventListener(PROXY_NODES_CHANGED_EVENT, handleProxyNodesChanged);
     };
   }, []);
 

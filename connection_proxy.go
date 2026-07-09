@@ -84,8 +84,7 @@ func (c *ConfigManager) GetProxyNodes() []ai.AIProxyNode {
 	if c == nil {
 		return nil
 	}
-	settings := ai.LoadAIGlobalSettings(c.configDir)
-	return settings.ProxyNodes
+	return ai.LoadAIProxyNodes(c.configDir)
 }
 
 func (c *ConfigManager) ResolveConnectionRuntime(conn Connection) (Connection, error) {

@@ -4,7 +4,7 @@ import { Lightbulb } from 'lucide-react';
 import { RadioOption } from './SharedComponents';
 import { getAIGlobalSettings, saveAIGlobalSettings } from '../ai/aiGlobalSettingsBridge.js';
 
-const PROXY_STORAGE_KEY = 'networkProxyNodes';
+const PROXY_NODES_CHANGED_EVENT = 'lumin:proxy-nodes-changed';
 
 const defaultProxyForm = {
   name: '',
@@ -29,17 +29,8 @@ function normalizeProxyNode(node) {
     port: Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort <= 65535 ? parsedPort : 1080,
     username: String(node?.username || '').trim(),
     password: String(node?.password || ''),
+    updatedAt: Number.isFinite(Number(node?.updatedAt)) && Number(node?.updatedAt) > 0 ? Number(node.updatedAt) : Date.now(),
   };
-}
-
-function loadProxyNodes() {
-  try {
-    const raw = localStorage.getItem(PROXY_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(normalizeProxyNode) : [];
-  } catch {
-    return [];
-  }
 }
 
 const MOBILE_MEDIA_QUERY = '(max-width: 820px)';
@@ -49,7 +40,7 @@ function getIsMobileLayout() {
 }
 
 export default function NetworkTab({ pingProtocol, onPingProtocolChange, probeInterval, onProbeIntervalChange, pingInterval, onPingIntervalChange }) {
-  const [proxyNodes, setProxyNodes] = useState(() => loadProxyNodes());
+  const [proxyNodes, setProxyNodes] = useState([]);
   const [proxyForm, setProxyForm] = useState(defaultProxyForm);
   const [editingProxyId, setEditingProxyId] = useState('');
   const [isMobileLayout, setIsMobileLayout] = useState(() => getIsMobileLayout());
@@ -57,7 +48,7 @@ export default function NetworkTab({ pingProtocol, onPingProtocolChange, probeIn
 
   const persistProxyNodes = (nextNodes) => {
     setProxyNodes(nextNodes);
-    localStorage.setItem(PROXY_STORAGE_KEY, JSON.stringify(nextNodes));
+    window.dispatchEvent(new CustomEvent(PROXY_NODES_CHANGED_EVENT, { detail: nextNodes }));
     const nextSelectedProxyId = nextNodes.some((item) => item.id === aiGlobalSettings?.aiRequestProxyId)
       ? (aiGlobalSettings?.aiRequestProxyId || '')
       : '';
@@ -97,34 +88,21 @@ export default function NetworkTab({ pingProtocol, onPingProtocolChange, probeIn
 
   useEffect(() => {
     let cancelled = false;
-    const localNodes = loadProxyNodes();
     getAIGlobalSettings()
       .then((settings) => {
         if (cancelled) {
           return;
         }
-        const remoteNodes = Array.isArray(settings?.proxyNodes) ? settings.proxyNodes.map(normalizeProxyNode) : [];
-        if (remoteNodes.length === 0 && localNodes.length > 0) {
-          const nextSettings = {
-            ...settings,
-            proxyNodes: localNodes,
-            aiRequestProxyId: typeof settings?.aiRequestProxyId === 'string' ? settings.aiRequestProxyId : '',
-          };
-          setAIGlobalSettings(nextSettings);
-          setProxyNodes(localNodes);
-          localStorage.setItem(PROXY_STORAGE_KEY, JSON.stringify(localNodes));
-          saveAIGlobalSettings(nextSettings).catch(() => {});
-          return;
-        }
+        const nextNodes = Array.isArray(settings?.proxyNodes) ? settings.proxyNodes.map(normalizeProxyNode) : [];
         setAIGlobalSettings(settings);
-        setProxyNodes(remoteNodes);
-        localStorage.setItem(PROXY_STORAGE_KEY, JSON.stringify(remoteNodes));
+        setProxyNodes(nextNodes);
+        window.dispatchEvent(new CustomEvent(PROXY_NODES_CHANGED_EVENT, { detail: nextNodes }));
       })
       .catch(() => {
         if (cancelled) {
           return;
         }
-        setProxyNodes(localNodes);
+        setProxyNodes([]);
       });
     return () => {
       cancelled = true;
@@ -156,6 +134,7 @@ export default function NetworkTab({ pingProtocol, onPingProtocolChange, probeIn
       id: editingProxyId || createProxyId(),
       host,
       port,
+      updatedAt: Date.now(),
     });
     const nextNodes = editingProxyId
       ? proxyNodes.map((item) => item.id === editingProxyId ? nextNode : item)

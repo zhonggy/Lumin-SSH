@@ -25,6 +25,7 @@ const DEFAULT_AI_GLOBAL_SETTINGS = {
   approvalButtonOrder: 'reject-approve',
   commandActionButtonOrder: 'terminate-continue',
   aiRequestProxyId: '',
+  updatedAt: 0,
   proxyNodes: [],
 }
 
@@ -87,6 +88,7 @@ function normalizeProxyNode(node, index = 0) {
     port,
     username: typeof node?.username === 'string' ? node.username.trim() : '',
     password: typeof node?.password === 'string' ? node.password : '',
+    updatedAt: Number.isFinite(Number(node?.updatedAt)) && Number(node?.updatedAt) > 0 ? Number(node.updatedAt) : Date.now(),
   }
 }
 
@@ -117,6 +119,7 @@ export function normalizeAIGlobalSettings(settings) {
   const proxyNodes = normalizeProxyNodes(settings?.proxyNodes)
   const rawAIRequestProxyId = typeof settings?.aiRequestProxyId === 'string' ? settings.aiRequestProxyId.trim() : ''
   const aiRequestProxyId = proxyNodes.some((node) => node.id === rawAIRequestProxyId) ? rawAIRequestProxyId : ''
+  const updatedAt = Number.isFinite(Number(settings?.updatedAt)) && Number(settings?.updatedAt) > 0 ? Number(settings.updatedAt) : Date.now()
 
   return {
     ...DEFAULT_AI_GLOBAL_SETTINGS,
@@ -145,6 +148,7 @@ export function normalizeAIGlobalSettings(settings) {
     approvalButtonOrder: normalizeApprovalButtonOrder(settings?.approvalButtonOrder),
     commandActionButtonOrder: normalizeCommandActionButtonOrder(settings?.commandActionButtonOrder),
     aiRequestProxyId,
+    updatedAt,
     proxyNodes,
   }
 }
@@ -163,7 +167,10 @@ export async function getAIGlobalSettings() {
 }
 
 export async function saveAIGlobalSettings(settings) {
-  const normalizedSettings = normalizeAIGlobalSettings(settings)
+  const normalizedSettings = {
+    ...normalizeAIGlobalSettings(settings),
+    updatedAt: Date.now(),
+  }
   const bridge = getAppBridge()
   if (!bridge?.SaveAIGlobalSettings) {
     return normalizedSettings

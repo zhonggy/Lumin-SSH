@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type AISlashCommand struct {
@@ -14,41 +15,43 @@ type AISlashCommand struct {
 }
 
 type AIProxyNode struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Username  string `json:"username,omitempty"`
+	Password  string `json:"password,omitempty"`
+	UpdatedAt int64  `json:"updatedAt,omitempty"`
 }
 
 type AIGlobalSettings struct {
-	CurrentProviderID                 string   `json:"currentProviderId"`
-	AutoApprovalEnabled               bool     `json:"autoApprovalEnabled"`
-	AlwaysAllowReadOnly               bool     `json:"alwaysAllowReadOnly"`
-	AlwaysAllowReadOnlyOutsideWorkspace bool   `json:"alwaysAllowReadOnlyOutsideWorkspace"`
-	AlwaysAllowWrite                  bool     `json:"alwaysAllowWrite"`
-	AlwaysAllowWriteOutsideWorkspace  bool     `json:"alwaysAllowWriteOutsideWorkspace"`
-	AlwaysAllowWriteProtected         bool     `json:"alwaysAllowWriteProtected"`
-	AlwaysAllowExecute                bool     `json:"alwaysAllowExecute"`
-	AlwaysAllowExecuteAllCommands     bool     `json:"alwaysAllowExecuteAllCommands"`
-	AllowedCommands                   []string         `json:"allowedCommands,omitempty"`
-	DeniedCommands                    []string         `json:"deniedCommands,omitempty"`
-	SlashCommands                     []AISlashCommand `json:"slashCommands,omitempty"`
-	AlwaysAllowMcp                    bool             `json:"alwaysAllowMcp"`
-	AlwaysAllowModeSwitch             bool             `json:"alwaysAllowModeSwitch"`
-	AlwaysAllowSubtasks               bool             `json:"alwaysAllowSubtasks"`
-	AlwaysAllowFollowupQuestions      bool             `json:"alwaysAllowFollowupQuestions"`
-	MCPEnabled                        bool             `json:"mcpEnabled"`
-	MCPAllowBrowserCalls              bool             `json:"mcpAllowBrowserCalls"`
-	TerminalIsolation                 bool             `json:"terminalIsolation"`
-	ConfirmDelete                     bool             `json:"confirmDelete"`
-	MessageActionBarAtBottom          bool             `json:"messageActionBarAtBottom"`
-	ApprovalButtonOrder               string           `json:"approvalButtonOrder"`
-	CommandActionButtonOrder          string           `json:"commandActionButtonOrder"`
-	AIRequestProxyID                  string           `json:"aiRequestProxyId,omitempty"`
-	ProxyNodes                        []AIProxyNode    `json:"proxyNodes,omitempty"`
+	CurrentProviderID                   string           `json:"currentProviderId"`
+	AutoApprovalEnabled                 bool             `json:"autoApprovalEnabled"`
+	AlwaysAllowReadOnly                 bool             `json:"alwaysAllowReadOnly"`
+	AlwaysAllowReadOnlyOutsideWorkspace bool             `json:"alwaysAllowReadOnlyOutsideWorkspace"`
+	AlwaysAllowWrite                    bool             `json:"alwaysAllowWrite"`
+	AlwaysAllowWriteOutsideWorkspace    bool             `json:"alwaysAllowWriteOutsideWorkspace"`
+	AlwaysAllowWriteProtected           bool             `json:"alwaysAllowWriteProtected"`
+	AlwaysAllowExecute                  bool             `json:"alwaysAllowExecute"`
+	AlwaysAllowExecuteAllCommands       bool             `json:"alwaysAllowExecuteAllCommands"`
+	AllowedCommands                     []string         `json:"allowedCommands,omitempty"`
+	DeniedCommands                      []string         `json:"deniedCommands,omitempty"`
+	SlashCommands                       []AISlashCommand `json:"slashCommands,omitempty"`
+	AlwaysAllowMcp                      bool             `json:"alwaysAllowMcp"`
+	AlwaysAllowModeSwitch               bool             `json:"alwaysAllowModeSwitch"`
+	AlwaysAllowSubtasks                 bool             `json:"alwaysAllowSubtasks"`
+	AlwaysAllowFollowupQuestions        bool             `json:"alwaysAllowFollowupQuestions"`
+	MCPEnabled                          bool             `json:"mcpEnabled"`
+	MCPAllowBrowserCalls                bool             `json:"mcpAllowBrowserCalls"`
+	TerminalIsolation                   bool             `json:"terminalIsolation"`
+	ConfirmDelete                       bool             `json:"confirmDelete"`
+	MessageActionBarAtBottom            bool             `json:"messageActionBarAtBottom"`
+	ApprovalButtonOrder                 string           `json:"approvalButtonOrder"`
+	CommandActionButtonOrder            string           `json:"commandActionButtonOrder"`
+	AIRequestProxyID                    string           `json:"aiRequestProxyId,omitempty"`
+	UpdatedAt                           int64            `json:"updatedAt,omitempty"`
+	ProxyNodes                          []AIProxyNode    `json:"proxyNodes,omitempty"`
 }
 
 func defaultAIGlobalSettings() AIGlobalSettings {
@@ -198,15 +201,20 @@ func normalizeAIProxyNodes(nodes []AIProxyNode) []AIProxyNode {
 		if _, exists := seen[id]; exists {
 			continue
 		}
+		updatedAt := node.UpdatedAt
+		if updatedAt <= 0 {
+			updatedAt = time.Now().UnixMilli()
+		}
 		seen[id] = struct{}{}
 		normalized = append(normalized, AIProxyNode{
-			ID:       id,
-			Name:     strings.TrimSpace(node.Name),
-			Type:     proxyType,
-			Host:     host,
-			Port:     port,
-			Username: strings.TrimSpace(node.Username),
-			Password: node.Password,
+			ID:        id,
+			Name:      strings.TrimSpace(node.Name),
+			Type:      proxyType,
+			Host:      host,
+			Port:      port,
+			Username:  strings.TrimSpace(node.Username),
+			Password:  node.Password,
+			UpdatedAt: updatedAt,
 		})
 	}
 	return normalized
@@ -225,6 +233,32 @@ func normalizeAIRequestProxyID(selectedID string, nodes []AIProxyNode) string {
 	return ""
 }
 
+func aiProxyNodesPathForConfigDir(configDir string) string {
+	return filepath.Join(configDir, "proxy_nodes.json")
+}
+
+func loadAIProxyNodesFromPath(path string) ([]AIProxyNode, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	var nodes []AIProxyNode
+	if err := json.Unmarshal(data, &nodes); err != nil {
+		return []AIProxyNode{}, true
+	}
+	return normalizeAIProxyNodes(nodes), true
+}
+
+func LoadAIProxyNodes(configDir string) []AIProxyNode {
+	if strings.TrimSpace(configDir) == "" {
+		return []AIProxyNode{}
+	}
+	if nodes, ok := loadAIProxyNodesFromPath(aiProxyNodesPathForConfigDir(configDir)); ok {
+		return nodes
+	}
+	return []AIProxyNode{}
+}
+
 func normalizeAIGlobalSettings(settings AIGlobalSettings) AIGlobalSettings {
 	settings.CurrentProviderID = strings.TrimSpace(settings.CurrentProviderID)
 	settings.SlashCommands = normalizeAISlashCommands(settings.SlashCommands)
@@ -234,6 +268,9 @@ func normalizeAIGlobalSettings(settings AIGlobalSettings) AIGlobalSettings {
 	settings.AutoApprovalEnabled = settings.AlwaysAllowReadOnly || settings.AlwaysAllowWrite || settings.AlwaysAllowExecute
 	settings.ApprovalButtonOrder = normalizeAIApprovalButtonOrder(settings.ApprovalButtonOrder)
 	settings.CommandActionButtonOrder = normalizeAICommandActionButtonOrder(settings.CommandActionButtonOrder)
+	if settings.UpdatedAt <= 0 {
+		settings.UpdatedAt = time.Now().UnixMilli()
+	}
 	settings.ProxyNodes = normalizeAIProxyNodes(settings.ProxyNodes)
 	settings.AIRequestProxyID = normalizeAIRequestProxyID(settings.AIRequestProxyID, settings.ProxyNodes)
 	return settings
@@ -245,15 +282,45 @@ func LoadAIGlobalSettings(configDir string) AIGlobalSettings {
 		return settings
 	}
 	data, err := os.ReadFile(filepath.Join(configDir, "ai_global_settings.json"))
-	if err != nil {
-		return settings
+	if err == nil {
+		_ = json.Unmarshal(data, &settings)
 	}
-	_ = json.Unmarshal(data, &settings)
+	settings.ProxyNodes = LoadAIProxyNodes(configDir)
 	return normalizeAIGlobalSettings(settings)
 }
 
 func (c *ConfigManager) aiGlobalSettingsPath() string {
 	return filepath.Join(c.configDir, "ai_global_settings.json")
+}
+
+func (c *ConfigManager) aiProxyNodesPath() string {
+	return aiProxyNodesPathForConfigDir(c.configDir)
+}
+
+func (c *ConfigManager) GetAIProxyNodes() []AIProxyNode {
+	if c == nil {
+		return []AIProxyNode{}
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if nodes, ok := loadAIProxyNodesFromPath(c.aiProxyNodesPath()); ok {
+		return nodes
+	}
+	return []AIProxyNode{}
+}
+
+func (c *ConfigManager) SaveAIProxyNodes(nodes []AIProxyNode) error {
+	if c == nil {
+		return nil
+	}
+	normalized := normalizeAIProxyNodes(nodes)
+	data, err := json.MarshalIndent(normalized, "", "  ")
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return atomicWriteFile(c.aiProxyNodesPath(), data, 0600)
 }
 
 func (c *ConfigManager) GetAIGlobalSettings() AIGlobalSettings {
@@ -262,12 +329,17 @@ func (c *ConfigManager) GetAIGlobalSettings() AIGlobalSettings {
 		return settings
 	}
 	c.mu.RLock()
-	defer c.mu.RUnlock()
 	data, err := os.ReadFile(c.aiGlobalSettingsPath())
-	if err != nil {
-		return settings
+	proxyNodes, ok := loadAIProxyNodesFromPath(c.aiProxyNodesPath())
+	c.mu.RUnlock()
+	if err == nil {
+		_ = json.Unmarshal(data, &settings)
 	}
-	_ = json.Unmarshal(data, &settings)
+	if ok {
+		settings.ProxyNodes = proxyNodes
+	} else {
+		settings.ProxyNodes = []AIProxyNode{}
+	}
 	return normalizeAIGlobalSettings(settings)
 }
 
@@ -276,13 +348,23 @@ func (c *ConfigManager) SaveAIGlobalSettings(settings AIGlobalSettings) error {
 		return nil
 	}
 	normalized := normalizeAIGlobalSettings(settings)
-	data, err := json.MarshalIndent(normalized, "", "  ")
+	normalized.UpdatedAt = time.Now().UnixMilli()
+	proxyNodes := normalized.ProxyNodes
+	normalized.ProxyNodes = nil
+	settingsData, err := json.MarshalIndent(normalized, "", "  ")
+	if err != nil {
+		return err
+	}
+	proxyData, err := json.MarshalIndent(proxyNodes, "", "  ")
 	if err != nil {
 		return err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return atomicWriteFile(c.aiGlobalSettingsPath(), data, 0600)
+	if err := atomicWriteFile(c.aiProxyNodesPath(), proxyData, 0600); err != nil {
+		return err
+	}
+	return atomicWriteFile(c.aiGlobalSettingsPath(), settingsData, 0600)
 }
 
 func (a *App) GetAIGlobalSettings() AIGlobalSettings {
