@@ -106,6 +106,67 @@ func buildAIRestoreUnifiedPatch(files []aiToolRestoreFileSnapshot) string {
 	return builder.String()
 }
 
+func formatAICopiedFileToolEntry(filePath string, body string) string {
+	trimmedBody := strings.TrimSpace(body)
+	if trimmedBody == "" {
+		return ""
+	}
+	trimmedPath := strings.TrimSpace(filePath)
+	if trimmedPath == "" {
+		return trimmedBody
+	}
+	return fmt.Sprintf("File:%s\n%s", trimmedPath, trimmedBody)
+}
+
+func buildAIRestoreCopyPathLabel(files []aiToolRestoreFileSnapshot) string {
+	if len(files) == 0 {
+		return ""
+	}
+	labels := make([]string, 0, len(files))
+	for _, file := range files {
+		trimmedPath := strings.TrimSpace(file.Path)
+		if trimmedPath == "" {
+			continue
+		}
+		labels = append(labels, trimmedPath)
+	}
+	return strings.Join(labels, ", ")
+}
+
+func buildAIEditFileCopyContent(tool aiParsedToolUse) string {
+	var builder strings.Builder
+	builder.WriteString("old_string:\n")
+	builder.WriteString(tool.Params["old_string"])
+	builder.WriteString("\n\nnew_string:\n")
+	builder.WriteString(tool.Params["new_string"])
+	if expectedReplacements := strings.TrimSpace(tool.Params["expected_replacements"]); expectedReplacements != "" {
+		builder.WriteString("\n\nexpected_replacements:\n")
+		builder.WriteString(expectedReplacements)
+	}
+	return strings.TrimSpace(builder.String())
+}
+
+func buildAICopyContentForTool(tool aiParsedToolUse, state *aiToolRestoreState) string {
+	if state == nil || len(state.Files) == 0 {
+		return ""
+	}
+	toolName := strings.TrimSpace(tool.Name)
+	switch toolName {
+	case "apply_diff":
+		return formatAICopiedFileToolEntry(state.Files[0].Path, tool.Params["diff"])
+	case "write_to_file":
+		return formatAICopiedFileToolEntry(state.Files[0].Path, tool.Params["content"])
+	case "search_replace":
+		return formatAICopiedFileToolEntry(state.Files[0].Path, tool.Params["operations"])
+	case "edit_file":
+		return formatAICopiedFileToolEntry(state.Files[0].Path, buildAIEditFileCopyContent(tool))
+	case "apply_patch":
+		return formatAICopiedFileToolEntry(buildAIRestoreCopyPathLabel(state.Files), tool.Params["patch"])
+	default:
+		return ""
+	}
+}
+
 func (c *ConfigManager) aiConversationRestoreArtifactsDir(conversationID string) string {
 	return filepath.Join(c.aiConversationDir(strings.TrimSpace(conversationID)), "restore_artifacts")
 }

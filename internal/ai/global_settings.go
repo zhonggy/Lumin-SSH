@@ -47,6 +47,7 @@ type AIGlobalSettings struct {
 	MCPAllowBrowserCalls                bool             `json:"mcpAllowBrowserCalls"`
 	TerminalIsolation                   bool             `json:"terminalIsolation"`
 	ConfirmDelete                       bool             `json:"confirmDelete"`
+	ConversationAutoBackupEnabled       bool             `json:"conversationAutoBackupEnabled"`
 	MessageActionBarAtBottom            bool             `json:"messageActionBarAtBottom"`
 	ApprovalButtonOrder                 string           `json:"approvalButtonOrder"`
 	CommandActionButtonOrder            string           `json:"commandActionButtonOrder"`
@@ -57,11 +58,12 @@ type AIGlobalSettings struct {
 
 func defaultAIGlobalSettings() AIGlobalSettings {
 	return AIGlobalSettings{
-		MCPEnabled:               true,
-		MCPAllowBrowserCalls:     false,
-		TerminalIsolation:        true,
-		ConfirmDelete:            true,
-		MessageActionBarAtBottom: true,
+		MCPEnabled:                    true,
+		MCPAllowBrowserCalls:          false,
+		TerminalIsolation:             true,
+		ConfirmDelete:                 true,
+		ConversationAutoBackupEnabled: true,
+		MessageActionBarAtBottom:      true,
 		ApprovalButtonOrder:      "reject-approve",
 		CommandActionButtonOrder: "terminate-continue",
 	}

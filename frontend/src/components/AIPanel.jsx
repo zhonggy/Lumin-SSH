@@ -41,10 +41,41 @@ function createEmptyPanelState() {
   }
 }
 
+function normalizeAIMessageStatus(value) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  switch (normalized) {
+    case '待批准':
+      return 'ai.status.pending_approval'
+    case '待审阅':
+      return 'ai.status.pending_review'
+    case '执行中':
+    case '运行中':
+      return 'ai.status.running'
+    case '已执行':
+      return 'ai.status.executed'
+    case '已完成':
+      return 'ai.status.completed'
+    case '已终止':
+      return 'ai.status.terminated'
+    case '错误':
+      return 'ai.status.error'
+    case '已拒绝':
+      return 'ai.status.rejected'
+    case '等待处理':
+      return 'ai.status.awaiting_action'
+    case '后台继续':
+      return 'ai.status.background'
+    case '排队中, 等待终端空闲':
+      return 'ai.status.queued_waiting_terminal'
+    default:
+      return normalized
+  }
+}
+
 function truncateConversationTitle(text) {
   const normalized = String(text || '').trim().replace(/\s+/g, ' ')
   if (!normalized) {
-    return translate('新对话')
+    return translate('ai.conversation.new')
   }
   return normalized.length > 36 ? `${normalized.slice(0, 36)}...` : normalized
 }
@@ -257,6 +288,24 @@ function upsertMessageBeforeAssistant(messages, requestId, nextMessage) {
   return insertMessageBeforeAssistant(list, requestId, nextMessage)
 }
 
+const AI_CONVERSATION_DIFF_TOOL_NAMES = new Set(['apply_diff', 'write_to_file', 'search_replace', 'edit_file', 'apply_patch'])
+const AI_CONVERSATION_DIFF_SUCCESS_STATUSES = new Set(['ai.status.executed', 'ai.status.completed'])
+
+function extractAIConversationDiffPrimaryPath(copyContent, fallbackSummary) {
+  const normalizedCopyContent = typeof copyContent === 'string' ? copyContent.trim() : ''
+  if (normalizedCopyContent) {
+    const matches = normalizedCopyContent.match(/^File:(.+)$/gm)
+    if (Array.isArray(matches) && matches.length > 0) {
+      const firstPath = String(matches[0]).replace(/^File:/, '').trim()
+      if (matches.length === 1) {
+        return firstPath
+      }
+      return translate('{path} 等 {count} 个文件', { path: firstPath, count: matches.length })
+    }
+  }
+  return typeof fallbackSummary === 'string' ? fallbackSummary.trim() : ''
+}
+
 export default function AIPanel({ width, side, terminalId = 'global', sessionId = '', sessionTerminals = [] }) {
   const { t } = useTranslation()
   const [mcpInfo, setMcpInfo] = useState({ url: '', transport: 'streamable-http', endpoint: '/mcp', instructions: '', logs: '', tools: [] })
@@ -300,7 +349,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
   }, [applyMCPInfo])
 
   const showAlert = useCallback(async (message) => {
-    const finalMessage = typeof message === 'string' && message.trim() ? message.trim() : '当前状态不支持还原'
+    const finalMessage = typeof message === 'string' && message.trim() ? translate(message.trim()) : translate('ai.restore.unsupported')
     if (window?.luminDialog?.alert) {
       await window.luminDialog.alert(finalMessage, t('提示'))
       return
@@ -937,7 +986,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
             if (message.id === assistantMessageId && message.kind === 'assistant') {
               return {
                 ...message,
-                text: typeof payload.text === 'string' ? payload.text : translate('已拒绝执行工具调用'),
+                text: typeof payload.text === 'string' ? payload.text : translate('ai.command.execution_rejected'),
                 metrics: Array.isArray(message.metrics) ? message.metrics : [],
                 streaming: false,
                 extra: {
@@ -946,10 +995,10 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
                 },
               }
             }
-            if ((message.kind === 'tool' || message.kind === 'command') && typeof message.status === 'string' && (message.status === '待批准' || message.status === '执行中' || message.status === '等待处理' || message.status === '排队中, 等待终端空闲')) {
+            if ((message.kind === 'tool' || message.kind === 'command') && AI_CONVERSATION_DIFF_SUCCESS_STATUSES.size >= 0 && ['ai.status.pending_approval', 'ai.status.running', 'ai.status.awaiting_action', 'ai.status.queued_waiting_terminal'].includes(normalizeAIMessageStatus(message.status))) {
               return {
                 ...message,
-                status: '已拒绝',
+                status: 'ai.status.rejected',
               }
             }
             return message
@@ -1170,7 +1219,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
 
       if (payload.kind === 'error') {
         const assistantMessageId = matchedPanel.activeAssistantMessageId || requestId
-        const finalErrorText = payload.error || translate('请求失败')
+        const finalErrorText = payload.error || translate('ai.request.failed')
 
         const nextMessages = matchedPanel.messages
           .filter((message) => !(message.id === `${assistantMessageId}-reasoning` && message.kind === 'reasoning'))
@@ -1263,10 +1312,74 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     }
   }, [saveConversationSnapshot, setPanelState])
 
+  const conversationDiffItems = useMemo(() => {
+    const sourceMessages = Array.isArray(panelState.messages) ? panelState.messages : []
+    const collected = sourceMessages.flatMap((message, index) => {
+      if (!message || typeof message !== 'object' || message.kind !== 'tool') {
+        return []
+      }
+      const toolName = typeof message.actionLabel === 'string' ? message.actionLabel.trim() : ''
+      const status = normalizeAIMessageStatus(message.status)
+      const artifactPath = typeof message?.extra?.restoreArtifactPath === 'string' ? message.extra.restoreArtifactPath.trim() : ''
+      const hasPreview = message?.extra?.conversationDiffHasPreview === true
+      if (!AI_CONVERSATION_DIFF_TOOL_NAMES.has(toolName) || !AI_CONVERSATION_DIFF_SUCCESS_STATUSES.has(status) || !artifactPath || !hasPreview) {
+        return []
+      }
+      const copyContent = typeof message?.extra?.copyContent === 'string' ? message.extra.copyContent : ''
+      const summaryText = typeof message.summary === 'string' ? message.summary.trim() : ''
+      const primaryPath = typeof message?.extra?.conversationDiffPrimaryPath === 'string' ? message.extra.conversationDiffPrimaryPath.trim() : ''
+      const fileCountRaw = Number(message?.extra?.conversationDiffFileCount)
+      const fileCount = Number.isFinite(fileCountRaw) && fileCountRaw > 0 ? Math.trunc(fileCountRaw) : 0
+      const title = primaryPath
+        ? fileCount > 1
+          ? translate('{path} 等 {count} 个文件', { path: primaryPath, count: fileCount })
+          : primaryPath
+        : extractAIConversationDiffPrimaryPath(copyContent, summaryText)
+      return [{
+        id: typeof message.id === 'string' && message.id.trim() ? message.id.trim() : `conversation-diff-${index}`,
+        messageId: typeof message.id === 'string' && message.id.trim() ? message.id.trim() : '',
+        artifactPath,
+        toolName,
+        title,
+        summary: summaryText,
+        status,
+        copyContent,
+        order: index,
+      }]
+    })
+    return collected
+      .reverse()
+      .map((item, index) => ({
+        ...item,
+        order: index + 1,
+      }))
+  }, [panelState.messages])
+
+  const handleOpenConversationDiff = useCallback(() => {
+    if (typeof window === 'undefined' || conversationDiffItems.length === 0) {
+      return
+    }
+    window.dispatchEvent(new CustomEvent('ai-conversation-diff-open', {
+      detail: {
+        sessionId: sessionId || terminalId || '',
+        terminalId: terminalId || '',
+        items: conversationDiffItems,
+      },
+    }))
+  }, [conversationDiffItems, sessionId, terminalId])
+
   const handleGoHome = useCallback(() => {
-    if (typeof window !== 'undefined' && terminalId) {
-      window.dispatchEvent(new CustomEvent('ai-change-review-clear', {
-        detail: { sessionId: terminalId },
+    if (typeof window !== 'undefined') {
+      if (terminalId) {
+        window.dispatchEvent(new CustomEvent('ai-change-review-clear', {
+          detail: { sessionId: terminalId },
+        }))
+      }
+      window.dispatchEvent(new CustomEvent('ai-conversation-diff-close', {
+        detail: {
+          sessionId: sessionId || '',
+          terminalId: terminalId || '',
+        },
       }))
     }
     clearRestorePreview()
@@ -1297,7 +1410,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       isCondensingContext: false,
       activeChangeReview: null,
     }))
-  }, [panelInstanceKey, resetComposerEditState, setPanelState, terminalId])
+  }, [clearRestorePreview, panelInstanceKey, resetComposerEditState, sessionId, setPanelState, terminalId])
 
   // ponytail: unmount/会话关闭时取消未决的 AI 请求，避免后端 aiPendingToolBatches 等 map 残留
   useEffect(() => {
@@ -1628,7 +1741,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     }
     const nextConversation = {
       ...baseConversation,
-      title: baseConversation.title && baseConversation.title !== translate('新对话') ? baseConversation.title : truncateConversationTitle(nextText),
+      title: baseConversation.title && baseConversation.title !== translate('ai.conversation.new') ? baseConversation.title : truncateConversationTitle(nextText),
       updatedAt: Date.now(),
       status: 'streaming',
       messages: [...(baseConversation.messages || []), userMessage, assistantMessage],
@@ -1662,7 +1775,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       })
       return true
     } catch (error) {
-      const errorText = error instanceof Error ? error.message : translate('请求失败')
+      const errorText = error instanceof Error ? error.message : translate('ai.request.failed')
       const erroredConversation = {
         ...nextConversation,
         updatedAt: Date.now(),
@@ -1822,7 +1935,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       })
       return true
     } catch (error) {
-      const errorText = error instanceof Error ? error.message : translate('请求失败')
+      const errorText = error instanceof Error ? error.message : translate('ai.request.failed')
       const erroredConversation = {
         ...nextConversation,
         updatedAt: Date.now(),
@@ -2004,7 +2117,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
       })
       return true
     } catch (error) {
-      const errorText = error instanceof Error ? error.message : translate('请求失败')
+      const errorText = error instanceof Error ? error.message : translate('ai.request.failed')
       const erroredConversation = {
         ...nextConversation,
         updatedAt: Date.now(),
@@ -2112,7 +2225,7 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         }))
       }
     } catch (error) {
-      await showAlert(error instanceof Error ? error.message : '当前状态不支持还原')
+      await showAlert(error instanceof Error ? translate(error.message) : translate('ai.restore.unsupported'))
     }
   }, [showAlert, terminalId])
 
@@ -2120,9 +2233,10 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
     try {
       await restoreAIChatTool(restoreArtifactPath, terminalId)
       clearRestorePreview()
-      await showAlert('还原成功')
+      return true
     } catch (error) {
-      await showAlert(error instanceof Error ? error.message : '当前状态不支持还原')
+      await showAlert(error instanceof Error ? translate(error.message) : translate('ai.restore.unsupported'))
+      return false
     }
   }, [clearRestorePreview, showAlert, terminalId])
 
@@ -2351,6 +2465,8 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         showSettingsPanel={showSettingsPanel}
         onToggleSettings={() => setShowSettingsPanel((prev) => !prev)}
         onGoHome={handleGoHome}
+        onOpenConversationDiff={handleOpenConversationDiff}
+        showConversationDiffButton={Boolean(activeConversation)}
         showContextTokens={Boolean(activeConversation)}
         contextTokens={panelState.contextTokens}
         isCondensingContext={Boolean(panelState.isCondensingContext)}
@@ -2362,6 +2478,8 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
           {activeConversation ? (
             <AIChatConversation
               messages={panelState.messages}
+              sessionId={sessionId}
+              terminalId={terminalId}
               onSendUserMessage={(text) => handleSendMessage(text, { images: [] })}
               onRetryUserMessage={handleRetryUserMessage}
               onRetryAssistantMessage={handleRetryAssistantMessage}
@@ -2430,6 +2548,10 @@ export default function AIPanel({ width, side, terminalId = 'global', sessionId 
         conversationUpdatedAt={activeConversation?.updatedAt || 0}
         backupRequestInFlight={panelState.requestPhase !== 'idle' || runtimePhase !== 'ready'}
         onRestoreConversationBackup={handleRestoreConversationBackup}
+        autoBackupEnabled={normalizedGlobalAISettings.conversationAutoBackupEnabled !== false}
+        onToggleAutoBackup={() => handleSaveAIPanelGlobalSettings({
+          conversationAutoBackupEnabled: !normalizedGlobalAISettings.conversationAutoBackupEnabled,
+        })}
         terminalOutputLineLimit={terminalOutputLineLimit}
         onTerminalOutputLineLimitChange={handleTerminalOutputLineLimitChange}
         terminalOutputCharacterLimit={terminalOutputCharacterLimit}

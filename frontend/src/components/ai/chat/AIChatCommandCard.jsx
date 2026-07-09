@@ -151,12 +151,34 @@ function getCommandMutationPalette(isMutating) {
   }
 }
 
-const runningStatusKey = '运行中'
+function normalizeAICommandStatus(value) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  switch (normalized) {
+    case '运行中':
+    case '执行中':
+      return 'ai.status.running'
+    case '等待处理':
+      return 'ai.status.awaiting_action'
+    case '后台继续':
+      return 'ai.status.background'
+    case '已终止':
+      return 'ai.status.terminated'
+    case '已执行':
+      return 'ai.status.executed'
+    case '错误':
+      return 'ai.status.error'
+    default:
+      return normalized
+  }
+}
+
+const runningStatusKey = 'ai.status.running'
 
 export default function AIChatCommandCard({ purpose, command, output, status = runningStatusKey, extra = {} }) {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
-  const expanded = isExpanded || ((status === '等待处理' || status === '后台继续' || status === '已终止') && Boolean(output))
+  const normalizedStatus = useMemo(() => normalizeAICommandStatus(status), [status])
+  const expanded = isExpanded || ((normalizedStatus === 'ai.status.awaiting_action' || normalizedStatus === 'ai.status.background' || normalizedStatus === 'ai.status.terminated') && Boolean(output))
   const normalizedCommand = String(command || '')
   const riskState = useMemo(() => assessSensitiveCommandRisk(normalizedCommand), [normalizedCommand])
   const riskBadgePalette = useMemo(() => getRiskBadgePalette(riskState.severity), [riskState.severity])
@@ -181,7 +203,7 @@ export default function AIChatCommandCard({ purpose, command, output, status = r
             </div>
           ) : null}
           <div style={{ padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(var(--warning-rgb), 0.35)', background: 'rgba(var(--warning-rgb), 0.08)', color: 'var(--warning)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>
-            {t(status)}
+            {t(normalizedStatus)}
           </div>
           {output ? (
             <button
@@ -235,7 +257,7 @@ export default function AIChatCommandCard({ purpose, command, output, status = r
         <div style={{ padding: '12px 12px 10px', display: 'grid', gap: 10 }}>
           <pre style={{ margin: 0, padding: '10px 12px', borderRadius: 10, border: riskState.severity === 'danger' ? '1px solid rgba(var(--danger-rgb), 0.24)' : riskState.severity === 'warning' ? '1px solid rgba(var(--warning-rgb), 0.24)' : mutationPalette.commandBorder, background: riskState.severity ? 'var(--surface-base)' : mutationPalette.commandBackground, color: 'var(--text-primary)', fontSize: 12, lineHeight: 1.65, fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{highlightedCommand}</pre>
           {expanded && output ? (
-            <pre style={{ margin: 0, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'var(--surface-base)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.65, fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{output}</pre>
+            <pre style={{ margin: 0, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'var(--surface-base)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.65, fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{t(output)}</pre>
           ) : null}
         </div>
       </div>
