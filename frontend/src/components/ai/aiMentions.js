@@ -1,4 +1,4 @@
-import { t } from '../../i18n.js'
+import { t, getLanguage } from '../../i18n.js'
 
 export const mentionRegex = /(?:^|(?<=\s))(?<!\\)@((?:\/)(?:[^\s\\]|\\ )+\/?|terminal\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/i
 export const mentionRegexGlobal = new RegExp(mentionRegex.source, 'gi')
@@ -132,11 +132,12 @@ function joinRemotePath(basePath, name) {
 }
 
 function sortRemoteMentionCandidates(candidates) {
+  const locale = getLanguage() || 'zh-CN'
   return [...candidates].sort((left, right) => {
     if (left.type !== right.type) {
       return left.type === 'folder' ? -1 : 1
     }
-    return left.path.localeCompare(right.path, 'zh-CN')
+    return left.path.localeCompare(right.path, locale)
   })
 }
 

@@ -1,6 +1,6 @@
 import { Plus, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from '../../i18n.js'
+import { useTranslation, getLanguage } from '../../i18n.js'
 import AIProviderListRow from './AIProviderListRow.jsx'
 import AIProviderQuickEditOverlay from './AIProviderQuickEditOverlay.jsx'
 import Tiptop from '../Tiptop.jsx'
@@ -32,11 +32,12 @@ function getApiKeyPreview(value) {
 }
 
 function sortProviders(items) {
+  const locale = getLanguage() || 'zh-CN'
   return [...items].sort((left, right) => {
     if (Boolean(left.pinned) !== Boolean(right.pinned)) {
       return left.pinned ? -1 : 1
     }
-    return left.name.localeCompare(right.name, 'zh-CN')
+    return left.name.localeCompare(right.name, locale)
   })
 }
 

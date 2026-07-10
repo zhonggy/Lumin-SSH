@@ -28,7 +28,7 @@ function fmtSize(bytes) {
 function fmtDate(ts) {
   if (!ts) return '-';
   const lang = getLanguage();
-  const locale = lang === 'en-US' ? 'en-US' : 'zh-CN';
+  const locale = typeof lang === 'string' && lang.trim() ? lang : 'zh-CN';
   return new Date(ts).toLocaleString(locale, {
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
