@@ -11,7 +11,7 @@ import '@xterm/xterm/css/xterm.css';
 import { useTranslation } from '../i18n.js';
 import defaultTermBg from '../assets/term_bg.png';
 import { Z } from '../constants/zIndex';
-import { getTerminalTheme } from '../utils/theme.js';
+import { getTerminalTheme, getAppThemeMode } from '../utils/theme.js';
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -835,6 +835,8 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   useEffect(() => {
     if (termRef.current) {
       termRef.current.options.theme = T.xterm;
+      // ponytail: 透明背景下自动对比度补偿以 #000 为背景计算，浅色主题反杀文字亮度，深色可正常增强
+      termRef.current.options.minimumContrastRatio = getAppThemeMode() === 'light' ? 0 : 3;
     }
     // ponytail: container 颜色走 CSS 变量，JSX 中不再直接引用 T.container
     const el = wrapperRef.current;
