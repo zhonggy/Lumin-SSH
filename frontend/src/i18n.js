@@ -1079,6 +1079,7 @@ const dict = {
     "关闭": "关闭",
     "未配置": "未配置",
     "支持明文 JSON 与密文 .enc；密文会自动尝试本机云同步密钥，失败时提示输入密码": "支持明文 JSON 与密文 .enc；密文会自动尝试本机云同步密钥，失败时提示输入密码",
+    "选择文件并导入": "选择文件并导入",
   },
   "en-US": {
     "闪电直连": "Quick Connect",
@@ -2191,6 +2192,7 @@ const dict = {
     "关闭": "Close",
     "未配置": "Not configured",
     "支持明文 JSON 与密文 .enc；密文会自动尝试本机云同步密钥，失败时提示输入密码": "Supports plaintext JSON and encrypted .enc; encrypted files auto-try cloud sync keys, prompting for password on failure",
+    "选择文件并导入": "Select file and import",
   }
 };
 

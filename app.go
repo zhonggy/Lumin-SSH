@@ -429,9 +429,13 @@ func (a *App) ImportConnections(filePath string, password string) (ImportResult,
 
 // DownloadImportTemplate 下载导入模板（含样例的明文 JSON），方便用户批量录入。
 // 弹出保存对话框；用户取消时返回 ("", nil)。返回写入的文件路径。
-func (a *App) DownloadImportTemplate() (string, error) {
+func (a *App) DownloadImportTemplate(lang string) (string, error) {
+	title := "保存导入模板"
+	if lang == "en-US" {
+		title = "Save Import Template"
+	}
 	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "保存导入模板",
+		Title:           title,
 		DefaultFilename: "lumin-ssh-import-template.json",
 		Filters: []runtime.FileFilter{
 			{DisplayName: "JSON (*.json)", Pattern: "*.json"},
@@ -443,12 +447,18 @@ func (a *App) DownloadImportTemplate() (string, error) {
 	if path == "" {
 		return "", nil
 	}
-	tmpl := buildImportTemplate()
+	tmpl := buildImportTemplate(lang)
 	data, err := json.MarshalIndent(tmpl, "", "  ")
 	if err != nil {
+		if lang == "en-US" {
+			return "", fmt.Errorf("failed to generate template: %w", err)
+		}
 		return "", fmt.Errorf("生成模板失败: %w", err)
 	}
 	if err := atomicWriteFile(path, data, 0600); err != nil {
+		if lang == "en-US" {
+			return "", fmt.Errorf("failed to save template: %w", err)
+		}
 		return "", fmt.Errorf("保存模板失败: %w", err)
 	}
 	return path, nil

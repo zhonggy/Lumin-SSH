@@ -302,7 +302,7 @@ function normalizeTwoTerminalPaneLayout(rootCells, pane, preferredOrientation = 
 }
 
 export default function App() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const [servers, setServers] = useState([]);
   const [credentials, setCredentials] = useState([]);
   const serversRef = useRef([]);
@@ -3252,7 +3252,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
   const handleDownloadTemplate = useCallback(async () => {
     setIeBusy(true);
     try {
-      const path = await AppGo.DownloadImportTemplate();
+      const path = await AppGo.DownloadImportTemplate(lang);
       if (!path) { return; } // 用户取消
       addToast(t('已下载模板到 {path}', { path }), 'success');
     } catch (err) {
@@ -3260,7 +3260,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
     } finally {
       setIeBusy(false);
     }
-  }, [addToast, t]);
+  }, [addToast, t, lang]);
 
   const filteredServers = useMemo(() => {
     if (!searchQuery) return servers;

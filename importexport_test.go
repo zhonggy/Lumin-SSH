@@ -347,7 +347,7 @@ func TestParseImportData_PasswordKeyPriority(t *testing.T) {
 
 // TestBuildImportTemplate 模板应包含 2 条样例且格式合法
 func TestBuildImportTemplate(t *testing.T) {
-	tmpl := buildImportTemplate()
+	tmpl := buildImportTemplate("zh-CN")
 	if tmpl.Format != connectionsExportFormat {
 		t.Fatalf("wrong format: %s", tmpl.Format)
 	}

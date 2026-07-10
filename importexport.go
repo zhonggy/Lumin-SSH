@@ -185,7 +185,13 @@ func parseConnectionsExport(data []byte) (*connectionsExport, error) {
 
 // buildImportTemplate 生成带样例的导入模板，方便用户批量录入。
 // 含 2 条样例（密码认证 + 私钥认证），host/密码用占位符，用户照着复制修改。
-func buildImportTemplate() connectionsExport {
+func buildImportTemplate(lang string) connectionsExport {
+	name1 := "示例-密码认证"
+	name2 := "示例-私钥认证"
+	if lang == "en-US" {
+		name1 = "Example-Password Auth"
+		name2 = "Example-PrivateKey Auth"
+	}
 	return connectionsExport{
 		Format:     connectionsExportFormat,
 		Version:    1,
@@ -193,7 +199,7 @@ func buildImportTemplate() connectionsExport {
 		Connections: []Connection{
 			{
 				ID:         "",
-				Name:       "示例-密码认证",
+				Name:       name1,
 				Host:       "1.2.3.4",
 				Port:       22,
 				Username:   "root",
@@ -203,7 +209,7 @@ func buildImportTemplate() connectionsExport {
 			},
 			{
 				ID:         "",
-				Name:       "示例-私钥认证",
+				Name:       name2,
 				Host:       "5.6.7.8",
 				Port:       22,
 				Username:   "ubuntu",
