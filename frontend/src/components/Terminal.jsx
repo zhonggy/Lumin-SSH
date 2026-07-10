@@ -169,23 +169,48 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   const localEchoRef = useRef(localStorage.getItem('terminalLocalEcho') === 'true');
   const timestampsEnabledRef = useRef(localStorage.getItem('terminalTimestamps') === 'true');
   const [timestampsVisible, setTimestampsVisible] = useState(localStorage.getItem('terminalTimestamps') === 'true');
-  // Ring buffer 时间戳（scrollback 5000 + margin，防止无界增长）
+  // Ring buffer 时间戳：用 xterm marker 跟随 scrollback 裁剪，避免 buffer 行号复用后错位
   const TS_POOL = 6000;
   const tsRingRef = useRef(null);
   if (!tsRingRef.current) {
-    const pool = new Array(TS_POOL), marks = new Int32Array(TS_POOL);
-    marks.fill(-1);
-    tsRingRef.current = { pool, marks };
+    tsRingRef.current = { entries: new Array(TS_POOL), next: 0 };
   }
-  const tsSet = (pos, val) => {
-    const r = tsRingRef.current, i = pos % TS_POOL;
-    r.pool[i] = val; r.marks[i] = val ? pos : -1;
+  const tsSet = (marker, val) => {
+    if (!marker) return;
+    const r = tsRingRef.current;
+    const i = r.next;
+    r.entries[i]?.marker?.dispose?.();
+    r.entries[i] = { marker, val };
+    r.next = (i + 1) % TS_POOL;
   };
-  const tsGet = (pos) => {
-    const r = tsRingRef.current, i = pos % TS_POOL;
-    return r.marks[i] === pos ? r.pool[i] : undefined;
+  const tsGet = (line) => {
+    const entries = tsRingRef.current.entries;
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i];
+      if (entry?.marker?.line === line) return entry.val;
+    }
+    return undefined;
   };
-  const tsClear = () => { tsRingRef.current.pool.fill(null); tsRingRef.current.marks.fill(-1); };
+  const tsEnsureLine = (term, line) => {
+    const currentLine = term.buffer.active.baseY + term.buffer.active.cursorY;
+    const ts = new Date().toLocaleTimeString();
+    tsSet(term.registerMarker(line - currentLine), ts);
+    return ts;
+  };
+  const tsClearLine = (line) => {
+    const entries = tsRingRef.current.entries;
+    for (let i = 0; i < entries.length; i += 1) {
+      if (entries[i]?.marker?.line === line) {
+        entries[i].marker.dispose?.();
+        entries[i] = null;
+      }
+    }
+  };
+  const tsClear = () => {
+    tsRingRef.current.entries.forEach((entry) => entry?.marker?.dispose?.());
+    tsRingRef.current.entries.fill(null);
+    tsRingRef.current.next = 0;
+  };
   const gutterRef = useRef(null);
   const smartWriteRef = useRef(null);
 
@@ -203,19 +228,18 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
 
     const firstVisible = buf.viewportY; // buffer 中第一个可见行 (ydisp)
 
-    // 通过 xterm viewport 的实际渲染尺寸计算行高，确保像素级对齐
-    // fontSize × lineHeight 只是近似值，xterm 内部通过测量字体实际边界
-    // 计算行高，二者有偏差（如 13px 字体实测行高 17px，而非 13×1.22≈15.86）
-    const viewport = containerRef.current.querySelector('.xterm-viewport');
+    // 通过 xterm screen/rows 的实际渲染尺寸计算行高，确保像素级对齐
+    // viewport 包含滚动容器尺寸，不能代表文本起点；screen 才是实际文本层。
+    const screen = containerRef.current.querySelector('.xterm-screen');
+    const rowsEl = containerRef.current.querySelector('.xterm-rows');
     let lineH;
-    let padTop = 0;
-    if (viewport) {
-      const cs = getComputedStyle(viewport);
-      padTop = parseFloat(cs.paddingTop) || 0;
-      const padBottom = parseFloat(cs.paddingBottom) || padTop;
-      const contentH = viewport.getBoundingClientRect().height - padTop - padBottom;
-      lineH = Math.max(contentH / rows, 1);
-      if (gutter.style.paddingTop !== cs.paddingTop) gutter.style.paddingTop = cs.paddingTop;
+    if (screen && rowsEl) {
+      const screenRect = screen.getBoundingClientRect();
+      const rowsRect = rowsEl.getBoundingClientRect();
+      lineH = Math.max(rowsRect.height / rows, 1);
+      const top = Math.max(rowsRect.top - screenRect.top, 0);
+      const paddingTop = `${top}px`;
+      if (gutter.style.paddingTop !== paddingTop) gutter.style.paddingTop = paddingTop;
     } else {
       lineH = term.options.fontSize * term.options.lineHeight;
     }
@@ -229,11 +253,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       const isWrapped = bufLine && bufLine.isWrapped;
       let ts = '';
       if (!isEmptyLine && !isWrapped && tsIdx >= 0) {
-        ts = tsGet(tsIdx);
-        if (!ts) {
-          ts = new Date().toLocaleTimeString();
-          tsSet(tsIdx, ts);
-        }
+        ts = tsGet(tsIdx) || (tsIdx === buf.baseY + buf.cursorY ? tsEnsureLine(term, tsIdx) : '');
       }
       html += `<div style="height:${lineH}px;line-height:${lineH}px;font-size:11px;color:var(--text-tertiary);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;box-sizing:border-box">${ts}</div>`;
     }
@@ -248,7 +268,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     const rows = term.rows || 24;
     const firstVisible = buf.viewportY;
     for (let i = 0; i < rows; i++) {
-      tsSet(firstVisible + i, '');
+      tsClearLine(firstVisible + i);
     }
     requestAnimationFrame(() => syncGutter());
   }
@@ -309,17 +329,18 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       vpEl.addEventListener('scroll', onTermScroll, { passive: true });
     }
 
-    // ── 每行时间戳追踪（按 buffer 绝对位置索引确保滚动时正确绑定） ──
+    // ── 每行时间戳追踪：marker 会跟随 xterm scrollback 裁剪同步移动 ──
     term.onLineFeed(() => {
       const buf = term.buffer.active;
+      const cursorLine = buf.baseY + buf.cursorY;
       // 往回跳过 isWrapped 包裹行，记到逻辑行首行
-      let pos = buf.baseY + buf.cursorY - 1;
+      let pos = cursorLine - 1;
       while (pos > 0) {
         const line = buf.getLine(pos);
         if (line && line.isWrapped) { pos--; } else { break; }
       }
       if (pos >= 0) {
-        tsSet(pos, new Date().toLocaleTimeString());
+        tsSet(term.registerMarker(pos - cursorLine), new Date().toLocaleTimeString());
       }
       if (timestampsEnabledRef.current) {
         requestAnimationFrame(() => syncGutter());
@@ -1166,7 +1187,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
           display: timestampsVisible ? 'block' : 'none',
           width: 75,
           flexShrink: 0,
-          paddingTop: 8,
+          paddingTop: 0,
           overflow: 'hidden',
           boxSizing: 'border-box',
         }} />
