@@ -6,6 +6,7 @@ import { ToggleSwitch } from './SharedComponents';
 export default function AppearanceTab({
   terminalFontSize, onTerminalFontSizeChange,
   terminalLocalEcho, onTerminalLocalEchoChange,
+  terminalTimestamps, onTerminalTimestampsChange,
   terminalColorTheme, onTerminalColorThemeChange,
   themeMode, onThemeChange,
   probePanelPosition, onProbePanelPositionChange,
@@ -45,6 +46,14 @@ export default function AppearanceTab({
               <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('关闭后输入密码等敏感内容时不会显示字符')}</div>
             </div>
             <ToggleSwitch checked={terminalLocalEcho} onChange={() => onTerminalLocalEchoChange(!terminalLocalEcho)} />
+          </div>
+          <div className="divider" style={{ margin: '12px 0', borderTop: '1px solid var(--border)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>{$t('每行显示时间')}</div>
+              <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('在终端每行输出前添加时间戳')}</div>
+            </div>
+            <ToggleSwitch checked={terminalTimestamps} onChange={() => onTerminalTimestampsChange(!terminalTimestamps)} />
           </div>
         </div>
       </div>

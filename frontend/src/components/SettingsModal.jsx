@@ -299,6 +299,7 @@ export default function SettingsModal({
   const [termBgOpacity, setTermBgOpacity] = useState(parseFloat(localStorage.getItem('termBgOpacity') || '0.15'));
   const [terminalColorTheme, setTerminalColorTheme] = useState(localStorage.getItem('terminalColorTheme') || 'lumin');
   const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') === 'true');
+  const [terminalTimestamps, setTerminalTimestamps] = useState(localStorage.getItem('terminalTimestamps') === 'true');
   const [rememberWindowSize, setRememberWindowSize] = useState(localStorage.getItem('rememberWindowSize') !== 'false');
   // Shortcuts state
   const defaultShortcuts = {
@@ -426,6 +427,12 @@ export default function SettingsModal({
     setTerminalLocalEcho(enabled);
     localStorage.setItem('terminalLocalEcho', String(enabled));
     window.dispatchEvent(new CustomEvent('terminal-local-echo-changed', { detail: enabled }));
+  };
+
+  const handleTerminalTimestampsChange = (enabled) => {
+    setTerminalTimestamps(enabled);
+    localStorage.setItem('terminalTimestamps', String(enabled));
+    window.dispatchEvent(new CustomEvent('terminal-timestamps-changed', { detail: enabled }));
   };
 
   const handleTermBgUpload = (e) => {
@@ -987,6 +994,8 @@ export default function SettingsModal({
                 onTerminalFontSizeChange={handleTerminalFontChange}
                 terminalLocalEcho={terminalLocalEcho}
                 onTerminalLocalEchoChange={handleTerminalLocalEchoChange}
+                terminalTimestamps={terminalTimestamps}
+                onTerminalTimestampsChange={handleTerminalTimestampsChange}
                 terminalColorTheme={terminalColorTheme}
                 onTerminalColorThemeChange={(key) => { setTerminalColorTheme(key); localStorage.setItem('terminalColorTheme', key); window.dispatchEvent(new CustomEvent('terminal-theme-changed', { detail: key })); }}
                 themeMode={themeMode}
