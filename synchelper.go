@@ -53,14 +53,13 @@ type storageCloser interface {
 
 // SyncSnapshot 同步快照，包含连接和快捷命令等所有可同步数据
 type SyncSnapshot struct {
-	Connections         []Connection           `json:"connections"`
-	Credentials         []Credential           `json:"credentials"`
-	QuickCommands       string                 `json:"quick_commands"`
-	FileManagerSettings string                 `json:"file_manager_settings"`
-	AIProviders         []ai.AIProviderProfile `json:"ai_providers"`
-	AIGlobalSettings    *ai.AIGlobalSettings   `json:"ai_global_settings"`
-	ProxyNodes          []ai.AIProxyNode       `json:"proxy_nodes"`
-	SnapshotTime        int64                  `json:"snapshot_time,omitempty"` // 快照总时间戳（Unix 毫秒），用于判断同步方向
+	Connections      []Connection           `json:"connections"`
+	Credentials      []Credential           `json:"credentials"`
+	QuickCommands    string                 `json:"quick_commands"`
+	AIProviders      []ai.AIProviderProfile `json:"ai_providers"`
+	AIGlobalSettings *ai.AIGlobalSettings   `json:"ai_global_settings"`
+	ProxyNodes       []ai.AIProxyNode       `json:"proxy_nodes"`
+	SnapshotTime     int64                  `json:"snapshot_time,omitempty"` // 快照总时间戳（Unix 毫秒），用于判断同步方向
 }
 
 // ─── 共享解密/解析 ─────────────────────────────────────────
@@ -119,9 +118,6 @@ func snapshotEqual(s1, s2 *SyncSnapshot) bool {
 		return false
 	}
 	if s1.QuickCommands != s2.QuickCommands {
-		return false
-	}
-	if !fileManagerSettingsEqual(s1.FileManagerSettings, s2.FileManagerSettings) {
 		return false
 	}
 	if !aiProvidersEqual(s1.AIProviders, s2.AIProviders) {
@@ -403,14 +399,13 @@ func (c *ConfigManager) backupConnections(s RemoteStorage, maxBackups int) (map[
 	aiGlobalSettings := c.GetAIGlobalSettings()
 	aiGlobalSettings.ProxyNodes = nil
 	snap := SyncSnapshot{
-		Connections:         c.GetConnections(),
-		Credentials:         c.GetCredentials(),
-		QuickCommands:       c.loadRawFile(c.quickCmdFile),
-		FileManagerSettings: c.loadRawFile(c.fileManagerSettingsFile),
-		AIProviders:         c.GetAIProviderRegistry().Providers,
-		AIGlobalSettings:    &aiGlobalSettings,
-		ProxyNodes:          c.GetAIProxyNodes(),
-		SnapshotTime:        c.loadSnapshotTime(),
+		Connections:      c.GetConnections(),
+		Credentials:      c.GetCredentials(),
+		QuickCommands:    c.loadRawFile(c.quickCmdFile),
+		AIProviders:      c.GetAIProviderRegistry().Providers,
+		AIGlobalSettings: &aiGlobalSettings,
+		ProxyNodes:       c.GetAIProxyNodes(),
+		SnapshotTime:     c.loadSnapshotTime(),
 	}
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
@@ -512,7 +507,6 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 
 	// 合并连接（重叠按 LastModified 取最新，单侧独有按 lastSyncTime 判断删除）
 	localConns := c.GetConnections()
-	localSnapTime := c.loadSnapshotTime()
 	lastSyncTime := c.loadLastSyncTime()
 	deduped := c.mergeWithDeletionPropagation(localConns, remoteSnap.Connections, lastSyncTime)
 	// 加锁保存并失效缓存（saveConnectionsFile 要求调用方持有 c.mu）
@@ -542,12 +536,6 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 		log.Printf("[syncFromProvider] failed to write quick commands: %v", err)
 	}
 
-	localFileManagerSettings := c.loadRawFile(c.fileManagerSettingsFile)
-	mergedFileManagerSettings := mergeFileManagerSettings(localFileManagerSettings, remoteSnap.FileManagerSettings, localSnapTime, remoteSnap.SnapshotTime)
-	if err := atomicWriteFile(c.fileManagerSettingsFile, []byte(mergedFileManagerSettings), 0600); err != nil {
-		log.Printf("[syncFromProvider] failed to write file manager settings: %v", err)
-	}
-
 	localAIProviders := c.GetAIProviderRegistry().Providers
 	mergedAIProviders := c.mergeAIProviders(localAIProviders, remoteSnap.AIProviders, lastSyncTime)
 	if remoteSnap.AIProviders != nil {
@@ -573,7 +561,6 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage) (map[string]interface{
 	var backupResult interface{}
 	changed := !connsEqual(deduped, remoteSnap.Connections) ||
 		!quickCmdsEqual(mergedQuickCmds, remoteSnap.QuickCommands) ||
-		!fileManagerSettingsEqual(mergedFileManagerSettings, remoteSnap.FileManagerSettings) ||
 		(mergedCreds != nil && !credsEqual(mergedCreds, remoteSnap.Credentials)) ||
 		(remoteSnap.AIProviders != nil && !aiProvidersEqual(mergedAIProviders, remoteSnap.AIProviders)) ||
 		(remoteSnap.AIGlobalSettings != nil && !aiGlobalSettingsEqual(&mergedAIGlobalSettings, remoteSnap.AIGlobalSettings)) ||
@@ -615,11 +602,9 @@ func (c *ConfigManager) syncAllProviders(entries []providerEntry) (map[string]in
 	}()
 
 	lastSyncTime := c.loadLastSyncTime()
-	localSnapTime := c.loadSnapshotTime()
 	localConns := c.GetConnections()
 	localCreds := c.GetCredentials()
 	localQuickCmds := c.loadRawFile(c.quickCmdFile)
-	localFileManagerSettings := c.loadRawFile(c.fileManagerSettingsFile)
 	localAIProviders := c.GetAIProviderRegistry().Providers
 	localAIGlobalSettings := c.GetAIGlobalSettings()
 	localProxyNodes := c.GetAIProxyNodes()
@@ -627,7 +612,6 @@ func (c *ConfigManager) syncAllProviders(entries []providerEntry) (map[string]in
 	mergedConns := localConns
 	mergedCreds := localCreds
 	mergedQuickCmds := localQuickCmds
-	mergedFileManagerSettings := localFileManagerSettings
 	mergedAIProviders := localAIProviders
 	mergedAIGlobalSettings := localAIGlobalSettings
 	mergedProxyNodes := localProxyNodes
@@ -646,7 +630,6 @@ func (c *ConfigManager) syncAllProviders(entries []providerEntry) (map[string]in
 			mergedCreds = c.mergeCredentials(mergedCreds, remoteSnap.Credentials, lastSyncTime)
 		}
 		mergedQuickCmds = c.mergeQuickCommands(mergedQuickCmds, remoteSnap.QuickCommands, lastSyncTime)
-		mergedFileManagerSettings = mergeFileManagerSettings(mergedFileManagerSettings, remoteSnap.FileManagerSettings, localSnapTime, remoteSnap.SnapshotTime)
 		mergedAIProviders = c.mergeAIProviders(mergedAIProviders, remoteSnap.AIProviders, lastSyncTime)
 		mergedAIGlobalSettings = mergeAIGlobalSettings(mergedAIGlobalSettings, remoteSnap.AIGlobalSettings)
 		mergedProxyNodes = c.mergeAIProxyNodes(mergedProxyNodes, remoteSnap.ProxyNodes, lastSyncTime)
@@ -662,7 +645,6 @@ func (c *ConfigManager) syncAllProviders(entries []providerEntry) (map[string]in
 	}
 	c.credCacheDirty = true
 	atomicWriteFile(c.quickCmdFile, []byte(mergedQuickCmds), 0600)
-	atomicWriteFile(c.fileManagerSettingsFile, []byte(mergedFileManagerSettings), 0600)
 	c.mu.Unlock()
 	if err := c.SaveAIProviderRegistry(ai.AIProviderRegistry{Providers: mergedAIProviders}); err != nil {
 		log.Printf("[syncAllProviders] save AI providers: %v", err)
@@ -743,9 +725,6 @@ func (c *ConfigManager) autoSyncProvider(s RemoteStorage, maxBackups int) error 
 	localQuickCmds := c.loadRawFile(c.quickCmdFile)
 	mergedQuickCmds := c.mergeQuickCommands(localQuickCmds, remoteSnap.QuickCommands, lastSyncTime)
 
-	localFileManagerSettings := c.loadRawFile(c.fileManagerSettingsFile)
-	mergedFileManagerSettings := mergeFileManagerSettings(localFileManagerSettings, remoteSnap.FileManagerSettings, localSnapTime, remoteSnapTime)
-
 	localAIProviders := c.GetAIProviderRegistry().Providers
 	mergedAIProviders := c.mergeAIProviders(localAIProviders, remoteSnap.AIProviders, lastSyncTime)
 	localAIGlobalSettings := c.GetAIGlobalSettings()
@@ -755,19 +734,17 @@ func (c *ConfigManager) autoSyncProvider(s RemoteStorage, maxBackups int) error 
 
 	// 本地有变化 → 保存
 	credsChanged := remoteSnap.Credentials != nil && !credsEqual(mergedCreds, localCreds)
-	fileManagerSettingsChanged := !fileManagerSettingsEqual(mergedFileManagerSettings, localFileManagerSettings)
 	aiProvidersChanged := remoteSnap.AIProviders != nil && !aiProvidersEqual(mergedAIProviders, localAIProviders)
 	aiGlobalSettingsChanged := remoteSnap.AIGlobalSettings != nil && !aiGlobalSettingsEqual(&mergedAIGlobalSettings, &localAIGlobalSettings)
 	proxyNodesChanged := remoteSnap.ProxyNodes != nil && !aiProxyNodesEqual(mergedProxyNodes, localProxyNodes)
-	localChanged := !connsEqual(merged, localConns) || !quickCmdsEqual(mergedQuickCmds, localQuickCmds) || fileManagerSettingsChanged || credsChanged || aiProvidersChanged || aiGlobalSettingsChanged || proxyNodesChanged
+	localChanged := !connsEqual(merged, localConns) || !quickCmdsEqual(mergedQuickCmds, localQuickCmds) || credsChanged || aiProvidersChanged || aiGlobalSettingsChanged || proxyNodesChanged
 
 	// 云端有变化 → 需要上传
 	cloudCredsChanged := !credsEqual(mergedCreds, remoteSnap.Credentials)
-	cloudFileManagerSettingsChanged := !fileManagerSettingsEqual(mergedFileManagerSettings, remoteSnap.FileManagerSettings)
 	cloudAIProvidersChanged := remoteSnap.AIProviders != nil && !aiProvidersEqual(mergedAIProviders, remoteSnap.AIProviders)
 	cloudAIGlobalSettingsChanged := remoteSnap.AIGlobalSettings != nil && !aiGlobalSettingsEqual(&mergedAIGlobalSettings, remoteSnap.AIGlobalSettings)
 	cloudProxyNodesChanged := remoteSnap.ProxyNodes != nil && !aiProxyNodesEqual(mergedProxyNodes, remoteSnap.ProxyNodes)
-	cloudChanged := !connsEqual(merged, remoteSnap.Connections) || !quickCmdsEqual(mergedQuickCmds, remoteSnap.QuickCommands) || cloudFileManagerSettingsChanged || cloudCredsChanged || cloudAIProvidersChanged || cloudAIGlobalSettingsChanged || cloudProxyNodesChanged
+	cloudChanged := !connsEqual(merged, remoteSnap.Connections) || !quickCmdsEqual(mergedQuickCmds, remoteSnap.QuickCommands) || cloudCredsChanged || cloudAIProvidersChanged || cloudAIGlobalSettingsChanged || cloudProxyNodesChanged
 
 	// 无变化 → 静默跳过
 	if !localChanged && !cloudChanged {
@@ -802,12 +779,6 @@ func (c *ConfigManager) autoSyncProvider(s RemoteStorage, maxBackups int) error 
 			data, _ := os.ReadFile(c.quickCmdFile)
 			if quickCmdsEqual(string(data), localQuickCmds) {
 				atomicWriteFile(c.quickCmdFile, []byte(mergedQuickCmds), 0600)
-			}
-		}
-		if fileManagerSettingsChanged {
-			data, _ := os.ReadFile(c.fileManagerSettingsFile)
-			if fileManagerSettingsEqual(string(data), localFileManagerSettings) {
-				atomicWriteFile(c.fileManagerSettingsFile, []byte(mergedFileManagerSettings), 0600)
 			}
 		}
 		c.mu.Unlock()
@@ -1201,50 +1172,6 @@ func quickCmdsEqual(a, b string) bool {
 	return string(da) == string(db)
 }
 
-func normalizeFileManagerSettingsJSON(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "{}"
-	}
-	return trimmed
-}
-
-func fileManagerSettingsEqual(a, b string) bool {
-	normalizedA := normalizeFileManagerSettingsJSON(a)
-	normalizedB := normalizeFileManagerSettingsJSON(b)
-	if normalizedA == normalizedB {
-		return true
-	}
-	var va, vb interface{}
-	if err := json.Unmarshal([]byte(normalizedA), &va); err != nil {
-		return false
-	}
-	if err := json.Unmarshal([]byte(normalizedB), &vb); err != nil {
-		return false
-	}
-	da, _ := json.Marshal(va)
-	db, _ := json.Marshal(vb)
-	return string(da) == string(db)
-}
-
-func mergeFileManagerSettings(local, remote string, localSnapTime, remoteSnapTime int64) string {
-	normalizedLocal := normalizeFileManagerSettingsJSON(local)
-	normalizedRemote := normalizeFileManagerSettingsJSON(remote)
-	if fileManagerSettingsEqual(normalizedLocal, normalizedRemote) {
-		return normalizedLocal
-	}
-	if strings.TrimSpace(local) == "" {
-		return normalizedRemote
-	}
-	if strings.TrimSpace(remote) == "" {
-		return normalizedLocal
-	}
-	if localSnapTime >= remoteSnapTime {
-		return normalizedLocal
-	}
-	return normalizedRemote
-}
-
 // mergeQuickCommands 合并本地和远端的快捷命令列表：
 // - 顺序跟随 last_modified 较新的一边（移动后该边 max 更大）
 // - 重叠项（同 name+command）：按 last_modified 取最新
@@ -1513,11 +1440,6 @@ func (c *ConfigManager) restoreSnapshotToLocal(snap *SyncSnapshot) {
 	if snap.QuickCommands != "" {
 		if err := atomicWriteFile(c.quickCmdFile, []byte(snap.QuickCommands), 0600); err != nil {
 			log.Printf("[restoreSnapshotToLocal] failed to write quick commands: %v", err)
-		}
-	}
-	if snap.FileManagerSettings != "" {
-		if err := atomicWriteFile(c.fileManagerSettingsFile, []byte(snap.FileManagerSettings), 0600); err != nil {
-			log.Printf("[restoreSnapshotToLocal] failed to write file manager settings: %v", err)
 		}
 	}
 	if snap.AIProviders != nil {

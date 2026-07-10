@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/studio-b12/gowebdav"
+
+	ai "luminssh-go/internal/ai"
 )
 
 // parseIntOrDefault 解析字符串为整数，失败时返回默认值
@@ -773,18 +775,31 @@ func (c *ConfigManager) saveCredentialsFile(creds []Credential) error {
 // ImportConnections 合并导入节点：按 host+port+username 判重，本地已存在则跳过，仅新增。
 // incoming 为待导入的明文节点列表，incomingCreds 为待导入的明文凭据列表。
 // 走 saveConnectionsFile/saveCredentialsFile 自动加密 + 原子写，并触发云同步。
-func (c *ConfigManager) ImportConnections(incoming []Connection, incomingCreds []Credential) (ImportResult, error) {
+func (c *ConfigManager) ImportConnections(incoming []Connection, incomingCreds []Credential, incomingProxyNodes ...[]ai.AIProxyNode) (ImportResult, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	localConns := c.getConnectionsLocked()
 	localCreds := c.getCredentialsLocked()
+	localProxyNodes := c.GetAIProxyNodes()
 
 	toAdd, result := mergeImport(localConns, incoming)
-	if len(toAdd) == 0 && len(incomingCreds) == 0 {
+	incomingCreds = filterImportCredentialsForConnections(incomingCreds, toAdd)
+	var importProxyNodes []ai.AIProxyNode
+	if len(incomingProxyNodes) > 0 {
+		importProxyNodes = filterImportProxyNodesForConnections(incomingProxyNodes[0], toAdd)
+	}
+	if len(toAdd) == 0 && len(incomingCreds) == 0 && len(importProxyNodes) == 0 {
+		c.mu.Unlock()
 		// 无需新增任何数据，直接返回统计（仍可能全是重复）
 		return result, nil
 	}
+
+	toAddCreds, credIDMap := mergeImportCredentials(localCreds, incomingCreds)
+	var proxyIDMap map[string]string
+	var toAddProxyNodes []ai.AIProxyNode
+	if len(importProxyNodes) > 0 {
+		toAddProxyNodes, proxyIDMap = mergeImportProxyNodes(localProxyNodes, importProxyNodes)
+	}
+	applyImportReferenceMappings(toAdd, credIDMap, proxyIDMap)
 
 	// 合并节点
 	if len(toAdd) > 0 {
@@ -792,22 +807,31 @@ func (c *ConfigManager) ImportConnections(incoming []Connection, incomingCreds [
 		mergedConns = append(mergedConns, localConns...)
 		mergedConns = append(mergedConns, toAdd...)
 		if err := c.saveConnectionsFile(mergedConns); err != nil {
+			c.mu.Unlock()
 			return result, fmt.Errorf("保存导入的节点失败: %w", err)
 		}
 		c.connCacheDirty = true
 	}
 
 	// 合并凭据（按 ID 去重）
-	if len(incomingCreds) > 0 {
-		toAddCreds := mergeImportCredentials(localCreds, incomingCreds)
-		if len(toAddCreds) > 0 {
-			mergedCreds := make([]Credential, 0, len(localCreds)+len(toAddCreds))
-			mergedCreds = append(mergedCreds, localCreds...)
-			mergedCreds = append(mergedCreds, toAddCreds...)
-			if err := c.saveCredentialsFile(mergedCreds); err != nil {
-				return result, fmt.Errorf("保存导入的凭据失败: %w", err)
-			}
-			c.credCacheDirty = true
+	if len(toAddCreds) > 0 {
+		mergedCreds := make([]Credential, 0, len(localCreds)+len(toAddCreds))
+		mergedCreds = append(mergedCreds, localCreds...)
+		mergedCreds = append(mergedCreds, toAddCreds...)
+		if err := c.saveCredentialsFile(mergedCreds); err != nil {
+			c.mu.Unlock()
+			return result, fmt.Errorf("保存导入的凭据失败: %w", err)
+		}
+		c.credCacheDirty = true
+	}
+	c.mu.Unlock()
+
+	if len(toAddProxyNodes) > 0 {
+		mergedProxyNodes := make([]ai.AIProxyNode, 0, len(localProxyNodes)+len(toAddProxyNodes))
+		mergedProxyNodes = append(mergedProxyNodes, localProxyNodes...)
+		mergedProxyNodes = append(mergedProxyNodes, toAddProxyNodes...)
+		if err := c.SaveAIProxyNodes(mergedProxyNodes); err != nil {
+			return result, fmt.Errorf("保存导入的代理节点失败: %w", err)
 		}
 	}
 

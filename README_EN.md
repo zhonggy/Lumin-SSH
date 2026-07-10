@@ -98,8 +98,9 @@ Lumin is a desktop SSH client for developers and system administrators. Built wi
 ### Cloud Sync (WebDAV / R2 / FTP / SFTP)
 - **Four Cloud Storage Backends** — **WebDAV**, **Cloudflare R2 (S3-compatible)**, **FTP**, **SFTP**
 - **AES-256-GCM Encryption** — Every config change auto-encrypts a snapshot before upload
-- **One-Click Restore** — Configure the same backend on a new machine and restore all servers instantly
-- **Auto-Sync Mode** — Configurable startup merge strategy
+- **One-Click Restore** — Configure the same backend on a new machine and restore servers, credentials, quick commands, AI settings, proxy nodes, and more
+- **Multi-Cloud Merge Sync** — The “All” mode merges all configured cloud backends first, then writes the final result back to every configured backend
+- **Auto-Sync Switch & Mode** — Enable/disable auto-sync independently and choose WebDAV / R2 / FTP / SFTP / All mode
 - **Backup Retention** — Configurable max backup count
 
 ### Local Encryption
@@ -193,11 +194,13 @@ On first run, Lumin creates `Lumin/config/` under the user config directory:
 | `quick_commands.json` | Quick command library |
 | `param_history.json` | Dynamic parameter history |
 | `history/` | Per-server command history |
+| `auto_sync_enabled.json` | Auto-sync master switch |
 | `sync_mode.json` | Auto-sync mode configuration |
 | `last_sync_time` | Last sync timestamp |
 | `snapshot_time` | Snapshot timestamp |
 | `ai_global_settings.json` | AI global settings (provider selection, auto-approve, slash commands, etc.) |
 | `ai_providers.json` | AI provider configuration list |
+| `proxy_nodes.json` | Proxy node list |
 | `tasks/` | AI conversation storage (one subdirectory per conversation, containing metadata, messages, settings) |
 
 ---

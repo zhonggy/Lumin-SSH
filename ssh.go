@@ -19,11 +19,12 @@ import (
 	"sync"
 	"time"
 
+	ai "luminssh-go/internal/ai"
+
 	"github.com/pkg/sftp"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
-	ai "luminssh-go/internal/ai"
 )
 
 // ErrHostKeyChanged 在远程主机密钥发生变化时返回，需要用户确认

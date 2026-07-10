@@ -355,7 +355,8 @@ func (a *App) ExportConnections(useEncryption bool, password string) (string, er
 
 	conns := a.configManager.GetConnections()
 	creds := a.configManager.GetCredentials()
-	exp := buildConnectionsExport(conns, creds)
+	proxyNodes := a.configManager.GetAIProxyNodes()
+	exp := buildConnectionsExportWithProxyNodes(conns, creds, proxyNodes)
 
 	if !useEncryption {
 		// 明文：序列化后直接写文件
@@ -425,7 +426,7 @@ func (a *App) ImportConnections(filePath string, password string) (ImportResult,
 		}
 		return ImportResult{}, fmt.Errorf("导入失败: %w", err)
 	}
-	return a.configManager.ImportConnections(exp.Connections, exp.Credentials)
+	return a.configManager.ImportConnections(exp.Connections, exp.Credentials, exp.ProxyNodes)
 }
 
 // DownloadImportTemplate 下载导入模板（含样例的明文 JSON），方便用户批量录入。

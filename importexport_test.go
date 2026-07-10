@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	ai "luminssh-go/internal/ai"
 	"testing"
 )
 
@@ -179,12 +180,12 @@ func TestBuildConnectionsExport_OnlyReferencedCreds(t *testing.T) {
 	if exp.Credentials[0].ID != "cred1" {
 		t.Fatalf("expected cred1, got %s", exp.Credentials[0].ID)
 	}
-	if exp.Format != connectionsExportFormat {
-		t.Fatalf("wrong format: %s", exp.Format)
+	if exp.SnapshotTime == 0 {
+		t.Fatal("expected snapshot_time to be set")
 	}
 }
 
-// 导出 → 导入 往返测试：导出对象序列化后能被 parseConnectionsExport 正确解析
+// 导出 → 导入 往返测试：导出对象序列化后能被 parseImportData 正确解析
 func TestExportImportRoundTrip(t *testing.T) {
 	conns := []Connection{
 		{ID: "c1", Host: "h1", Port: 22, Username: "root", Password: "secret", AuthMethod: "password"},
@@ -195,7 +196,8 @@ func TestExportImportRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal failed: %v", err)
 	}
-	parsed, err := parseConnectionsExport(data)
+	cm := newTestConfigManager(t)
+	parsed, err := cm.parseImportData(data, [][]byte{}, nil)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
@@ -209,12 +211,24 @@ func TestMergeImportCredentials_SkipExisting(t *testing.T) {
 		{ID: "cred1", Name: "one"},
 	}
 	incoming := []Credential{
-		{ID: "cred1", Name: "one-dup"}, // ID 重复，跳过内容、保留新数据按逻辑是重新生成 ID
+		{ID: "cred1", Name: "one-dup"}, // 本地已有同 ID，导入时复用本地凭据，不新增重复项
 		{ID: "cred2", Name: "two"},     // 新增
 	}
-	toAdd := mergeImportCredentials(local, incoming)
-	if len(toAdd) != 2 {
-		t.Fatalf("expected 2 to add (both get new/distinct handling), got %d", len(toAdd))
+	toAdd, idMap := mergeImportCredentials(local, incoming)
+	if len(toAdd) != 1 || toAdd[0].ID != "cred2" {
+		t.Fatalf("expected only cred2 to add, got %+v", toAdd)
+	}
+	if idMap["cred1"] != "cred1" || idMap["cred2"] != "cred2" {
+		t.Fatalf("unexpected id map: %+v", idMap)
+	}
+}
+
+func TestFilterImportCredentialsForConnections(t *testing.T) {
+	creds := []Credential{{ID: "cred1"}, {ID: "cred2"}}
+	conns := []Connection{{CredentialID: "cred2"}}
+	filtered := filterImportCredentialsForConnections(creds, conns)
+	if len(filtered) != 1 || filtered[0].ID != "cred2" {
+		t.Fatalf("expected only referenced cred2, got %+v", filtered)
 	}
 }
 
@@ -291,6 +305,33 @@ func TestParseImportData_SyncSnapshotFormat(t *testing.T) {
 	}
 }
 
+func TestParseImportData_SyncSnapshotKeepsProxyNodes(t *testing.T) {
+	cm := newTestConfigManager(t)
+	snap := SyncSnapshot{
+		Connections: []Connection{{Host: "snap-host", Port: 22, Username: "u", ProxyMode: "node", ProxyNodeID: "proxy-1"}},
+		ProxyNodes:  []ai.AIProxyNode{{ID: "proxy-1", Name: "Proxy", Type: "socks5", Host: "127.0.0.1", Port: 1080}},
+	}
+	data, _ := json.Marshal(snap)
+	parsed, err := cm.parseImportData(data, [][]byte{}, nil)
+	if err != nil {
+		t.Fatalf("snapshot parse failed: %v", err)
+	}
+	if len(parsed.ProxyNodes) != 1 || parsed.ProxyNodes[0].ID != "proxy-1" {
+		t.Fatalf("snapshot proxy nodes lost: %+v", parsed.ProxyNodes)
+	}
+}
+
+func TestApplyImportReferenceMappings(t *testing.T) {
+	conns := []Connection{{Host: "h", CredentialID: "cred-old", ProxyMode: "node", ProxyNodeID: "proxy-old"}}
+	applyImportReferenceMappings(conns, map[string]string{"cred-old": "cred-new"}, map[string]string{"proxy-old": "proxy-new"})
+	if conns[0].CredentialID != "cred-new" {
+		t.Fatalf("credential id not remapped: %+v", conns[0])
+	}
+	if conns[0].ProxyNodeID != "proxy-new" {
+		t.Fatalf("proxy node id not remapped: %+v", conns[0])
+	}
+}
+
 // TestParseImportData_EncryptedSnapshot 加密的云端备份格式应能用云端密钥解密
 func TestParseImportData_EncryptedSnapshot(t *testing.T) {
 	cm := newTestConfigManager(t)
@@ -348,17 +389,14 @@ func TestParseImportData_PasswordKeyPriority(t *testing.T) {
 // TestBuildImportTemplate 模板应包含 2 条样例且格式合法
 func TestBuildImportTemplate(t *testing.T) {
 	tmpl := buildImportTemplate("zh-CN")
-	if tmpl.Format != connectionsExportFormat {
-		t.Fatalf("wrong format: %s", tmpl.Format)
-	}
 	if len(tmpl.Connections) != 2 {
 		t.Fatalf("expected 2 sample connections, got %d", len(tmpl.Connections))
 	}
-	// 应能被 tryParseExportJSON 正确解析
+	// 应能被 tryParseSnapshotJSON 正确解析
 	data, _ := json.Marshal(tmpl)
-	parsed, ok := tryParseExportJSON(data)
+	parsed, ok := tryParseSnapshotJSON(data)
 	if !ok {
-		t.Fatal("template should parse as connectionsExport")
+		t.Fatal("template should parse as SyncSnapshot")
 	}
 	if len(parsed.Connections) != 2 {
 		t.Fatalf("parsed template has %d connections", len(parsed.Connections))
