@@ -212,6 +212,7 @@ func normalizeAIGlobalSettingsForCompare(settings ai.AIGlobalSettings) ai.AIGlob
 	settings.CurrentProviderID = strings.TrimSpace(settings.CurrentProviderID)
 	settings.AIRequestProxyID = strings.TrimSpace(settings.AIRequestProxyID)
 	settings.ProxyNodes = nil
+	settings.UpdatedAt = 0
 	if settings.AllowedCommands == nil {
 		settings.AllowedCommands = []string{}
 	}

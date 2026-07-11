@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -47,7 +48,7 @@ type AIGlobalSettings struct {
 	MCPAllowBrowserCalls                bool             `json:"mcpAllowBrowserCalls"`
 	TerminalIsolation                   bool             `json:"terminalIsolation"`
 	ConfirmDelete                       bool             `json:"confirmDelete"`
-	ContinueAfterToolRejection         bool             `json:"continueAfterToolRejection"`
+	ContinueAfterToolRejection          bool             `json:"continueAfterToolRejection"`
 	ConversationAutoBackupEnabled       bool             `json:"conversationAutoBackupEnabled"`
 	MessageActionBarAtBottom            bool             `json:"messageActionBarAtBottom"`
 	ApprovalButtonOrder                 string           `json:"approvalButtonOrder"`
@@ -281,6 +282,14 @@ func normalizeAIGlobalSettings(settings AIGlobalSettings) AIGlobalSettings {
 	return settings
 }
 
+func aiGlobalSettingsContentEqual(a, b AIGlobalSettings) bool {
+	a.ProxyNodes = nil
+	b.ProxyNodes = nil
+	a.UpdatedAt = 0
+	b.UpdatedAt = 0
+	return reflect.DeepEqual(a, b)
+}
+
 func LoadAIGlobalSettings(configDir string) AIGlobalSettings {
 	settings := defaultAIGlobalSettings()
 	if strings.TrimSpace(configDir) == "" {
@@ -354,14 +363,25 @@ func (c *ConfigManager) SaveAIGlobalSettings(settings AIGlobalSettings) error {
 	}
 	settings.ProxyNodes = LoadAIProxyNodes(c.configDir)
 	normalized := normalizeAIGlobalSettings(settings)
-	normalized.UpdatedAt = time.Now().UnixMilli()
 	normalized.ProxyNodes = nil
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	existing := defaultAIGlobalSettings()
+	if data, err := os.ReadFile(c.aiGlobalSettingsPath()); err == nil {
+		_ = json.Unmarshal(data, &existing)
+	}
+	existing = normalizeAIGlobalSettings(existing)
+	existing.ProxyNodes = nil
+	if aiGlobalSettingsContentEqual(existing, normalized) {
+		return nil
+	}
+
+	normalized.UpdatedAt = time.Now().UnixMilli()
 	settingsData, err := json.MarshalIndent(normalized, "", "  ")
 	if err != nil {
 		return err
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return atomicWriteFile(c.aiGlobalSettingsPath(), settingsData, 0600)
 }
 
