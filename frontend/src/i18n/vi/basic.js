@@ -361,6 +361,7 @@ export default {
   "剪切": "cắt",
   "重新连接": "kết nối lại",
   "输入命令": "Nhập lệnh",
+  "输入命令(/ 快捷命令)": "Nhập lệnh (/lệnh tắt)",
   "历史": "lịch sử",
   "快捷命令": "Lệnh tắt",
   "命令": "Đặt hàng",

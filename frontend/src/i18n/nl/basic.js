@@ -361,6 +361,7 @@ export default {
   "剪切": "snee",
   "重新连接": "opnieuw verbinden",
   "输入命令": "Voer de opdracht in",
+  "输入命令(/ 快捷命令)": "Voer opdracht in (/snelkoppelingsopdracht)",
   "历史": "geschiedenis",
   "快捷命令": "Snelkoppelingsopdrachten",
   "命令": "Volgorde",

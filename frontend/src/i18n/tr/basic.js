@@ -361,6 +361,7 @@ export default {
   "剪切": "kesmek",
   "重新连接": "yeniden bağlan",
   "输入命令": "Komutu girin",
+  "输入命令(/ 快捷命令)": "Komutu girin (/ kısayol komutu)",
   "历史": "tarih",
   "快捷命令": "Kısayol komutları",
   "命令": "Emir",

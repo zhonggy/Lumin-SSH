@@ -361,6 +361,7 @@ export default {
   "剪切": "střih",
   "重新连接": "znovu připojit",
   "输入命令": "Zadejte příkaz",
+  "输入命令(/ 快捷命令)": "Zadejte příkaz (/ zkratkový příkaz)",
   "历史": "dějiny",
   "快捷命令": "Zkratkové příkazy",
   "命令": "Objednávka",

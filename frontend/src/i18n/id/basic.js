@@ -361,6 +361,7 @@ export default {
   "剪切": "memotong",
   "重新连接": "menyambung kembali",
   "输入命令": "Masukkan perintah",
+  "输入命令(/ 快捷命令)": "Masukkan perintah (/ perintah pintasan)",
   "历史": "sejarah",
   "快捷命令": "Perintah pintasan",
   "命令": "Memesan",

@@ -361,6 +361,7 @@ export default {
   "剪切": "taglio",
   "重新连接": "riconnettersi",
   "输入命令": "Inserisci il comando",
+  "输入命令(/ 快捷命令)": "Inserisci il comando (/comando di scelta rapida)",
   "历史": "storia",
   "快捷命令": "Comandi di scelta rapida",
   "命令": "Ordine",

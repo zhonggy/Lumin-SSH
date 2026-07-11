@@ -361,6 +361,7 @@ export default {
   "剪切": "tăiat",
   "重新连接": "reconectați",
   "输入命令": "Introdu comanda",
+  "输入命令(/ 快捷命令)": "Introduceți comanda (/ comandă de comandă rapidă)",
   "历史": "istorie",
   "快捷命令": "Comenzi de comandă rapidă",
   "命令": "Comanda",
