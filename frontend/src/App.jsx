@@ -3054,9 +3054,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
   }, [dispatchTerminalPaneResize, getSessionPanes, getSessionRootPaneCells, resolveSessionRootTerminalId]);
 
   const activeSession = useMemo(() => sessions.find((s) => s.id === activeSessionId), [sessions, activeSessionId]);
-  const isSessionWorkspaceVisible = useCallback((session) => (
-    !!session && (session.status === 'connected' || restoringWorkspaceSessionIds.has(session.id))
-  ), [restoringWorkspaceSessionIds]);
+  const isSessionWorkspaceVisible = useCallback((session) => !!session, []);
   const activeSessionRootTerminals = useMemo(() => (
     activeSession ? getSessionWorkspaceTabs(activeSession) : []
   ), [activeSession, getSessionWorkspaceTabs]);
@@ -4680,7 +4678,6 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
                         {mountedSessions.has(s.id) && (
                           isSessionWorkspaceVisible(s) ? (() => {
                             const isTerminalViewActive = activeSessionId === s.id && contentTab === 'terminal';
-                            const isWorkspacePreview = s.status !== 'connected';
                             const workspaceTabs = getSessionWorkspaceTabs(s);
                             const activeWorkspaceTab = workspaceTabs.find((tab) => tab.id === activeTerminalId);
                             const activeLayout = activeWorkspaceTab?.type === 'group' ? terminalPaneLayouts[activeWorkspaceTab.id] : null;
@@ -4764,34 +4761,17 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
                                     </div>
                                   )}
                                   <div style={{ flex: 1, minHeight: 0 }}>
-                                    {isWorkspacePreview ? (
-                                      <div
-                                        style={{
-                                          height: '100%',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          color: 'var(--text-tertiary)',
-                                          fontSize: 13,
-                                          letterSpacing: '0.01em',
-                                          background: 'var(--surface-base)',
-                                        }}
-                                      >
-                                        {t('正在恢复终端工作区…')}
-                                      </div>
-                                    ) : (
-                                      <ErrorBoundary label={`终端 ${term.id} 渲染出错`}>
-                                        <Terminal
-                                          sessionId={term.id}
-                                          serverId={s.id}
-                                          historyServerId={s.serverId}
-                                          status={s.status}
-                                          isActive={isTermVisible}
-                                          serverName={s.serverName}
-                                          connectedSessions={connectedSessions}
-                                        />
-                                      </ErrorBoundary>
-                                    )}
+                                    <ErrorBoundary label={`终端 ${term.id} 渲染出错`}>
+                                      <Terminal
+                                        sessionId={term.id}
+                                        serverId={s.id}
+                                        historyServerId={s.serverId}
+                                        status={s.status}
+                                        isActive={isTermVisible}
+                                        serverName={s.serverName}
+                                        connectedSessions={connectedSessions}
+                                      />
+                                    </ErrorBoundary>
                                   </div>
                                 </div>
                               );
