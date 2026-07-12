@@ -1126,13 +1126,12 @@ func (c *ConfigManager) SyncFromWebdav() (map[string]interface{}, error) {
 }
 
 func (c *ConfigManager) RestoreFromWebdavFile(filename string) (map[string]interface{}, error) {
-	return c.restoreFrom(c.newWebdavStorage, filename, c.getRecoveryPasswordKey())
+	return c.restoreFrom(c.newWebdavStorage, filename, c.GetRecoveryPassword())
 }
 
 // RestoreFromWebdavFileWithPassword 用用户输入的密码恢复（恢复失败时的兜底入口）。
 func (c *ConfigManager) RestoreFromWebdavFileWithPassword(filename string, password string) (map[string]interface{}, error) {
-	key := sha256Key(password)
-	return c.restoreFrom(c.newWebdavStorage, filename, key)
+	return c.restoreFrom(c.newWebdavStorage, filename, password)
 }
 
 // ─── 同步模式配置 ─────────────────────────────────────────

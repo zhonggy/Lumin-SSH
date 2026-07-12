@@ -291,11 +291,10 @@ func (c *ConfigManager) SyncFromFTP() (map[string]interface{}, error) {
 }
 
 func (c *ConfigManager) RestoreFromFTPFile(filename string) (map[string]interface{}, error) {
-	return c.restoreFrom(c.newFTPStorage, filename, c.getRecoveryPasswordKey())
+	return c.restoreFrom(c.newFTPStorage, filename, c.GetRecoveryPassword())
 }
 
 // RestoreFromFTPFileWithPassword 用用户输入的密码恢复（恢复失败时的兜底入口）。
 func (c *ConfigManager) RestoreFromFTPFileWithPassword(filename string, password string) (map[string]interface{}, error) {
-	key := sha256Key(password)
-	return c.restoreFrom(c.newFTPStorage, filename, key)
+	return c.restoreFrom(c.newFTPStorage, filename, password)
 }

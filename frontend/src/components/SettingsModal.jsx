@@ -188,6 +188,14 @@ const PROVIDER_LIST = [
 const DEFAULT_FILE_MANAGER_DOWNLOAD_DIR = '${APP_DIR}\\download';
 const AVAILABLE_LANGUAGES = getAvailableLanguages();
 
+function getBackupFormatLabel(name = '') {
+  const lower = String(name).toLowerCase();
+  if (lower.endsWith('.lumin2')) return 'LUMIN2';
+  if (lower.endsWith('.json')) return 'JSON';
+  if (lower.endsWith('.enc')) return 'ENC';
+  return 'UNKNOWN';
+}
+
 function resolveFileManagerDownloadDirPreview(template, programDirectory) {
   const baseDir = String(programDirectory || '').trim();
   const rawTemplate = String(template || '').trim() || DEFAULT_FILE_MANAGER_DOWNLOAD_DIR;
@@ -1411,8 +1419,11 @@ export default function SettingsModal({
                   <div style={{ color: selectedBackup === bk.name ? 'var(--primary)' : 'var(--text-primary)' }}>
                     {bk.time}
                   </div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                    {(bk.size / 1024).toFixed(1)} KB
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: 12 }}>
+                    <span style={{ padding: '2px 6px', borderRadius: 999, border: '1px solid var(--border)', color: getBackupFormatLabel(bk.name) === 'LUMIN2' ? 'var(--success)' : 'var(--text-secondary)' }}>
+                      {getBackupFormatLabel(bk.name)}
+                    </span>
+                    <span>{(bk.size / 1024).toFixed(1)} KB</span>
                   </div>
                 </div>
               ))}

@@ -430,11 +430,13 @@ export default function SyncTab({
       {/* 云端同步 */}
       <div style={{ background: 'var(--surface-overlay)', padding: 24, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>{$t('云端同步')}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>{$t('同步所有配置，全程 AES-256 高强加密')}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>
+          {recoveryPassword ? $t('同步将写入 .lumin2 加密备份') : $t('未开启同步加密时写入明文 .json 备份')}
+        </div>
 
-        {isAnyConfigured && (
+        {autoSyncEnabled && isAnyConfigured && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, marginBottom: 20, color: 'var(--success)', fontSize: 13 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center' }}><Sparkles size={14} /></span> <span><strong>{$t('已开启自动云端备份：')}</strong>{$t('当您添加、编辑、删除服务器或修改配置时，后台将静默保存至云端。')}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}><Sparkles size={14} /></span> <span><strong>{$t('已开启自动云端备份：')}</strong>{$t('添加、编辑、删除时自动同步')}</span>
           </div>
         )}
 

@@ -108,7 +108,7 @@ func (c *ConfigManager) decryptAndParseSnapshot(data string, key []byte, passwor
 		var err error
 		decrypted, err = decryptLUMIN2(strings.TrimSpace(data), password)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("LUMIN2 解密失败，请确认密码是否正确或文件是否损坏: %w", err)
 		}
 	} else {
 		// 1.2.0+ 删除旧 hex 兼容：以下分支仅读取旧 .enc/hex。
@@ -1967,9 +1967,9 @@ func (c *ConfigManager) syncFrom(storageFn func() (RemoteStorage, int, error)) (
 	return c.syncFromProvider(s, max)
 }
 
-// restoreFrom 创建存储、恢复、关闭连接
-// extraKey 通常为恢复密码派生密钥，可为 nil。
-func (c *ConfigManager) restoreFrom(storageFn func() (RemoteStorage, int, error), filename string, extraKey []byte) (map[string]interface{}, error) {
+// restoreFrom 创建存储、恢复、关闭连接。
+// password 为空时仅尝试明文和旧版云端派生密钥；非空时用于 .lumin2 或旧 hex 解密。
+func (c *ConfigManager) restoreFrom(storageFn func() (RemoteStorage, int, error), filename string, password string) (map[string]interface{}, error) {
 	s, max, err := storageFn()
 	if err != nil {
 		return nil, err
@@ -1977,5 +1977,5 @@ func (c *ConfigManager) restoreFrom(storageFn func() (RemoteStorage, int, error)
 	if cl, ok := s.(storageCloser); ok {
 		defer cl.Close()
 	}
-	return restoreResult(c.restoreFromProvider(s, filename, max, c.GetRecoveryPassword()))
+	return restoreResult(c.restoreFromProvider(s, filename, max, password))
 }
