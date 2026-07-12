@@ -568,7 +568,9 @@ func (c *ConfigManager) backupConnections(s RemoteStorage, maxBackups int) (map[
 	}
 
 	if maxBackups > 0 {
-		c.pruneOldBackups(s, maxBackups)
+		if err := c.pruneOldBackups(s, maxBackups); err != nil {
+			return nil, err
+		}
 	}
 
 	return map[string]interface{}{
@@ -579,10 +581,10 @@ func (c *ConfigManager) backupConnections(s RemoteStorage, maxBackups int) (map[
 }
 
 // pruneOldBackups 删除超出数量的最旧备份文件
-func (c *ConfigManager) pruneOldBackups(s RemoteStorage, maxBackups int) {
+func (c *ConfigManager) pruneOldBackups(s RemoteStorage, maxBackups int) error {
 	files, err := s.ListFiles()
 	if err != nil {
-		return
+		return fmt.Errorf("读取备份列表失败: %w", err)
 	}
 
 	type backupEntry struct {
@@ -594,16 +596,18 @@ func (c *ConfigManager) pruneOldBackups(s RemoteStorage, maxBackups int) {
 			backups = append(backups, backupEntry{f.Name})
 		}
 	}
-	if len(backups) > maxBackups {
-		sort.Slice(backups, func(i, j int) bool {
-			return backups[i].name < backups[j].name
-		})
-		for i := 0; i < len(backups)-maxBackups; i++ {
-			if err := s.DeleteFile(backups[i].name); err != nil {
-				log.Printf("pruneOldBackups: failed to delete %s: %v", backups[i].name, err)
-			}
+	if len(backups) <= maxBackups {
+		return nil
+	}
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].name < backups[j].name
+	})
+	for i := 0; i < len(backups)-maxBackups; i++ {
+		if err := s.DeleteFile(backups[i].name); err != nil {
+			return fmt.Errorf("删除旧备份 %s 失败: %w", backups[i].name, err)
 		}
 	}
+	return nil
 }
 
 // listBackupFiles 列出远端备份文件及其元信息
@@ -725,6 +729,10 @@ func (c *ConfigManager) syncFromProvider(s RemoteStorage, maxBackups int) (map[s
 			return nil, fmt.Errorf("上传合并快照失败: %w", berr)
 		}
 		backupResult = br
+	} else if maxBackups > 0 {
+		if err := c.pruneOldBackups(s, maxBackups); err != nil {
+			return nil, fmt.Errorf("清理旧备份失败: %w", err)
+		}
 	}
 	c.saveLastSyncTime(time.Now().UnixMilli())
 
