@@ -108,7 +108,8 @@ jobs:
           name: "Lumin SSH Client ${{ github.ref_name }}"
           body: |
             ## 功能增强
-            - 修复同步功能：避免升级后重复上传提示，并修正 AI 全局设置时间戳导致的重复合并提示
+            - 集成内置 Kimi 模型
+            - 改进 AI 助手约束
 
             ## 产物下载
             - Linux 便携版 ([Lumin-V${{ steps.version.outputs.version }}-linux-amd64](https://github.com/wmwlwmwl/Lumin-SSH/releases/download/v${{ steps.version.outputs.version }}/Lumin-V${{ steps.version.outputs.version }}-linux-amd64))：即下即用
