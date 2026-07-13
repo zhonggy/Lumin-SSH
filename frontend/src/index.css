@@ -284,6 +284,36 @@ textarea:focus:not(:focus-visible) {
   border: 1px solid var(--border-subtle);
 }
 
+/* 全局壁纸层（设置 → 外观 → 应用壁纸到全局） */
+.app-global-wallpaper {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body.global-wallpaper .app-layout {
+  background: transparent;
+  isolation: isolate;
+}
+
+body.global-wallpaper .main-area,
+body.global-wallpaper .dashboard-container,
+body.global-wallpaper .dashboard-right {
+  background: transparent;
+}
+
+body.global-wallpaper .dashboard-left {
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+}
+
+body.global-wallpaper .topbar {
+  background: color-mix(in srgb, var(--surface-raised) 90%, transparent);
+}
+
 /* ── 顶栏 ───────────────────────────────────────────────────── */
 .topbar {
   display: flex;

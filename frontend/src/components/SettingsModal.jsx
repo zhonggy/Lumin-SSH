@@ -324,6 +324,7 @@ export default function SettingsModal({
   const [terminalFontSize, setTerminalFontSize] = useState(parseInt(localStorage.getItem('terminalFontSize') || '13', 10));
   const [termBgImage, setTermBgImage] = useState(localStorage.getItem('termBgImage') || '');
   const [termBgOpacity, setTermBgOpacity] = useState(parseFloat(localStorage.getItem('termBgOpacity') || '0.15'));
+  const [termBgGlobal, setTermBgGlobal] = useState(localStorage.getItem('termBgGlobal') === 'true');
   const [terminalColorTheme, setTerminalColorTheme] = useState(localStorage.getItem('terminalColorTheme') || 'lumin');
   const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') === 'true');
   const [terminalTimestamps, setTerminalTimestamps] = useState(localStorage.getItem('terminalTimestamps') === 'true');
@@ -505,6 +506,13 @@ export default function SettingsModal({
     setTermBgOpacity(val);
     localStorage.setItem('termBgOpacity', String(val));
     window.dispatchEvent(new CustomEvent('terminal-bg-changed'));
+  };
+
+  const handleTermBgGlobalChange = (enabled) => {
+    setTermBgGlobal(enabled);
+    localStorage.setItem('termBgGlobal', String(enabled));
+    window.dispatchEvent(new CustomEvent('terminal-bg-changed'));
+    addToast(enabled ? $t('已将壁纸应用到全局') : $t('已取消全局壁纸'), 'success');
   };
 
   const handleToggleRememberWindowSize = () => {
@@ -1282,6 +1290,8 @@ export default function SettingsModal({
                 onTermBgReset={handleTermBgReset}
                 termBgOpacity={termBgOpacity}
                 onTermBgOpacityChange={handleTermBgOpacityChange}
+                termBgGlobal={termBgGlobal}
+                onTermBgGlobalChange={handleTermBgGlobalChange}
                 rememberWindowSize={rememberWindowSize}
                 onToggleRememberWindowSize={handleToggleRememberWindowSize}
                 onResetWindowSize={handleResetWindowSize}

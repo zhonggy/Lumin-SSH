@@ -31,6 +31,7 @@ import { Bot, Settings, House, Minus, Square, X, Plus, Monitor, RefreshCw, Folde
 import { Z } from './constants/zIndex';
 
 import logoImg from './assets/logo.png';
+import defaultTermBg from './assets/term_bg.png';
 
 function withAlpha(color, alpha, fallback) {
   if (typeof color !== 'string') {
@@ -1314,6 +1315,29 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
     mq.addEventListener('change', applyTheme);
     return () => mq.removeEventListener('change', applyTheme);
   }, []);
+
+  // ── 全局壁纸 ──────────────────────────────────────────
+  const [globalBg, setGlobalBg] = useState(() => ({
+    enabled: localStorage.getItem('termBgGlobal') === 'true',
+    image: localStorage.getItem('termBgImage') || '',
+    opacity: parseFloat(localStorage.getItem('termBgOpacity') || '0.15'),
+  }));
+
+  useEffect(() => {
+    const handleBgChange = () => {
+      setGlobalBg({
+        enabled: localStorage.getItem('termBgGlobal') === 'true',
+        image: localStorage.getItem('termBgImage') || '',
+        opacity: parseFloat(localStorage.getItem('termBgOpacity') || '0.15'),
+      });
+    };
+    window.addEventListener('terminal-bg-changed', handleBgChange);
+    return () => window.removeEventListener('terminal-bg-changed', handleBgChange);
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('global-wallpaper', globalBg.enabled);
+  }, [globalBg.enabled]);
 
   // ── 自动检测更新机制 ────────────────────────────────────
   const { checkUpdate, applyUpdate, downloadProgress } = useUpdateChecker({
@@ -4312,6 +4336,16 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
 
   return (
     <div className="app-layout">
+      {globalBg.enabled && (
+        <div
+          className="app-global-wallpaper"
+          style={{
+            backgroundImage: `url(${globalBg.image || defaultTermBg})`,
+            opacity: globalBg.opacity,
+          }}
+          aria-hidden="true"
+        />
+      )}
       {/* ── Topbar ───────────────────────────────────────── */}
       <div className="topbar">
         <div className="topbar-content">
