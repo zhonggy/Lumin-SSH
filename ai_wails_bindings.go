@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -183,7 +184,13 @@ func (b *AIBindings) SaveAIGlobalSettings(jsonStr string) error {
 	if previous.MCPEnabled != current.MCPEnabled || previous.MCPAllowBrowserCalls != current.MCPAllowBrowserCalls {
 		applyMCPServiceState(b.app)
 	}
-	if b != nil && b.app != nil && b.app.configManager != nil {
+	previous.CurrentProviderID = ""
+	current.CurrentProviderID = ""
+	previous.UpdatedAt = 0
+	current.UpdatedAt = 0
+	previous.ProxyNodes = nil
+	current.ProxyNodes = nil
+	if b != nil && b.app != nil && b.app.configManager != nil && !reflect.DeepEqual(previous, current) {
 		mcp.InitializeClientHub(b.app.configManager.configDir)
 		b.app.configManager.bumpSnapshotTime()
 		go b.app.configManager.AutoSync()
