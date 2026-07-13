@@ -98,6 +98,23 @@ export default {
   "保存中...": "Oszczędność...",
   "保存配置": "Zapisz konfigurację",
   "取消": "Anulować",
+
+  "取消选择": "Usuń zaznaczenie",
+
+
+
+  "选择模式": "Tryb wyboru",
+  "退出选择": "Wyjdź z trybu wyboru",
+  "批量删除": "Usuwanie wsadowe",
+  "服务器已克隆": "Serwery sklonowane",
+
+
+  "克隆失败": "Klonowanie nie powiodło się",
+  "已选择服务器": "wybrane",
+  "批量打开": "Otwieranie wsadowe",
+  "移动分组": "Przenieś grupę",
+  "批量克隆": "Klonowanie wsadowe",
+  "副本": "kopia",
   "连接失败": "Połączenie nie powiodło się",
   "上传成功": "Przesyłanie powiodło się",
   "下载成功": "Pobierz pomyślnie",
@@ -1128,4 +1145,10 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Najpierw zainstaluj środowisko wykonawcze uv, a następnie zainicjuj wbudowany Kimi",
   "Git 命令集": "Zestaw poleceń Git",
   "Docker 命令集": "Zestaw poleceń Dockera",
+
+  "导出选择": "Eksportuj zaznaczone",
+  "导出已选节点": "Eksportuj zaznaczone węzły",
+  "您已选择 {count} 个服务器节点进行导出。": "Wybrano {count} węzłów serwera do eksportu."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "Pomyślnie wyeksportowano {count} zaznaczonych węzłów do {path}"
 };

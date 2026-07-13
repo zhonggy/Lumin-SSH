@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from '../i18n.js';
-import { Monitor, Pencil, Link, Trash2, X, SquarePen, Folder, FolderOpen, ChevronUp, ChevronDown, Copy } from 'lucide-react';
+import { Monitor, Pencil, Link, Trash2, X, SquarePen, Folder, FolderOpen, ChevronUp, ChevronDown, Copy, Trash, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { clampMenuPosition } from '../utils/menuPosition.js';
 import Tiptop from './Tiptop.jsx';
 
@@ -105,6 +105,16 @@ export default function ServerList({
   onMoveGroup,
   addToast,
   saveFlowHighlights = { serverId: null, rowPulse: null, fields: {} },
+  selectionMode = false,
+  selectedIds = [],
+  onSelectChange,
+  onBatchDelete,
+  onBatchConnect,
+  onBatchMoveGroup,
+  onBatchClone,
+  onGroupDelete,
+  onBatchExport,
+  onExitSelectionMode,
 }) {
   const { t } = useTranslation();
   const [menuServer, setMenuServer] = useState(null);
@@ -117,6 +127,9 @@ export default function ServerList({
   });
   const menuRef = useRef(null);
   const menuSourceRef = useRef(null);
+  const lastClickedIndex = useRef(-1); // 记录上次点击的扁平索引，用于 Shift 批量选择
+  const [showMoveGroupDropdown, setShowMoveGroupDropdown] = useState(false);
+  const moveGroupMenuRef = useRef(null);
 
   // 预计算已连接会话的 Map，将 O(n×m) 查找优化为 O(1)
   const connectedSessionMap = useMemo(() => {
@@ -139,6 +152,16 @@ export default function ServerList({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (showMoveGroupDropdown && moveGroupMenuRef.current && !moveGroupMenuRef.current.contains(e.target)) {
+        setShowMoveGroupDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showMoveGroupDropdown]);
 
   useEffect(() => {
     if (!menuServer || !menuRef.current) return;
@@ -231,6 +254,59 @@ export default function ServerList({
     };
   };
 
+  // ── 批量选择逻辑 ──
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const allGroupServerIds = useMemo(() => {
+    const m = {};
+    for (const s of servers) {
+      const g = s.group || '';
+      (m[g] = m[g] || []).push(s.id);
+    }
+    return m;
+  }, [servers]);
+
+  const flatItemsRef = useRef(null);
+
+  const handleServerClick = useCallback((server, flatIdx) => {
+    if (!selectionMode) return;
+    onSelectChange(server.id);
+    lastClickedIndex.current = flatIdx;
+  }, [selectionMode, onSelectChange]);
+
+  const handleShiftClick = useCallback((server, flatIdx) => {
+    if (!selectionMode || lastClickedIndex.current < 0 || !flatItemsRef.current) return;
+    const flatItems = flatItemsRef.current;
+    const start = Math.min(lastClickedIndex.current, flatIdx);
+    const end = Math.max(lastClickedIndex.current, flatIdx);
+    const serverIds = [];
+    for (let i = start; i <= end; i++) {
+      const item = flatItems[i];
+      if (item && item.type === 'server') serverIds.push(item.server.id);
+    }
+    onSelectChange(serverIds);
+    lastClickedIndex.current = flatIdx;
+  }, [selectionMode, onSelectChange]);
+
+  const handleGroupToggleSelect = useCallback((groupName) => {
+    if (!selectionMode) return;
+    const ids = allGroupServerIds[groupName] || [];
+    if (ids.length === 0) return;
+    const alreadyAllSelected = ids.every(id => selectedSet.has(id));
+    onSelectChange(ids.map(id => ({ id, selected: !alreadyAllSelected })));
+  }, [selectionMode, allGroupServerIds, selectedSet, onSelectChange]);
+
+  const isGroupSelected = useCallback((groupName) => {
+    const ids = allGroupServerIds[groupName] || [];
+    return ids.length > 0 && ids.every(id => selectedSet.has(id));
+  }, [allGroupServerIds, selectedSet]);
+
+  const isGroupPartiallySelected = useCallback((groupName) => {
+    const ids = allGroupServerIds[groupName] || [];
+    if (ids.length === 0) return false;
+    const selectedCount = ids.filter(id => selectedSet.has(id)).length;
+    return selectedCount > 0 && selectedCount < ids.length;
+  }, [allGroupServerIds, selectedSet]);
+
   // 按分组组织服务器
   const groupedServers = useMemo(() => {
     const groups = {};
@@ -289,6 +365,9 @@ export default function ServerList({
     return items;
   }, [groupedServers, collapsedGroups]);
 
+  // 同步 flatItems 到 ref，供 handleShiftClick 使用（避免闭包引用问题）
+  flatItemsRef.current = flatItems;
+
   if (servers.length === 0) {
     return (
       <div className="empty-state" style={{ marginTop: 20 }}>
@@ -301,7 +380,7 @@ export default function ServerList({
   }
 
   // Server card 渲染
-  const renderServerCard = (server) => {
+  const renderServerCard = (server, flatIdx) => {
     const ping = pingEnabled ? pings[server.id] : undefined;
     const latClass = ping ? LATENCY_CLASS(ping.latency) : 'offline';
     const active = isActive(server);
@@ -310,19 +389,49 @@ export default function ServerList({
     const osInfo = getOSInfo(server.name, server.os, sessionForServer?.osInfo || null);
     const isHovered = hoveredId === server.id;
     const { rowToken, nameToken, hostToken } = getSaveFlowTokens(server);
+    const isChecked = selectedSet.has(server.id);
+
+    const handleCardClick = (e) => {
+      if (selectionMode) {
+        e.stopPropagation();
+        if (e.shiftKey) {
+          handleShiftClick(server, flatIdx);
+        } else {
+          handleServerClick(server, flatIdx);
+        }
+      } else {
+        onConnect(server);
+      }
+    };
 
     return (
       <Tiptop text={`${server.username}@${server.host}:${server.port || 22}`}>
         <div
           key={`${server.id}-${rowToken || 'stable'}`}
           data-server-update-id={server.id}
-          className={`server-card ${active ? 'active' : ''}${rowToken ? ' save-flow-hit' : ''}`}
-          onClick={() => onConnect(server)}
+          className={`server-card ${active ? 'active' : ''}${rowToken ? ' save-flow-hit' : ''}${selectionMode && isChecked ? 'selected' : ''}`}
+          onClick={handleCardClick}
           onContextMenu={(e) => handleContextMenu(e, server)}
           onMouseEnter={() => setHoveredId(server.id)}
           onMouseLeave={() => setHoveredId(null)}
           style={{ margin: 0 }}
         >
+          {selectionMode && (
+            <div
+              className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+              style={{ marginRight: 8 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectChange(server.id);
+              }}
+            >
+              {isChecked && (
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+          )}
           <div style={{
             width: 34, height: 34, borderRadius: 8,
             background: osInfo.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -402,7 +511,7 @@ export default function ServerList({
     <>
       {viewMode === 'grid' ? (
       <div className="server-grid">
-        {flatItems.map((item) =>
+        {flatItems.map((item, idx) =>
           item.type === 'header' ? (
             <div
               key={`__group_${item.groupName || 'ungrouped'}`}
@@ -417,11 +526,44 @@ export default function ServerList({
                 userSelect: 'none',
               }}
             >
+              {selectionMode && (
+                <div
+                  className={`custom-checkbox ${isGroupSelected(item.groupName) ? 'checked' : isGroupPartiallySelected(item.groupName) ? 'indeterminate' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); handleGroupToggleSelect(item.groupName); }}
+                >
+                  {isGroupSelected(item.groupName) ? (
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : isGroupPartiallySelected(item.groupName) ? (
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="4" y1="12" x2="20" y2="12" />
+                    </svg>
+                  ) : null}
+                </div>
+              )}
               <span onClick={() => toggleGroup(item.groupName)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', flex: 1 }}>
                 {item.collapsed ? <Folder size={14} /> : <FolderOpen size={14} />}
                 <span>{item.groupName || t('未分组')}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>({item.count})</span>
               </span>
+              {selectionMode && item.groupName && onGroupDelete && (
+                <Tiptop text={t('删除分组')} placement="bottom">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const ids = allGroupServerIds[item.groupName];
+                      if (ids && ids.length > 0 && onGroupDelete) {
+                        onGroupDelete(item.groupName, ids);
+                      }
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--danger)', display: 'flex', borderRadius: 4 }}
+                    aria-label={t('删除分组')}
+                  >
+                    <Trash size={13} />
+                  </button>
+                </Tiptop>
+              )}
               {item.groupName && (
                 <span style={{ display: 'flex', gap: 2 }}>
                   <Tiptop text={t('上移')}>
@@ -433,7 +575,7 @@ export default function ServerList({
                 </span>
               )}
             </div>
-          ) : renderServerCard(item.server)
+          ) : renderServerCard(item.server, idx)
         )}
       </div>
       ) : (
@@ -441,6 +583,7 @@ export default function ServerList({
         <table className="server-table">
           <thead>
             <tr>
+              {selectionMode && <th style={{ width: 36 }}></th>}
               <th>{t('系统')}</th>
               <th>{t('别名')}</th>
               <th>{t('主机地址')}</th>
@@ -450,59 +593,123 @@ export default function ServerList({
             </tr>
           </thead>
           <tbody>
-            {flatItems.map((item) => {
-              if (item.type === 'header') {
-                return (
-                  <tr key={`__group_${item.groupName || 'ungrouped'}`}>
-                    <td
-                      colSpan={6}
-                      style={{
-                        padding: '6px 8px',
-                        color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
-                        userSelect: 'none', background: 'var(--surface-sunken)',
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: '100%' }}>
-                        <span onClick={() => toggleGroup(item.groupName)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', flex: 1 }}>
-                          {item.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />}
-                          {item.groupName || t('未分组')}
-                          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>({item.count})</span>
-                        </span>
-                        {item.groupName && (
-                          <span style={{ display: 'flex', gap: 2 }}>
-                            <Tiptop text={t('上移')}>
-                              <button onClick={(e) => { e.stopPropagation(); moveGroup(item.groupName, -1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-tertiary)', display: 'flex' }} aria-label={t('上移')}><ChevronUp size={12} /></button>
-                            </Tiptop>
-                            <Tiptop text={t('下移')}>
-                              <button onClick={(e) => { e.stopPropagation(); moveGroup(item.groupName, 1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-tertiary)', display: 'flex' }} aria-label={t('下移')}><ChevronDown size={12} /></button>
-                            </Tiptop>
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              }
-              const server = item.server;
-              const ping = pingEnabled ? pings[server.id] : undefined;
-              const latClass = ping ? LATENCY_CLASS(ping.latency) : 'offline';
-              const active = isActive(server);
-              const connected = hasSession(server);
-              const sessionForServer = connectedSessionMap.get(server.id);
-              const osInfo = getOSInfo(server.name, server.os, sessionForServer?.osInfo || null);
-              const isHovered = hoveredId === server.id;
-              const { rowToken, nameToken, hostToken, usernameToken } = getSaveFlowTokens(server);
+             {flatItems.map((item, idx) => {
+               if (item.type === 'header') {
+                 return (
+                   <tr key={`__group_${item.groupName || 'ungrouped'}`}>
+                     <td
+                       colSpan={6 + (selectionMode ? 1 : 0)}
+                       style={{
+                         padding: '6px 8px',
+                         color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
+                         userSelect: 'none', background: 'var(--surface-sunken)',
+                       }}
+                     >
+                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, width: '100%' }}>
+                         {selectionMode && (
+                           <div
+                             className={`custom-checkbox ${isGroupSelected(item.groupName) ? 'checked' : isGroupPartiallySelected(item.groupName) ? 'indeterminate' : ''}`}
+                             onClick={(e) => { e.stopPropagation(); handleGroupToggleSelect(item.groupName); }}
+                           >
+                             {isGroupSelected(item.groupName) ? (
+                               <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                 <polyline points="20 6 9 17 4 12" />
+                               </svg>
+                             ) : isGroupPartiallySelected(item.groupName) ? (
+                               <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                 <line x1="4" y1="12" x2="20" y2="12" />
+                               </svg>
+                             ) : null}
+                           </div>
+                         )}
+                         <span onClick={() => toggleGroup(item.groupName)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', flex: 1 }}>
+                           {item.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />}
+                           {item.groupName || t('未分组')}
+                           <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>({item.count})</span>
+                         </span>
+                         {selectionMode && item.groupName && onGroupDelete && (
+                           <Tiptop text={t('删除分组')} placement="bottom">
+                             <button
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 const ids = allGroupServerIds[item.groupName];
+                                 if (ids && ids.length > 0 && onGroupDelete) {
+                                   onGroupDelete(item.groupName, ids);
+                                 }
+                               }}
+                               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--danger)', display: 'inline-flex', borderRadius: 4 }}
+                               aria-label={t('删除分组')}
+                             >
+                               <Trash size={12} />
+                             </button>
+                           </Tiptop>
+                         )}
+                         {item.groupName && (
+                           <span style={{ display: 'inline-flex', gap: 2 }}>
+                             <Tiptop text={t('上移')}>
+                               <button onClick={(e) => { e.stopPropagation(); moveGroup(item.groupName, -1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-tertiary)', display: 'inline-flex' }} aria-label={t('上移')}><ChevronUp size={12} /></button>
+                             </Tiptop>
+                             <Tiptop text={t('下移')}>
+                               <button onClick={(e) => { e.stopPropagation(); moveGroup(item.groupName, 1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-tertiary)', display: 'inline-flex' }} aria-label={t('下移')}><ChevronDown size={12} /></button>
+                             </Tiptop>
+                           </span>
+                         )}
+                       </span>
+                     </td>
+                   </tr>
+                 );
+               }
+               const server = item.server;
+               const ping = pingEnabled ? pings[server.id] : undefined;
+               const latClass = ping ? LATENCY_CLASS(ping.latency) : 'offline';
+               const active = isActive(server);
+               const connected = hasSession(server);
+               const sessionForServer = connectedSessionMap.get(server.id);
+               const osInfo = getOSInfo(server.name, server.os, sessionForServer?.osInfo || null);
+               const isHovered = hoveredId === server.id;
+               const { rowToken, nameToken, hostToken, usernameToken } = getSaveFlowTokens(server);
+               const isChecked = selectedSet.has(server.id);
 
-              return (
-                <tr
-                  key={`${server.id}-${rowToken || 'stable'}`}
-                  data-server-update-id={server.id}
-                  className={`server-table-row ${active ? 'active' : ''}${rowToken ? ' save-flow-hit' : ''}`}
-                  onClick={() => onConnect(server)}
-                  onContextMenu={(e) => handleContextMenu(e, server)}
+               const handleTableRowClick = (e) => {
+                 if (selectionMode) {
+                   e.stopPropagation();
+                   if (e.shiftKey) {
+                     handleShiftClick(server, idx);
+                   } else {
+                     handleServerClick(server, idx);
+                   }
+                 } else {
+                   onConnect(server);
+                 }
+               };
+
+               return (
+                 <tr
+                   key={`${server.id}-${rowToken || 'stable'}`}
+                   data-server-update-id={server.id}
+                   className={`server-table-row ${active ? 'active' : ''}${rowToken ? ' save-flow-hit' : ''}${selectionMode && isChecked ? 'selected' : ''}`}
+                   onClick={handleTableRowClick}
+                   onContextMenu={(e) => handleContextMenu(e, server)}
                   onMouseEnter={() => setHoveredId(server.id)}
                   onMouseLeave={() => setHoveredId(null)}
-                >
+                 >
+                  {selectionMode && (
+                    <td style={{ width: 36, padding: '4px 8px' }}>
+                      <div
+                        className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectChange(server.id);
+                        }}
+                       >
+                         {isChecked && (
+                           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                             <polyline points="20 6 9 17 4 12" />
+                           </svg>
+                         )}
+                       </div>
+                    </td>
+                  )}
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 20, height: 20, color: osInfo.accent }}>{osInfo.icon}</div>
@@ -633,8 +840,9 @@ export default function ServerList({
           >
             <Trash2 size={14} style={{ marginRight: 8 }} /> {t('删除')}
           </div>
-        </div>
-      )}
-    </>
-  );
+         </div>
+       )}
+
+     </>
+   );
 }

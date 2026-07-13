@@ -327,6 +327,11 @@ func (a *App) DeleteConnection(id string) bool {
 	return a.configManager.DeleteConnection(id)
 }
 
+// BatchDeleteConnections removes multiple connections at once
+func (a *App) BatchDeleteConnections(ids []string) {
+	a.configManager.BatchDeleteConnections(ids)
+}
+
 // ExportConnections 导出全部节点到用户选择的文件。
 // useEncryption=false 导出明文 .json（含真实密码/私钥）；true 导出密文 .lumin2。
 // password 非空时用于 LUMIN2 PBKDF2 派生；空则用本机恢复密码（与云端同步加密口径一致）。
@@ -370,6 +375,85 @@ func (a *App) ExportConnections(useEncryption bool, password string) (string, er
 
 	if !useEncryption {
 		// 明文：序列化后直接写文件
+		data, err := json.MarshalIndent(exp, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("导出失败: %w", err)
+		}
+		if err := atomicWriteFile(path, data, 0600); err != nil {
+			return "", fmt.Errorf("导出失败: %w", err)
+		}
+		return path, nil
+	}
+
+	// 密文：序列化 → LUMIN2 加密
+	encrypted, err := a.configManager.encryptExportData(exp, password)
+	if err != nil {
+		return "", fmt.Errorf("导出失败: %w", err)
+	}
+	if err := atomicWriteFile(path, []byte(encrypted), 0600); err != nil {
+		return "", fmt.Errorf("导出失败: %w", err)
+	}
+	return path, nil
+}
+
+// ExportConnectionsByIDs 按 ID 列表导出节点到用户选择的文件。
+// ids 为空时等同导出全部（向后兼容 ExportConnections）。
+// useEncryption=false 导出明文 .json；true 导出密文 .lumin2。
+// password 非空时用于 LUMIN2 PBKDF2 派生；空则用本机恢复密码。
+func (a *App) ExportConnectionsByIDs(ids []string, useEncryption bool, password string) (string, error) {
+	if useEncryption && strings.TrimSpace(password) == "" {
+		password = a.configManager.GetRecoveryPassword()
+		if password == "" {
+			return "", fmt.Errorf("未设置恢复密码，请输入自定义密码或先在同步设置中设置恢复密码")
+		}
+	}
+
+	// 保存对话框
+	ext := ".json"
+	title := "导出节点"
+	if useEncryption {
+		ext = ".lumin2"
+	}
+	timestamp := time.Now().Format("20060102_150405.000_-0700")
+	defaultName := fmt.Sprintf("lumin-ssh-connections-%s%s", timestamp, ext)
+	filters := []runtime.FileFilter{
+		{DisplayName: fmt.Sprintf("Lumin-SSH (*%s)", ext), Pattern: "*" + ext},
+	}
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           title,
+		DefaultFilename: defaultName,
+		Filters:         filters,
+	})
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", nil
+	}
+
+	allConns := a.configManager.GetConnections()
+
+	// 按 ID 过滤（空列表 = 全部）
+	var conns []Connection
+	if len(ids) == 0 {
+		conns = allConns
+	} else {
+		idSet := make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			idSet[id] = struct{}{}
+		}
+		for _, c := range allConns {
+			if _, ok := idSet[c.ID]; ok {
+				conns = append(conns, c)
+			}
+		}
+	}
+
+	creds := a.configManager.GetCredentials()
+	proxyNodes := a.configManager.GetAIProxyNodes()
+	exp := buildConnectionsExportWithProxyNodes(conns, creds, proxyNodes)
+
+	if !useEncryption {
 		data, err := json.MarshalIndent(exp, "", "  ")
 		if err != nil {
 			return "", fmt.Errorf("导出失败: %w", err)
@@ -489,6 +573,16 @@ func (a *App) HasRecoveryPassword() bool {
 // SetConnectionGroup 仅更新服务器分组
 func (a *App) SetConnectionGroup(id string, group string) error {
 	return a.configManager.SetConnectionGroup(id, group)
+}
+
+// BatchSetConnectionGroup 批量更新服务器分组
+func (a *App) BatchSetConnectionGroup(ids []string, group string) error {
+	return a.configManager.BatchSetConnectionGroup(ids, group)
+}
+
+// BatchCloneConnections 批量克隆服务器
+func (a *App) BatchCloneConnections(ids []string, suffix string) error {
+	return a.configManager.BatchCloneConnections(ids, suffix)
 }
 
 // SetConnectionOS 仅更新服务器操作系统

@@ -98,6 +98,23 @@ export default {
   "保存中...": "Besparing...",
   "保存配置": "Configuratie opslaan",
   "取消": "Annuleren",
+
+  "取消选择": "Selectie opheffen",
+
+
+
+  "选择模式": "Selectiemodus",
+  "退出选择": "Selectie beëindigen",
+  "批量删除": "Batchverwijdering",
+  "服务器已克隆": "Servers gekloond",
+
+
+  "克隆失败": "Klonen mislukt",
+  "已选择服务器": "Geselecteerd",
+  "批量打开": "Batch openen",
+  "移动分组": "Groep verplaatsen",
+  "批量克隆": "Batch klonen",
+  "副本": "Kopiëren",
   "连接失败": "Verbinding mislukt",
   "上传成功": "Uploaden gelukt",
   "下载成功": "Downloaden gelukt",
@@ -1128,4 +1145,10 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Installeer eerst de uv runtime-omgeving en initialiseer vervolgens de ingebouwde Kimi",
   "Git 命令集": "Git-opdrachtenset",
   "Docker 命令集": "Docker-opdrachtenset",
+
+  "导出选择": "Selectie exporteren",
+  "导出已选节点": "Geselecteerde knooppunten exporteren",
+  "您已选择 {count} 个服务器节点进行导出。": "U hebt {count} serverknooppunten geselecteerd om te exporteren."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "Succesvol {count} geselecteerde knooppunten geëxporteerd naar {path}"
 };

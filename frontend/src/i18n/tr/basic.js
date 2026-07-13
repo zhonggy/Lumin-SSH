@@ -98,6 +98,23 @@ export default {
   "保存中...": "Kaydediliyor...",
   "保存配置": "Yapılandırmayı kaydet",
   "取消": "İptal etmek",
+
+  "取消选择": "Seçimi temizle",
+
+
+
+  "选择模式": "Seçim modu",
+  "退出选择": "Seçim modundan çık",
+  "批量删除": "Toplu sil",
+  "服务器已克隆": "Sunucular kopyalandı",
+
+
+  "克隆失败": "Klonlama başarısız",
+  "已选择服务器": "seçildi",
+  "批量打开": "Toplu aç",
+  "移动分组": "Grubu taşı",
+  "批量克隆": "Toplu kopyala",
+  "副本": "kopya",
   "连接失败": "Bağlantı başarısız oldu",
   "上传成功": "Yükleme başarılı",
   "下载成功": "İndirme başarılı",
@@ -1128,4 +1145,10 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Lütfen önce uv çalışma zamanı ortamını yükleyin ve ardından yerleşik Kimi'yi başlatın.",
   "Git 命令集": "Git komut seti",
   "Docker 命令集": "Docker komut seti",
+
+  "导出选择": "Seçilenleri Dışa Aktar",
+  "导出已选节点": "Seçilen Düğümleri Dışa Aktar",
+  "您已选择 {count} 个服务器节点进行导出。": "Dışa aktarmak için {count} sunucu düğümü seçtiniz."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "Seçilen {count} düğüm başarıyla {path} konumuna aktarıldı"
 };

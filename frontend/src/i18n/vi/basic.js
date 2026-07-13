@@ -98,6 +98,23 @@ export default {
   "保存中...": "Đang lưu...",
   "保存配置": "Lưu cấu hình",
   "取消": "Hủy bỏ",
+
+  "取消选择": "Bỏ chọn",
+
+
+
+  "选择模式": "Chế độ chọn",
+  "退出选择": "Thoát chọn",
+  "批量删除": "Xóa hàng loạt",
+  "服务器已克隆": "Máy chủ đã được nhân bản",
+
+
+  "克隆失败": "Nhân bản thất bại",
+  "已选择服务器": "Đã chọn",
+  "批量打开": "Mở hàng loạt",
+  "移动分组": "Di chuyển nhóm",
+  "批量克隆": "Nhân bản hàng loạt",
+  "副本": "Sao chép",
   "连接失败": "Kết nối không thành công",
   "上传成功": "Tải lên thành công",
   "下载成功": "Tải xuống thành công",
@@ -1128,4 +1145,10 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Vui lòng cài đặt môi trường thời gian chạy uv trước rồi khởi tạo Kimi tích hợp",
   "Git 命令集": "Bộ lệnh Git",
   "Docker 命令集": "Bộ lệnh Docker",
+
+  "导出选择": "Xuất phần đã chọn",
+  "导出已选节点": "Xuất các nút đã chọn",
+  "您已选择 {count} 个服务器节点进行导出。": "Bạn đã chọn {count} nút máy chủ để xuất."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "Đã xuất thành công {count} nút được chọn sang {path}"
 };

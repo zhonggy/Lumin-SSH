@@ -1,4 +1,5 @@
-import { BarChart3, Monitor, Search, LayoutGrid, List, Eye, EyeOff, RefreshCw, Database } from 'lucide-react';
+import { BarChart3, Monitor, Search, LayoutGrid, List, Eye, EyeOff, RefreshCw, Database, CheckSquare, Folder, Copy, Download, Trash2, X } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from '../i18n.js';
 import AddServerModal from './AddServerModal.jsx';
 import ServerList from './ServerList.jsx';
@@ -14,8 +15,40 @@ export default function Dashboard({
   filteredServers, pings, sessions, activeSessionId,
   onConnect, onStartAdd, onEdit, onClone, onDelete, onMoveGroup, addToast,
   onOpenImportExport,
+  selectionMode = false,
+  selectedIds = [],
+  onSelectChange,
+  onBatchDelete,
+  onBatchConnect,
+  onBatchMoveGroup,
+  onBatchClone,
+  onGroupDelete,
+  onSelectionModeToggle,
+  onBatchExport,
+  onExitSelectionMode,
 }) {
   const { t } = useTranslation();
+
+  const [showMoveGroupDropdown, setShowMoveGroupDropdown] = useState(false);
+  const moveGroupMenuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (moveGroupMenuRef.current && !moveGroupMenuRef.current.contains(event.target)) {
+        setShowMoveGroupDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const existingGroups = useMemo(() => {
+    const groups = new Set();
+    servers.forEach(s => {
+      if (s.group) groups.add(s.group);
+    });
+    return Array.from(groups).sort();
+  }, [servers]);
 
   return (
     <div className="dashboard-container">
@@ -81,6 +114,17 @@ export default function Dashboard({
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 12 }}>
+              {/* 选择模式开关 */}
+              <Tiptop text={selectionMode ? t('退出选择') : t('选择模式')} placement="bottom">
+                <button
+                  className="btn btn-ghost btn-icon"
+                  onClick={onSelectionModeToggle}
+                  aria-label={selectionMode ? t('退出选择') : t('选择模式')}
+                  style={selectionMode ? { background: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent)' } : {}}
+                >
+                  <CheckSquare size={14} />
+                </button>
+              </Tiptop>
               {/* 视图切换 - 分段控件 */}
               <div className="segment-control">
                 <Tiptop text={t('卡片视图')} placement="bottom">
@@ -129,7 +173,7 @@ export default function Dashboard({
             </div>
           </div>
 
-          <div className="hosts-scroll-area">
+          <div className={`hosts-scroll-area ${selectionMode ? 'batch-mode-active' : ''}`}>
             <ServerList
               servers={filteredServers}
               pingEnabled={pingEnabled}
@@ -145,8 +189,143 @@ export default function Dashboard({
               onDelete={onDelete}
               onMoveGroup={onMoveGroup}
               addToast={addToast}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onSelectChange={onSelectChange}
+              onBatchDelete={onBatchDelete}
+              onBatchConnect={onBatchConnect}
+              onBatchMoveGroup={onBatchMoveGroup}
+              onBatchClone={onBatchClone}
+              onGroupDelete={onGroupDelete}
+              onBatchExport={onBatchExport}
+              onExitSelectionMode={onExitSelectionMode}
             />
           </div>
+
+          {/* Batch Operation Bar */}
+          {selectionMode && onBatchDelete && (
+            <div className="batch-operation-bar">
+              <div className="selected-info">
+                <span className="selected-count-badge">{selectedIds.length}</span>
+                <span>{t('已选择服务器')}</span>
+              </div>
+              <div style={{ flex: 1 }} />
+              
+              {onBatchConnect && (
+                <button
+                  onClick={() => onBatchConnect(selectedIds)}
+                  className="btn-batch-primary"
+                  disabled={selectedIds.length === 0}
+                >
+                  <Monitor size={14} />
+                  {t('批量打开')}
+                </button>
+              )}
+
+              {onBatchMoveGroup && (
+                <div ref={moveGroupMenuRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setShowMoveGroupDropdown(prev => !prev)}
+                    className="btn-batch-action"
+                    disabled={selectedIds.length === 0}
+                  >
+                    <Folder size={14} />
+                    {t('移动分组')}
+                  </button>
+                  {showMoveGroupDropdown && selectedIds.length > 0 && (
+                    <div
+                      className="context-menu"
+                      style={{
+                        position: 'absolute',
+                        bottom: '100%',
+                        left: 0,
+                        marginBottom: 8,
+                        zIndex: 110,
+                        display: 'block',
+                        minWidth: 140,
+                      }}
+                    >
+                      <div style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                        {t('移动到分组')}
+                      </div>
+                      {existingGroups.map(g => (
+                        <div
+                          key={g}
+                          className="context-menu-item"
+                          onClick={() => {
+                            onBatchMoveGroup(selectedIds, g);
+                            setShowMoveGroupDropdown(false);
+                          }}
+                        >
+                          <Folder size={12} style={{ marginRight: 8 }} />
+                          {g}
+                        </div>
+                      ))}
+                      <div className="context-menu-divider" />
+                      <div
+                        className="context-menu-item"
+                        onClick={() => {
+                          onBatchMoveGroup(selectedIds, '');
+                          setShowMoveGroupDropdown(false);
+                        }}
+                      >
+                        <X size={12} style={{ marginRight: 8 }} />
+                        {t('移出分组')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {onBatchClone && (
+                <button
+                  onClick={() => onBatchClone(selectedIds)}
+                  className="btn-batch-action"
+                  disabled={selectedIds.length === 0}
+                >
+                  <Copy size={14} />
+                  {t('批量克隆')}
+                </button>
+              )}
+
+              {onBatchExport && (
+                <button
+                  onClick={() => onBatchExport(selectedIds)}
+                  className="btn-batch-action"
+                  disabled={selectedIds.length === 0}
+                >
+                  <Download size={14} />
+                  {t('导出选择')}
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  if (selectedIds.length > 0) {
+                    onSelectChange([]);
+                  } else if (onExitSelectionMode) {
+                    onExitSelectionMode();
+                  }
+                }}
+                className="btn-cancel"
+              >
+                {selectedIds.length > 0 ? t('取消选择') : t('退出选择')}
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (await window.luminDialog?.confirm(`${t('确定删除')} ${selectedIds.length} ${t('个服务器')}？`)) {
+                    onBatchDelete(selectedIds);
+                  }
+                }}
+                className="btn-delete-batch"
+                disabled={selectedIds.length === 0}
+              >
+                <Trash2 size={14} />
+                {t('批量删除')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

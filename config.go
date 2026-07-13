@@ -619,6 +619,91 @@ func (c *ConfigManager) SetConnectionGroup(id string, group string) error {
 	return c.updateConnectionField(id, func(conn *Connection) { conn.Group = group })
 }
 
+// BatchSetConnectionGroup 批量更新服务器的分组字段，仅触发一次写入和云同步
+func (c *ConfigManager) BatchSetConnectionGroup(ids []string, group string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	idMap := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idMap[id] = true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	conns := c.getConnectionsLocked()
+	modified := false
+	now := time.Now().UnixMilli()
+	for i, conn := range conns {
+		if idMap[conn.ID] {
+			conns[i].Group = group
+			conns[i].LastModified = now
+			modified = true
+		}
+	}
+	if !modified {
+		return nil
+	}
+	if err := c.saveConnectionsFile(conns); err != nil {
+		return err
+	}
+	c.bumpSnapshotTime()
+	c.connCacheDirty = true
+	go c.AutoSync()
+	return nil
+}
+
+// BatchCloneConnections 批量复制连接，仅触发一次写入和云同步
+func (c *ConfigManager) BatchCloneConnections(ids []string, suffix string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	idMap := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idMap[id] = true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	conns := c.getConnectionsLocked()
+
+	// Create copies of the requested connections
+	var copies []Connection
+	now := time.Now().UnixMilli()
+	for _, conn := range conns {
+		if idMap[conn.ID] {
+			// Clone connection details
+			copyConn := conn
+			// Generate new ID
+			b := make([]byte, 8)
+			if _, err := rand.Read(b); err != nil {
+				copyConn.ID = strconv.FormatInt(time.Now().UnixNano(), 10)
+			} else {
+				copyConn.ID = fmt.Sprintf("%x", b)
+			}
+			if conn.Name != "" {
+				copyConn.Name = conn.Name + suffix
+			} else {
+				copyConn.Name = conn.Host + suffix
+			}
+			copyConn.LastModified = now
+			sanitizeConnectionProxyConfig(&copyConn)
+			copies = append(copies, copyConn)
+		}
+	}
+	if len(copies) == 0 {
+		return nil
+	}
+
+	// Append copies to connections
+	conns = append(conns, copies...)
+	if err := c.saveConnectionsFile(conns); err != nil {
+		return err
+	}
+	c.bumpSnapshotTime()
+	c.connCacheDirty = true
+	go c.AutoSync()
+	return nil
+}
+
 // SetConnectionOS 仅更新服务器的操作系统字段；值未变化时不触发同步。
 func (c *ConfigManager) SetConnectionOS(id string, osValue string) error {
 	c.mu.Lock()
@@ -686,6 +771,40 @@ func (c *ConfigManager) DeleteConnection(id string) bool {
 
 	go c.AutoSync()
 	return true
+}
+
+// BatchDeleteConnections 批量删除多个连接，清理历史文件，触发同步
+func (c *ConfigManager) BatchDeleteConnections(ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	deleteSet := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		deleteSet[id] = true
+	}
+	c.mu.Lock()
+	conns := c.getConnectionsLocked()
+	filtered := make([]Connection, 0, len(conns))
+	for _, conn := range conns {
+		if !deleteSet[conn.ID] {
+			filtered = append(filtered, conn)
+		}
+	}
+	if len(filtered) == len(conns) {
+		c.mu.Unlock()
+		return
+	}
+	if err := c.saveConnectionsFile(filtered); err != nil {
+		log.Printf("[BatchDeleteConnections] failed to save connections: %v", err)
+	}
+	c.bumpSnapshotTime()
+	c.connCacheDirty = true
+	c.mu.Unlock()
+
+	for _, id := range ids {
+		os.Remove(filepath.Join(c.historyDir, id+".json"))
+	}
+	go c.AutoSync()
 }
 
 // ── Credential 凭据管理 ──────────────────────────────────────────
