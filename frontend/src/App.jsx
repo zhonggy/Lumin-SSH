@@ -2466,6 +2466,22 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
     return () => { if (unbind) unbind(); };
   }, []);
 
+  // ── 监听 SSH 连接状态事件 ─────────────────────────────────
+  useEffect(() => {
+    const unbind = EventsOn('ssh-status', (data) => {
+      const sessionId = typeof data?.sessionId === 'string' ? data.sessionId : '';
+      if (!sessionId) return;
+      const status = typeof data?.status === 'string' ? data.status : '';
+      if (status === 'post-auth-slow') {
+        const message = t('SSH 已认证，但打开终端通道响应较慢，服务器可能正在恢复或负载较高。');
+        setConnectingServers((prev) => prev.map((item) => (
+          item.sessionId === sessionId ? { ...item, status, message } : item
+        )));
+      }
+    });
+    return () => { if (unbind) unbind(); };
+  }, [t]);
+
   // ── 监听同步状态事件 ──────────────────────────────────────
   useEffect(() => {
     const unbind = EventsOn('sync-status', (data) => {

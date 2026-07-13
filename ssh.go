@@ -30,6 +30,11 @@ import (
 // ErrHostKeyChanged 在远程主机密钥发生变化时返回，需要用户确认
 var ErrHostKeyChanged = errors.New("host key has changed")
 
+const (
+	postAuthSlowNoticeTimeout = 10 * time.Second
+	postAuthChannelTimeout    = 30 * time.Second
+)
+
 // PendingHostKey 保存等待用户确认的主机密钥变更信息
 type PendingHostKey struct {
 	Conn           Connection
@@ -121,6 +126,46 @@ func isTransientNetError(err error) bool {
 		strings.Contains(s, "unexpected EOF")
 }
 
+func (m *SSHManager) runPostAuthStep(ctx context.Context, cancel context.CancelFunc, sessionId string, client *ssh.Client, closeClientOnStop bool, fn func() error) error {
+	done := make(chan error, 1)
+	go func() {
+		done <- fn()
+	}()
+
+	noticeTimer := time.NewTimer(postAuthSlowNoticeTimeout)
+	defer noticeTimer.Stop()
+	timeoutTimer := time.NewTimer(postAuthChannelTimeout)
+	defer timeoutTimer.Stop()
+
+	for {
+		select {
+		case err := <-done:
+			return err
+		case <-ctx.Done():
+			if closeClientOnStop && client != nil {
+				client.Close()
+			}
+			return fmt.Errorf("连接已取消")
+		case <-noticeTimer.C:
+			if m != nil && m.ctx != nil {
+				runtime.EventsEmit(m.ctx, "ssh-status", map[string]interface{}{
+					"sessionId": sessionId,
+					"status":    "post-auth-slow",
+					"message":   "SSH 已认证，但打开终端通道响应较慢，服务器可能正在恢复或负载较高。",
+				})
+			}
+		case <-timeoutTimer.C:
+			if cancel != nil {
+				cancel()
+			}
+			if closeClientOnStop && client != nil {
+				client.Close()
+			}
+			return fmt.Errorf("SSH 已认证，但打开终端通道超时。服务器可能暂时无法创建终端会话，请稍后重试")
+		}
+	}
+}
+
 func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 	// 去除密码首尾空白（防止复制粘贴带入不可见字符）
 	conn.Password = strings.TrimSpace(conn.Password)
@@ -139,12 +184,10 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 	m.mu.RUnlock()
 
 	var client *ssh.Client
-	var sftpClient *sftp.Client
 	clientCreated := false
 
 	if clientExists {
 		client = existingEntry.Client
-		sftpClient = existingEntry.SFTP
 	} else {
 		// Setup auth methods
 		// keyboard-interactive 优先，因为部分服务器不提供 password 方法
@@ -358,37 +401,16 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 			break
 		}
 
-		var sftpErr error
-		sftpClient, sftpErr = sftp.NewClient(client)
-		if sftpErr != nil {
-			// SFTP 不可用（如部分嵌入式系统不支持 sftp subsystem），文件管理功能不可用但不影响终端
-			if m.ctx != nil {
-				runtime.EventsEmit(m.ctx, "ssh-status", map[string]interface{}{
-					"sessionId": sessionId,
-					"status":    "sftp-unavailable",
-					"host":      conn.Host,
-					"port":      conn.Port,
-					"username":  conn.Username,
-					"error":     sftpErr.Error(),
-				})
-			}
-			sftpClient = nil
-		}
-
 		// 重新检查 connKey 是否已被并发 Connect 写入；若是则丢弃新连接，复用已有连接
 		m.mu.Lock()
 		if existing, ok := m.clients[connKey]; ok && existing.Client != nil {
 			m.mu.Unlock()
-			// 关闭刚刚新建的连接和 sftp，改用已存在的连接
-			if sftpClient != nil {
-				sftpClient.Close()
-			}
+			// 关闭刚刚新建的连接，改用已存在的连接
 			client.Close()
 			client = existing.Client
-			sftpClient = existing.SFTP
 			clientCreated = false
 		} else {
-			m.clients[connKey] = &sshClientEntry{Client: client, SFTP: sftpClient}
+			m.clients[connKey] = &sshClientEntry{Client: client, SFTP: nil}
 			m.connTerminals[connKey] = []string{}
 			m.mu.Unlock()
 
@@ -452,34 +474,77 @@ func (m *SSHManager) Connect(sessionId string, conn Connection) error {
 		}
 	}
 
-	shellPath := detectRemoteShell(client)
-	launchCmd, remoteHistoryActive := buildShellLaunchCommand(shellPath, conn.TerminalInitPath)
+	parent := context.Background()
+	if m.ctx != nil {
+		parent = m.ctx
+	}
+	postAuthCtx, cancelPostAuth := context.WithCancel(parent)
+	m.pendingMu.Lock()
+	m.pendingCancels[sessionId] = cancelPostAuth
+	m.pendingMu.Unlock()
+	defer func() {
+		m.pendingMu.Lock()
+		delete(m.pendingCancels, sessionId)
+		m.pendingMu.Unlock()
+	}()
 
-	err := m.setupSession(client, connKey, sessionId, "", launchCmd, remoteHistoryActive, shellPath, conn.TerminalInitPath)
+	var shellPath string
+	err := m.runPostAuthStep(postAuthCtx, cancelPostAuth, sessionId, client, clientCreated, func() error {
+		shellPath = detectRemoteShell(client)
+		launchCmd, remoteHistoryActive := buildShellLaunchCommand(shellPath, conn.TerminalInitPath)
+		return m.setupSession(postAuthCtx, client, connKey, sessionId, "", launchCmd, remoteHistoryActive, shellPath, conn.TerminalInitPath)
+	})
 	if err != nil {
 		// setupSession 失败（如 PTY 请求失败）：仅清理本路径新建的 client/sftp，
 		// 复用的共享 client 不能关，否则会级联断开同连接的其他终端
 		m.mu.Lock()
-		if entry, ok := m.clients[connKey]; ok && entry.Client == client {
-			delete(m.clients, connKey)
-			delete(m.connTerminals, connKey)
+		if sd, ok := m.sessions[sessionId]; ok {
+			if sd.Stdin != nil {
+				sd.Stdin.Close()
+			}
+			if sd.Session != nil {
+				sd.Session.Close()
+			}
+			delete(m.sessions, sessionId)
+		}
+		if clientCreated {
+			if entry, ok := m.clients[connKey]; ok && entry.Client == client {
+				delete(m.clients, connKey)
+				delete(m.connTerminals, connKey)
+			}
+		} else if terminals, ok := m.connTerminals[connKey]; ok {
+			next := terminals[:0]
+			for _, tid := range terminals {
+				if tid != sessionId {
+					next = append(next, tid)
+				}
+			}
+			m.connTerminals[connKey] = next
 		}
 		m.mu.Unlock()
 		if clientCreated {
-			if sftpClient != nil {
-				sftpClient.Close()
-			}
 			client.Close()
 		}
+		return err
 	}
-	return err
+	if clientCreated {
+		go m.initSFTPClient(sessionId, connKey, conn, client)
+	}
+	return nil
 }
 
 // setupSession 创建 shell session 的共享逻辑
-func (m *SSHManager) setupSession(client *ssh.Client, connKey, sessionId, groupSessionId, launchCmd string, remoteHistoryActive bool, shellPath string, terminalInitPath string) error {
+func (m *SSHManager) setupSession(ctx context.Context, client *ssh.Client, connKey, sessionId, groupSessionId, launchCmd string, remoteHistoryActive bool, shellPath string, terminalInitPath string) error {
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	session, err := client.NewSession()
 	if err != nil {
 		return err
+	}
+	if ctx != nil && ctx.Err() != nil {
+		session.Close()
+		return ctx.Err()
 	}
 
 	modes := ssh.TerminalModes{
@@ -491,6 +556,10 @@ func (m *SSHManager) setupSession(client *ssh.Client, connKey, sessionId, groupS
 	if err := session.RequestPty("xterm-256color", 24, 80, modes); err != nil {
 		session.Close()
 		return err
+	}
+	if ctx != nil && ctx.Err() != nil {
+		session.Close()
+		return ctx.Err()
 	}
 
 	stdin, err := session.StdinPipe()
@@ -518,6 +587,10 @@ func (m *SSHManager) setupSession(client *ssh.Client, connKey, sessionId, groupS
 		session.Close()
 		return err
 	}
+	if ctx != nil && ctx.Err() != nil {
+		session.Close()
+		return ctx.Err()
+	}
 
 	var historyStream *commandHistoryStream
 	if remoteHistoryActive {
@@ -525,6 +598,11 @@ func (m *SSHManager) setupSession(client *ssh.Client, connKey, sessionId, groupS
 	}
 
 	m.mu.Lock()
+	if ctx != nil && ctx.Err() != nil {
+		m.mu.Unlock()
+		session.Close()
+		return ctx.Err()
+	}
 	sd := &SessionData{
 		ConnKey:             connKey,
 		Session:             session,
@@ -546,6 +624,32 @@ func (m *SSHManager) setupSession(client *ssh.Client, connKey, sessionId, groupS
 	go m.pipeOutput(sessionId, stderr, nil)
 
 	return nil
+}
+
+func (m *SSHManager) initSFTPClient(sessionId string, connKey string, conn Connection, client *ssh.Client) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		if m.ctx != nil {
+			runtime.EventsEmit(m.ctx, "ssh-status", map[string]interface{}{
+				"sessionId": sessionId,
+				"status":    "sftp-unavailable",
+				"host":      conn.Host,
+				"port":      conn.Port,
+				"username":  conn.Username,
+				"error":     err.Error(),
+			})
+		}
+		return
+	}
+	m.mu.Lock()
+	entry, ok := m.clients[connKey]
+	if !ok || entry.Client != client {
+		m.mu.Unlock()
+		sftpClient.Close()
+		return
+	}
+	entry.SFTP = sftpClient
+	m.mu.Unlock()
 }
 
 func (m *SSHManager) watchClient(connKey string, client *ssh.Client) {
@@ -831,7 +935,7 @@ func (m *SSHManager) OpenTerminal(sessionId string) (string, error) {
 
 	launchCmd, remoteHistoryActive := buildShellLaunchCommand(existing.ShellPath, existing.TerminalInitPath)
 
-	err := m.setupSession(entry.Client, connKey, newId, sessionId, launchCmd, remoteHistoryActive, existing.ShellPath, existing.TerminalInitPath)
+	err := m.setupSession(context.Background(), entry.Client, connKey, newId, sessionId, launchCmd, remoteHistoryActive, existing.ShellPath, existing.TerminalInitPath)
 	if err != nil {
 		return "", err
 	}

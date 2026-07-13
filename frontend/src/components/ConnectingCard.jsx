@@ -8,6 +8,8 @@ export default function ConnectingCard({ connectingServer, t, onCancel }) {
   const server = connectingServer.server;
   const host = server.host;
   const port = server.port || 22;
+  const isPostAuthSlow = connectingServer.status === 'post-auth-slow';
+  const message = connectingServer.message || t('正在建立 SSH 连接，请稍候...');
 
   return (
     <div style={{
@@ -73,9 +75,16 @@ export default function ConnectingCard({ connectingServer, t, onCancel }) {
         </div>
 
         {/* 提示文字 */}
-        <div style={{ fontSize: 12, color: C.statusBarColor, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ animation: 'spin 1.5s linear infinite', display: 'inline-flex', alignItems: 'center' }}><Loader2 size={14} /></span>
-          {t('正在建立 SSH 连接，请稍候...')}
+        <div style={{ fontSize: 12, color: isPostAuthSlow ? 'var(--warning)' : C.statusBarColor, display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.5 }}>
+          <span style={{ animation: 'spin 1.5s linear infinite', display: 'inline-flex', alignItems: 'center', marginTop: 2 }}><Loader2 size={14} /></span>
+          <span>
+            {message}
+            {isPostAuthSlow && (
+              <span style={{ display: 'block', color: C.mutedColor, marginTop: 4 }}>
+                {t('仍在继续等待，总等待时间达到 30 秒后会自动断开。')}
+              </span>
+            )}
+          </span>
         </div>
       </div>
     </div>

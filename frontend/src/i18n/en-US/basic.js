@@ -1,6 +1,8 @@
 export const LANGUAGE_LABEL = "English";
 
 export default {
+  "SSH 已认证，但打开终端通道响应较慢，服务器可能正在恢复或负载较高。": "SSH is authenticated, but opening the terminal channel is taking longer than usual. The server may be recovering or under heavy load.",
+  "仍在继续等待，总等待时间达到 30 秒后会自动断开。": "Still waiting. The connection will be closed automatically when the total wait time reaches 30 seconds.",
   "服务器别名（选填）": "Server Alias (Optional)",
   "例如：我的测试服": "e.g. Test Server",
   "主机地址 *": "Host Address *",
