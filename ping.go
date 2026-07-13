@@ -46,30 +46,23 @@ func measureLatency(connConfig Connection) (int64, bool) {
 	dialMs := connectedAt.Sub(start).Milliseconds()
 	defer conn.Close()
 
-	conn.SetDeadline(time.Now().Add(3 * time.Second))
-
 	usesProxy := connectionUsesProxy(connConfig)
 	isTUN := !usesProxy && dialMs < 50 && !isLocalOrPrivateIP(connConfig.Host)
-
-	// 仅在使用了代理或检测为 TUN 模式时，才写入客户端 Banner 以激活延迟连接，直连模式下发送 0 字节以节省流量
-	var writeErr error
-	if usesProxy || isTUN {
-		_, writeErr = conn.Write([]byte("SSH-2.0-LuminPing\r\n"))
+	if !usesProxy && !isTUN {
+		return dialMs, true
 	}
 
+	conn.SetDeadline(time.Now().Add(3 * time.Second))
+
+	_, writeErr := conn.Write([]byte("SSH-2.0-LuminPing\r\n"))
 	buf := make([]byte, 64)
 	n, err := conn.Read(buf)
 	bannerMs := time.Since(connectedAt).Milliseconds()
 
-	// 如果写入错误、读取错误或读入字节为0，代表 SSH 服务不可用，直接判定为离线
 	if writeErr != nil || err != nil || n == 0 {
 		return 0, false
 	}
-
-	if usesProxy || isTUN {
-		return bannerMs, true
-	}
-	return dialMs, true
+	return bannerMs, true
 }
 
 // PingServer returns the latency to the SSH port.

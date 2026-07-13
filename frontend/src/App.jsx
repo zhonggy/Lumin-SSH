@@ -1260,6 +1260,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
   }, [markWorkspaceRestoreNavigationOverride, resolveSessionRootTerminalId, setAIPanelVisibility]);
 
   const pingTimerRef = useRef(null);
+  const pingInFlightRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
@@ -1962,21 +1963,27 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
 
   // ── Ping all servers ───────────────────────────────────────
   const pingAll = useCallback(async () => {
+    if (pingInFlightRef.current) return;
     const list = serversRef.current;
     if (list.length === 0) return;
-    const results = await Promise.all(
-      list.map(async (s) => {
-        try {
-          const res = await AppGo.PingServer(s.id);
-          return { id: s.id, ...res };
-        } catch {
-          return { id: s.id, online: false, latency: null };
-        }
-      })
-    );
-    const map = {};
-    results.forEach((r) => { map[r.id] = { online: r.online, latency: r.latency }; });
-    setPings(map);
+    pingInFlightRef.current = true;
+    try {
+      const results = await Promise.all(
+        list.map(async (s) => {
+          try {
+            const res = await AppGo.PingServer(s.id);
+            return { id: s.id, ...res };
+          } catch {
+            return { id: s.id, online: false, latency: null };
+          }
+        })
+      );
+      const map = {};
+      results.forEach((r) => { map[r.id] = { online: r.online, latency: r.latency }; });
+      setPings(map);
+    } finally {
+      pingInFlightRef.current = false;
+    }
   }, []);
 
   useEffect(() => {
