@@ -1317,10 +1317,16 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
   }, []);
 
   // ── 全局壁纸 ──────────────────────────────────────────
+  const readTermBgOpacity = () => {
+    const n = parseFloat(localStorage.getItem('termBgOpacity') ?? '0.15');
+    if (!Number.isFinite(n)) return 0.15;
+    return Math.min(1, Math.max(0, n));
+  };
+
   const [globalBg, setGlobalBg] = useState(() => ({
     enabled: localStorage.getItem('termBgGlobal') === 'true',
     image: localStorage.getItem('termBgImage') || '',
-    opacity: parseFloat(localStorage.getItem('termBgOpacity') || '0.15'),
+    opacity: readTermBgOpacity(),
   }));
 
   useEffect(() => {
@@ -1328,7 +1334,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
       setGlobalBg({
         enabled: localStorage.getItem('termBgGlobal') === 'true',
         image: localStorage.getItem('termBgImage') || '',
-        opacity: parseFloat(localStorage.getItem('termBgOpacity') || '0.15'),
+        opacity: readTermBgOpacity(),
       });
     };
     window.addEventListener('terminal-bg-changed', handleBgChange);
@@ -1337,6 +1343,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
 
   useEffect(() => {
     document.body.classList.toggle('global-wallpaper', globalBg.enabled);
+    return () => document.body.classList.remove('global-wallpaper');
   }, [globalBg.enabled]);
 
   // ── 自动检测更新机制 ────────────────────────────────────
@@ -4340,7 +4347,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
         <div
           className="app-global-wallpaper"
           style={{
-            backgroundImage: `url(${globalBg.image || defaultTermBg})`,
+            backgroundImage: `url("${globalBg.image || defaultTermBg}")`,
             opacity: globalBg.opacity,
           }}
           aria-hidden="true"

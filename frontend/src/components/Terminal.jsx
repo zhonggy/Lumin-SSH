@@ -846,16 +846,22 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   }, [isActive, sessionId]);
 
   // ── 背景管理与刷新 ─────────────────────────────────────────────────
+  const readTermBgOpacity = () => {
+    const n = parseFloat(localStorage.getItem('termBgOpacity') ?? '0.15');
+    if (!Number.isFinite(n)) return 0.15;
+    return Math.min(1, Math.max(0, n));
+  };
+
   const [bgInfo, setBgInfo] = useState({
     image: localStorage.getItem('termBgImage') || '',
-    opacity: parseFloat(localStorage.getItem('termBgOpacity') || '0.15')
+    opacity: readTermBgOpacity(),
   });
 
   useEffect(() => {
     const handleBgChange = () => {
       setBgInfo({
         image: localStorage.getItem('termBgImage') || '',
-        opacity: parseFloat(localStorage.getItem('termBgOpacity') || '0.15')
+        opacity: readTermBgOpacity(),
       });
     };
     window.addEventListener('terminal-bg-changed', handleBgChange);
@@ -1470,7 +1476,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       <div style={{
         position: 'absolute',
         inset: 0,
-        backgroundImage: `url(${bgInfo.image || defaultTermBg})`,
+        backgroundImage: `url("${bgInfo.image || defaultTermBg}")`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         opacity: bgInfo.opacity,

@@ -284,7 +284,9 @@ textarea:focus:not(:focus-visible) {
   border: 1px solid var(--border-subtle);
 }
 
-/* 全局壁纸层（设置 → 外观 → 应用壁纸到全局） */
+/* 全局壁纸层（设置 → 外观 → 应用壁纸到全局）
+   保留 app-layout 的 surface-base 底色，壁纸以负 z-index 叠在底色之上、内容之下，
+   避免 WebView 透出窗口底色导致壁纸发灰/发虚。 */
 .app-global-wallpaper {
   position: absolute;
   inset: 0;
@@ -296,7 +298,6 @@ textarea:focus:not(:focus-visible) {
 }
 
 body.global-wallpaper .app-layout {
-  background: transparent;
   isolation: isolate;
 }
 

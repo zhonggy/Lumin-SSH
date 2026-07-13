@@ -323,7 +323,11 @@ export default function SettingsModal({
   const [language, setLanguage] = useState(localStorage.getItem('appLanguage') || 'zh-CN');
   const [terminalFontSize, setTerminalFontSize] = useState(parseInt(localStorage.getItem('terminalFontSize') || '13', 10));
   const [termBgImage, setTermBgImage] = useState(localStorage.getItem('termBgImage') || '');
-  const [termBgOpacity, setTermBgOpacity] = useState(parseFloat(localStorage.getItem('termBgOpacity') || '0.15'));
+  const [termBgOpacity, setTermBgOpacity] = useState(() => {
+    const n = parseFloat(localStorage.getItem('termBgOpacity') ?? '0.15');
+    if (!Number.isFinite(n)) return 0.15;
+    return Math.min(1, Math.max(0, n));
+  });
   const [termBgGlobal, setTermBgGlobal] = useState(localStorage.getItem('termBgGlobal') === 'true');
   const [terminalColorTheme, setTerminalColorTheme] = useState(localStorage.getItem('terminalColorTheme') || 'lumin');
   const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') === 'true');
@@ -502,17 +506,23 @@ export default function SettingsModal({
   };
 
   const handleTermBgOpacityChange = (e) => {
-    const val = parseFloat(e.target.value);
+    const raw = parseFloat(e.target.value);
+    const val = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0.15;
     setTermBgOpacity(val);
     localStorage.setItem('termBgOpacity', String(val));
     window.dispatchEvent(new CustomEvent('terminal-bg-changed'));
   };
 
   const handleTermBgGlobalChange = (enabled) => {
-    setTermBgGlobal(enabled);
-    localStorage.setItem('termBgGlobal', String(enabled));
+    const next = !!enabled;
+    setTermBgGlobal(next);
+    try {
+      localStorage.setItem('termBgGlobal', String(next));
+    } catch (_) {
+      // private mode / quota — still apply in-memory for this session
+    }
     window.dispatchEvent(new CustomEvent('terminal-bg-changed'));
-    addToast(enabled ? $t('已将壁纸应用到全局') : $t('已取消全局壁纸'), 'success');
+    addToast(next ? $t('已将壁纸应用到全局') : $t('已取消全局壁纸'), 'success');
   };
 
   const handleToggleRememberWindowSize = () => {
