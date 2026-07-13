@@ -24,6 +24,7 @@ import ConnectingCard from './components/ConnectingCard.jsx';
 import UpdateModal from './components/UpdateModal.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import ImportExportDialog from './components/ImportExportDialog.jsx';
+import ExportSelectedDialog from './components/ExportSelectedDialog.jsx';
 import Tiptop from './components/Tiptop.jsx';
 import { restoreAIChatTool } from './components/ai/aiChatBridge.js';
 import { Bot, Settings, House, Minus, Square, X, Plus, Monitor, RefreshCw, Folder, ScrollText, Cpu, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, Globe, Rocket } from 'lucide-react';
@@ -347,6 +348,9 @@ export default function App() {
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
   const cancelledConnectionsRef = useRef(new Set());
   const [activeSessionId, setActiveSessionId] = useState(null);
+  // 批量选择
+  const [batchSelectionMode, setBatchSelectionMode] = useState(false);
+  const [selectedServerIds, setSelectedServerIds] = useState([]);
   const activeSessionIdRef = useRef(null);
   useEffect(() => { activeSessionIdRef.current = activeSessionId; }, [activeSessionId]);
   const [activeTerminalId, setActiveTerminalId] = useState(null);
@@ -3680,8 +3684,83 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
     }
   }, [addToast]);
 
+  const handleBatchDelete = useCallback(async (ids) => {
+    try {
+      await AppGo.BatchDeleteConnections(ids);
+      setServers((prev) => prev.filter((s) => !ids.includes(s.id)));
+      setSelectedServerIds([]);
+      addToast(t('服务器已删除'), 'success');
+    } catch {
+      addToast(t('删除失败'), 'error');
+    }
+  }, [addToast]);
+
+  const handleGroupDelete = useCallback(async (groupName, ids) => {
+    if (await window.luminDialog?.confirm(`${t('确定删除')}「${groupName}」分组的 ${ids.length} ${t('个服务器')}？`)) {
+      await handleBatchDelete(ids);
+    }
+  }, [handleBatchDelete, t]);
+
+  const handleBatchConnect = useCallback(async (ids) => {
+    const targets = servers.filter((s) => ids.includes(s.id));
+    for (const server of targets) {
+      connectServer(server);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    setSelectedServerIds([]);
+    setBatchSelectionMode(false);
+  }, [servers, connectServer]);
+
+  const handleBatchMoveGroup = useCallback(async (ids, group) => {
+    try {
+      await AppGo.BatchSetConnectionGroup(ids, group);
+      addToast(t('已移动到分组') + (group ? `「${group}」` : ''), 'success');
+    } catch (err) {
+      addToast(err?.message || err || t('移动分组'), 'error');
+    } finally {
+      try {
+        await loadServers();
+      } catch (err) {
+        console.error('Failed to load servers:', err);
+      }
+      setSelectedServerIds([]);
+    }
+  }, [loadServers, addToast, t]);
+
+
+
+  const toggleBatchSelection = useCallback((idOrArray) => {
+    if (Array.isArray(idOrArray)) {
+      // 传入数组：切换/设置多个
+      if (idOrArray.length === 0) {
+        setSelectedServerIds([]);
+        return;
+      }
+      // 如果传入的是带 selected 属性的对象数组
+      if (idOrArray[0] && typeof idOrArray[0] === 'object' && 'selected' in idOrArray[0]) {
+        const newSet = new Set(selectedServerIds);
+        idOrArray.forEach(({ id, selected }) => {
+          if (selected) newSet.add(id); else newSet.delete(id);
+        });
+        setSelectedServerIds([...newSet]);
+        return;
+      }
+      setSelectedServerIds(idOrArray);
+      return;
+    }
+    // 传入单个 id：切换选中状态
+    setSelectedServerIds((prev) => {
+      if (prev.includes(idOrArray)) {
+        return prev.filter((id) => id !== idOrArray);
+      }
+      return [...prev, idOrArray];
+    });
+  }, [selectedServerIds]);
+
   // ── 节点导入/导出（数据管理） ───────────────────────────────
   const [showImportExportDialog, setShowImportExportDialog] = useState(false);
+  const [showExportSelectedDialog, setShowExportSelectedDialog] = useState(false);
+  const [exportSelectedIds, setExportSelectedIds] = useState([]);
   const [ieBusy, setIeBusy] = useState(false);
   const [hasRecoveryPassword, setHasRecoveryPassword] = useState(false);
 
@@ -3696,7 +3775,12 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
   const handleExport = useCallback(async (opts) => {
     setIeBusy(true);
     try {
-      const path = await AppGo.ExportConnections(!!opts.useEncryption, opts.password || '');
+      let path = '';
+      if (opts.serverIds && opts.serverIds.length > 0) {
+        path = await AppGo.ExportConnectionsByIDs(opts.serverIds, !!opts.useEncryption, opts.password || '');
+      } else {
+        path = await AppGo.ExportConnections(!!opts.useEncryption, opts.password || '');
+      }
       if (!path) { return; } // 用户取消保存对话框
       addToast(t('已导出到 {path}', { path }), 'success');
     } catch (err) {
@@ -3705,6 +3789,30 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
       setIeBusy(false);
     }
   }, [addToast, t]);
+
+  const handleBatchExport = useCallback(async (ids) => {
+    try {
+      const configured = await AppGo.HasRecoveryPassword();
+      setHasRecoveryPassword(!!configured);
+    } catch { setHasRecoveryPassword(false); }
+    setExportSelectedIds(ids);
+    setShowExportSelectedDialog(true);
+  }, []);
+
+  const handleExportSelected = useCallback(async (opts) => {
+    setIeBusy(true);
+    try {
+      const path = await AppGo.ExportConnectionsByIDs(exportSelectedIds, !!opts.useEncryption, opts.password || '');
+      if (!path) { return; } // 用户取消保存对话框
+      addToast(t('已成功导出选择的 {count} 个节点到 {path}', { count: exportSelectedIds.length, path }), 'success');
+      setShowExportSelectedDialog(false);
+      setExportSelectedIds([]);
+    } catch (err) {
+      addToast(`${t('导出失败')}: ${err}`, 'error');
+    } finally {
+      setIeBusy(false);
+    }
+  }, [exportSelectedIds, addToast, t]);
 
   // 导入流程：选文件 → 尝试导入 → 若需要密码则弹 luminDialog.prompt 取密码 → 重试
   // 注意：用单一 try-finally 包裹全流程，保证任意路径退出（含用户取消文件选择/
@@ -4429,6 +4537,19 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
             addToast={addToast}
             onOpenCredentials={() => setShowCredentials(true)}
             onOpenImportExport={handleOpenImportExport}
+            selectionMode={batchSelectionMode}
+            selectedIds={selectedServerIds}
+            onSelectChange={toggleBatchSelection}
+            onBatchDelete={handleBatchDelete}
+            onBatchConnect={handleBatchConnect}
+            onBatchMoveGroup={handleBatchMoveGroup}
+            onGroupDelete={handleGroupDelete}
+            onBatchExport={handleBatchExport}
+            onExitSelectionMode={() => setBatchSelectionMode(false)}
+            onSelectionModeToggle={() => setBatchSelectionMode(prev => {
+              if (!prev) return true;
+              return false;
+            })}
           />
         </div>
 
@@ -5134,6 +5255,19 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
           onDownloadTemplate={handleDownloadTemplate}
           hasRecoveryPassword={hasRecoveryPassword}
           busy={ieBusy}
+        />
+      )}
+
+      {showExportSelectedDialog && (
+        <ExportSelectedDialog
+          onClose={() => {
+            setShowExportSelectedDialog(false);
+            setExportSelectedIds([]);
+          }}
+          onExport={handleExportSelected}
+          hasRecoveryPassword={hasRecoveryPassword}
+          busy={ieBusy}
+          selectedCount={exportSelectedIds.length}
         />
       )}
 

@@ -98,6 +98,22 @@ export default {
   "保存中...": "Ukládání...",
   "保存配置": "Uložit konfiguraci",
   "取消": "Zrušit",
+
+  "取消选择": "Zrušit výběr",
+
+
+
+  "选择模式": "Režim výběru",
+  "退出选择": "Ukončit výběr",
+  "批量删除": "Dávkové smazání",
+  "服务器已克隆": "Servery byly naklonovány",
+
+
+  "克隆失败": "Klonování selhalo",
+  "已选择服务器": "Vybráno",
+  "批量打开": "Hromadné otevření",
+  "移动分组": "Přesunout skupinu",
+  "副本": "Kopie",
   "连接失败": "Připojení se nezdařilo",
   "上传成功": "Nahrání proběhlo úspěšně",
   "下载成功": "Stahování proběhlo úspěšně",
@@ -1128,4 +1144,12 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Nejprve nainstalujte běhové prostředí uv a poté inicializujte vestavěný Kimi",
   "Git 命令集": "Sada příkazů Git",
   "Docker 命令集": "Sada příkazů Docker",
+
+  "导出选择": "Exportovat vybrané",
+  "导出已选节点": "Exportovat vybrané uzly",
+  "您已选择 {count} 个服务器节点进行导出。": "Vybrali jste {count} serverových uzlů k exportu."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "Úspěšně exportováno {count} vybraných uzlů do {path}"
+,
+  "取消全选": "Zrušit výběr všeho"
 };

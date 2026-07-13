@@ -98,6 +98,22 @@ export default {
   "保存中...": "Économie...",
   "保存配置": "Enregistrer la configuration",
   "取消": "Annuler",
+
+  "取消选择": "Désélectionner",
+
+
+
+  "选择模式": "Mode de sélection",
+  "退出选择": "Quitter la sélection",
+  "批量删除": "Supprimer en lot",
+  "服务器已克隆": "Serveurs clonés",
+
+
+  "克隆失败": "Échec du clonage",
+  "已选择服务器": "sélectionné",
+  "批量打开": "Ouvrir en lot",
+  "移动分组": "Déplacer le groupe",
+  "副本": "copie",
   "连接失败": "La connexion a échoué",
   "上传成功": "Téléchargement réussi",
   "下载成功": "Téléchargement réussi",
@@ -1128,4 +1144,12 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Veuillez d'abord installer l'environnement d'exécution uv, puis initialiser le Kimi intégré",
   "Git 命令集": "Ensemble de commandes Git",
   "Docker 命令集": "Ensemble de commandes Docker",
+
+  "导出选择": "Exporter la sélection",
+  "导出已选节点": "Exporter les nœuds sélectionnés",
+  "您已选择 {count} 个服务器节点进行导出。": "Vous avez sélectionné {count} nœuds de serveur à exporter."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "{count} nœuds sélectionnés exportés avec succès vers {path}"
+,
+  "取消全选": "Désélectionner tout"
 };

@@ -1,22 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Database, Upload, Download, FileDown, Eye, EyeOff, X } from 'lucide-react';
+import { Database, Download, Eye, EyeOff, X } from 'lucide-react';
 import { useTranslation } from '../i18n.js';
-import Tiptop from './Tiptop.jsx';
 import { Z } from '../constants/zIndex';
 
 /**
- * 数据管理弹窗：导入 / 导出 / 下载模板。
- * 受控组件，由父级条件渲染。
+ * 导出已选择节点弹窗。
  *
  * props:
  *   onClose          关闭回调
  *   onExport(opts)   导出回调，opts = { useEncryption: bool, password: string }
- *   onImport()       导出回调（内部会处理密码重试）
- *   onDownloadTemplate()  下载模板回调
- *   hasRecoveryPassword bool  本机是否设置了恢复密码（决定是否允许复用恢复密码）
- *   busy             bool  操作进行中（禁用按钮）
+ *   hasRecoveryPassword bool  本机是否设置了恢复密码
+ *   busy             bool  操作进行中
+ *   selectedCount    number 已选择的服务器数量
  */
-export default function ImportExportDialog({ onClose, onExport, onImport, onDownloadTemplate, hasRecoveryPassword, busy }) {
+export default function ExportSelectedDialog({ onClose, onExport, hasRecoveryPassword, busy, selectedCount }) {
   const { t } = useTranslation();
   const [format, setFormat] = useState('plain');        // 'plain' | 'encrypted'
   const [keyMode, setKeyMode] = useState('recovery');   // 'recovery' | 'password'（仅密文时）
@@ -88,18 +85,17 @@ export default function ImportExportDialog({ onClose, onExport, onImport, onDown
         <div className="modal-header">
           <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Database size={18} />
-            {t('数据管理')}
+            {t('导出已选节点')}
           </div>
           <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="close"><X size={18} /></button>
         </div>
 
-        <div className="modal-body" style={{ overflowY: 'auto', maxHeight: 'calc(80vh - 120px)', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* 导出区 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Download size={14} /> {t('导出全部节点')}
-            </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', background: 'var(--surface-secondary)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--accent)' }}>
+            {t('您已选择 {count} 个服务器节点进行导出。', { count: selectedCount })}
+          </div>
 
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* 导出格式选择 */}
             <div style={{ display: 'flex', gap: 8 }}>
               <div onClick={() => setFormat('plain')} role="radio" aria-checked={format === 'plain'} style={{ ...(format === 'plain' ? activeRowStyle : rowStyle), flex: 1 }}>
@@ -166,35 +162,14 @@ export default function ImportExportDialog({ onClose, onExport, onImport, onDown
                 )}
               </div>
             )}
-
-            <button className="btn btn-primary" onClick={handleExportClick} disabled={!canExport()} style={{ height: 34, fontSize: 13 }}>
-              <Download size={14} style={{ marginRight: 6 }} />{t('导出')}
-            </button>
-          </div>
-
-          {/* 分隔线 */}
-          <div style={{ height: 1, background: 'var(--border)' }} />
-
-          {/* 导入区 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Upload size={14} /> {t('从文件导入')}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-              {t('支持明文 JSON、密文 .lumin2 与旧 .enc；密文会优先尝试恢复密码，兼容旧版云同步密钥，失败时提示输入密码')}
-            </div>
-            <button className="btn btn-secondary" onClick={onImport} disabled={busy} style={{ height: 34, fontSize: 13 }}>
-              <Upload size={14} style={{ marginRight: 6 }} />{t('选择文件并导入')}
-            </button>
-            {/* 模板下载：隶属导入区，明文模板供用户照着填后导入 */}
-            <button className="btn btn-ghost" onClick={onDownloadTemplate} disabled={busy} style={{ height: 30, fontSize: 12, justifyContent: 'flex-start', color: 'var(--text-tertiary)' }}>
-              <FileDown size={13} style={{ marginRight: 6 }} />{t('下载导入模板')}
-            </button>
           </div>
         </div>
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>{t('关闭')}</button>
+          <button className="btn btn-primary" onClick={handleExportClick} disabled={!canExport()} style={{ minWidth: 80 }}>
+            <Download size={14} style={{ marginRight: 6 }} />{t('导出')}
+          </button>
         </div>
       </div>
     </div>

@@ -98,6 +98,22 @@ export default {
   "保存中...": "Economisire...",
   "保存配置": "Salvați configurația",
   "取消": "Anula",
+
+  "取消选择": "Anulare selecție",
+
+
+
+  "选择模式": "Mod selectare",
+  "退出选择": "Ieșire din selectare",
+  "批量删除": "Ștergere în lot",
+  "服务器已克隆": "Servere clonate",
+
+
+  "克隆失败": "Clonare eșuată",
+  "已选择服务器": "Selectat",
+  "批量打开": "Deschidere în masă",
+  "移动分组": "Mutare grup",
+  "副本": "Copiere",
   "连接失败": "Conexiunea a eșuat",
   "上传成功": "Încărcare reușită",
   "下载成功": "Descărcarea cu succes",
@@ -1128,4 +1144,12 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Vă rugăm să instalați mai întâi mediul de rulare UV și apoi să inițializați Kimi încorporat",
   "Git 命令集": "Set de comenzi Git",
   "Docker 命令集": "Set de comenzi Docker",
+
+  "导出选择": "Exportă selecția",
+  "导出已选节点": "Exportă nodurile selectate",
+  "您已选择 {count} 个服务器节点进行导出。": "Ați selectat {count} noduri de server pentru export."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "S-au exportat cu succes {count} noduri selectate în {path}"
+,
+  "取消全选": "Deselectați toate"
 };

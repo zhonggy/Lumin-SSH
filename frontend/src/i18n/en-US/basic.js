@@ -46,6 +46,12 @@ export default {
   "未分组": "Ungrouped",
   "移动到分组": "Move to Group",
   "移出分组": "Remove from Group",
+  "已选": "Selected",
+  "项": "items",
+  "确定删除": "Confirm Delete",
+  "个服务器": "servers",
+  "（包含": "(including",
+  "）": ")",
   "已移动到分组": "Moved to group",
   "默认（不填则不分组）": "Default (leave empty for no group)",
   "清空列表": "Clear List",
@@ -100,6 +106,18 @@ export default {
   "保存中...": "Saving...",
   "保存配置": "Save Config",
   "取消": "Cancel",
+  "取消选择": "Clear Selection",
+
+  "选择模式": "Select Mode",
+  "退出选择": "Exit Selection",
+  "批量删除": "Batch Delete",
+  "服务器已克隆": "Servers cloned",
+
+  "克隆失败": "Clone failed",
+  "已选择服务器": "selected",
+  "批量打开": "Batch Open",
+  "移动分组": "Move Group",
+  "副本": "copy",
   "连接失败": "Connection Failed",
   "上传成功": "Upload Success",
   "下载成功": "Download Success",
@@ -1133,4 +1151,12 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Please install the uv runtime environment first and then initialize the built-in Kimi",
   "Git 命令集": "Git command set",
   "Docker 命令集": "Docker command set",
+
+  "导出选择": "Export Selected",
+  "导出已选节点": "Export Selected Nodes",
+  "您已选择 {count} 个服务器节点进行导出。": "You have selected {count} server nodes to export."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "Successfully exported {count} selected nodes to {path}"
+,
+  "取消全选": "Deselect All"
 };

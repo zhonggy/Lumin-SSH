@@ -98,6 +98,22 @@ export default {
   "保存中...": "Penghematan...",
   "保存配置": "Simpan konfigurasi",
   "取消": "Membatalkan",
+
+  "取消选择": "Hapus Pilihan",
+
+
+
+  "选择模式": "Mode Pilih",
+  "退出选择": "Keluar dari Seleksi",
+  "批量删除": "Hapus Sekaligus",
+  "服务器已克隆": "Server berhasil dikloning",
+
+
+  "克隆失败": "Kloning gagal",
+  "已选择服务器": "Dipilih",
+  "批量打开": "Buka Sekaligus",
+  "移动分组": "Pindahkan Grup",
+  "副本": "Salin",
   "连接失败": "Koneksi gagal",
   "上传成功": "Unggahan berhasil",
   "下载成功": "Pengunduhan berhasil",
@@ -1128,4 +1144,12 @@ export default {
   "请先安装 uv 运行环境后再初始化内置 Kimi": "Silakan instal lingkungan runtime uv terlebih dahulu dan kemudian inisialisasi Kimi bawaan",
   "Git 命令集": "Kumpulan perintah Git",
   "Docker 命令集": "Kumpulan perintah Docker",
+
+  "导出选择": "Ekspor Terpilih",
+  "导出已选节点": "Ekspor Node Terpilih",
+  "您已选择 {count} 个服务器节点进行导出。": "Anda telah memilih {count} node server untuk diekspor."
+,
+  "已成功导出选择的 {count} 个节点到 {path}": "Berhasil mengekspor {count} node terpilih ke {path}"
+,
+  "取消全选": "Batalkan semua pilihan"
 };
