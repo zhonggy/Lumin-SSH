@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "seçildi",
   "批量打开": "Toplu aç",
   "移动分组": "Grubu taşı",
-  "批量克隆": "Toplu kopyala",
   "副本": "kopya",
   "连接失败": "Bağlantı başarısız oldu",
   "上传成功": "Yükleme başarılı",

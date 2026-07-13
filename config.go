@@ -652,57 +652,7 @@ func (c *ConfigManager) BatchSetConnectionGroup(ids []string, group string) erro
 	return nil
 }
 
-// BatchCloneConnections 批量复制连接，仅触发一次写入和云同步
-func (c *ConfigManager) BatchCloneConnections(ids []string, suffix string) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	idMap := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		idMap[id] = true
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	conns := c.getConnectionsLocked()
 
-	// Create copies of the requested connections
-	var copies []Connection
-	now := time.Now().UnixMilli()
-	for _, conn := range conns {
-		if idMap[conn.ID] {
-			// Clone connection details
-			copyConn := conn
-			// Generate new ID
-			b := make([]byte, 8)
-			if _, err := rand.Read(b); err != nil {
-				copyConn.ID = strconv.FormatInt(time.Now().UnixNano(), 10)
-			} else {
-				copyConn.ID = fmt.Sprintf("%x", b)
-			}
-			if conn.Name != "" {
-				copyConn.Name = conn.Name + suffix
-			} else {
-				copyConn.Name = conn.Host + suffix
-			}
-			copyConn.LastModified = now
-			sanitizeConnectionProxyConfig(&copyConn)
-			copies = append(copies, copyConn)
-		}
-	}
-	if len(copies) == 0 {
-		return nil
-	}
-
-	// Append copies to connections
-	conns = append(conns, copies...)
-	if err := c.saveConnectionsFile(conns); err != nil {
-		return err
-	}
-	c.bumpSnapshotTime()
-	c.connCacheDirty = true
-	go c.AutoSync()
-	return nil
-}
 
 // SetConnectionOS 仅更新服务器的操作系统字段；值未变化时不触发同步。
 func (c *ConfigManager) SetConnectionOS(id string, osValue string) error {

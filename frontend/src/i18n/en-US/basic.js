@@ -115,7 +115,6 @@ export default {
   "已选择服务器": "selected",
   "批量打开": "Batch Open",
   "移动分组": "Move Group",
-  "批量克隆": "Batch Clone",
   "副本": "copy",
   "连接失败": "Connection Failed",
   "上传成功": "Upload Success",

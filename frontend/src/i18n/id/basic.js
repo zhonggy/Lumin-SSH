@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "Dipilih",
   "批量打开": "Buka Sekaligus",
   "移动分组": "Pindahkan Grup",
-  "批量克隆": "Kloning Sekaligus",
   "副本": "Salin",
   "连接失败": "Koneksi gagal",
   "上传成功": "Unggahan berhasil",

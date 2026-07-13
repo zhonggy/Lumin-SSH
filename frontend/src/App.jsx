@@ -3704,21 +3704,7 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
     }
   }, [loadServers, addToast, t]);
 
-  const handleBatchClone = useCallback(async (ids) => {
-    try {
-      await AppGo.BatchCloneConnections(ids, `_${t('副本')}`);
-      addToast(t('服务器已克隆'), 'success');
-    } catch (err) {
-      addToast(t('克隆失败'), 'error');
-    } finally {
-      try {
-        await loadServers();
-      } catch (err) {
-        console.error('Failed to load servers:', err);
-      }
-      setSelectedServerIds([]);
-    }
-  }, [loadServers, addToast, t]);
+
 
   const toggleBatchSelection = useCallback((idOrArray) => {
     if (Array.isArray(idOrArray)) {
@@ -4534,7 +4520,6 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
             onBatchDelete={handleBatchDelete}
             onBatchConnect={handleBatchConnect}
             onBatchMoveGroup={handleBatchMoveGroup}
-            onBatchClone={handleBatchClone}
             onGroupDelete={handleGroupDelete}
             onBatchExport={handleBatchExport}
             onExitSelectionMode={() => setBatchSelectionMode(false)}

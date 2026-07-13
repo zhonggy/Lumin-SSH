@@ -111,7 +111,6 @@ export default function ServerList({
   onBatchDelete,
   onBatchConnect,
   onBatchMoveGroup,
-  onBatchClone,
   onGroupDelete,
   onBatchExport,
   onExitSelectionMode,

@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "Đã chọn",
   "批量打开": "Mở hàng loạt",
   "移动分组": "Di chuyển nhóm",
-  "批量克隆": "Nhân bản hàng loạt",
   "副本": "Sao chép",
   "连接失败": "Kết nối không thành công",
   "上传成功": "Tải lên thành công",

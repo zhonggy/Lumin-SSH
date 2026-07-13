@@ -580,10 +580,7 @@ func (a *App) BatchSetConnectionGroup(ids []string, group string) error {
 	return a.configManager.BatchSetConnectionGroup(ids, group)
 }
 
-// BatchCloneConnections 批量克隆服务器
-func (a *App) BatchCloneConnections(ids []string, suffix string) error {
-	return a.configManager.BatchCloneConnections(ids, suffix)
-}
+
 
 // SetConnectionOS 仅更新服务器操作系统
 func (a *App) SetConnectionOS(id string, os string) error {

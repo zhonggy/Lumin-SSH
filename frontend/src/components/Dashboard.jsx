@@ -1,4 +1,4 @@
-import { BarChart3, Monitor, Search, LayoutGrid, List, Eye, EyeOff, RefreshCw, Database, CheckSquare, Folder, Copy, Download, Trash2, X } from 'lucide-react';
+import { BarChart3, Monitor, Search, LayoutGrid, List, Eye, EyeOff, RefreshCw, Database, CheckSquare, Folder, Copy, Download, Trash2, X, Plus } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from '../i18n.js';
 import AddServerModal from './AddServerModal.jsx';
@@ -21,7 +21,6 @@ export default function Dashboard({
   onBatchDelete,
   onBatchConnect,
   onBatchMoveGroup,
-  onBatchClone,
   onGroupDelete,
   onSelectionModeToggle,
   onBatchExport,
@@ -30,6 +29,7 @@ export default function Dashboard({
   const { t } = useTranslation();
 
   const [showMoveGroupDropdown, setShowMoveGroupDropdown] = useState(false);
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
   const moveGroupMenuRef = useRef(null);
 
   useEffect(() => {
@@ -49,6 +49,12 @@ export default function Dashboard({
     });
     return Array.from(groups).sort();
   }, [servers]);
+
+  const filteredGroups = useMemo(() => {
+    const query = groupSearchQuery.trim().toLowerCase();
+    if (!query) return existingGroups;
+    return existingGroups.filter(g => g.toLowerCase().includes(query));
+  }, [existingGroups, groupSearchQuery]);
 
   return (
     <div className="dashboard-container">
@@ -195,7 +201,6 @@ export default function Dashboard({
               onBatchDelete={onBatchDelete}
               onBatchConnect={onBatchConnect}
               onBatchMoveGroup={onBatchMoveGroup}
-              onBatchClone={onBatchClone}
               onGroupDelete={onGroupDelete}
               onBatchExport={onBatchExport}
               onExitSelectionMode={onExitSelectionMode}
@@ -225,7 +230,10 @@ export default function Dashboard({
               {onBatchMoveGroup && (
                 <div ref={moveGroupMenuRef} style={{ position: 'relative' }}>
                   <button
-                    onClick={() => setShowMoveGroupDropdown(prev => !prev)}
+                    onClick={() => {
+                      setShowMoveGroupDropdown(prev => !prev);
+                      setGroupSearchQuery('');
+                    }}
                     className="btn-batch-action"
                     disabled={selectedIds.length === 0}
                   >
@@ -241,51 +249,96 @@ export default function Dashboard({
                         left: 0,
                         marginBottom: 8,
                         zIndex: 110,
-                        display: 'block',
-                        minWidth: 140,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        minWidth: 180,
+                        padding: '6px 8px',
                       }}
                     >
-                      <div style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                      <div style={{ padding: '2px 4px 6px 4px', fontSize: 11, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', marginBottom: 6 }}>
                         {t('移动到分组')}
                       </div>
-                      {existingGroups.map(g => (
-                        <div
-                          key={g}
-                          className="context-menu-item"
-                          onClick={() => {
-                            onBatchMoveGroup(selectedIds, g);
-                            setShowMoveGroupDropdown(false);
+                      
+                      {/* 搜索/新建输入框 */}
+                      <div style={{ marginBottom: 6 }} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          className="input-compact"
+                          placeholder={t('搜索或输入新分组...')}
+                          value={groupSearchQuery}
+                          onChange={(e) => setGroupSearchQuery(e.target.value)}
+                          autoFocus
+                          style={{
+                            width: '100%',
+                            height: 26,
+                            fontSize: 11,
+                            padding: '0 6px',
+                            borderRadius: 4,
+                            border: '1px solid var(--border)',
+                            background: 'var(--surface-sunken)',
+                            color: 'var(--text-primary)',
                           }}
-                        >
-                          <Folder size={12} style={{ marginRight: 8 }} />
-                          {g}
-                        </div>
-                      ))}
-                      <div className="context-menu-divider" />
+                        />
+                      </div>
+
+                      <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {/* 如果输入的搜索词不为空，且不与任何现有分组完全相同，则允许快速创建新分组并移动 */}
+                        {groupSearchQuery.trim() !== '' && !filteredGroups.includes(groupSearchQuery.trim()) && (
+                          <div
+                            className="context-menu-item"
+                            style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}
+                            onClick={() => {
+                              onBatchMoveGroup(selectedIds, groupSearchQuery.trim());
+                              setShowMoveGroupDropdown(false);
+                              setGroupSearchQuery('');
+                            }}
+                          >
+                            <Plus size={11} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {t('新建并移动')}: "{groupSearchQuery.trim()}"
+                            </span>
+                          </div>
+                        )}
+
+                        {filteredGroups.map(g => (
+                          <div
+                            key={g}
+                            className="context-menu-item"
+                            onClick={() => {
+                              onBatchMoveGroup(selectedIds, g);
+                              setShowMoveGroupDropdown(false);
+                              setGroupSearchQuery('');
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <Folder size={11} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g}</span>
+                          </div>
+                        ))}
+
+                        {filteredGroups.length === 0 && groupSearchQuery.trim() === '' && (
+                          <div style={{ padding: '6px 8px', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                            {t('暂无分组')}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="context-menu-divider" style={{ margin: '4px 0' }} />
                       <div
                         className="context-menu-item"
                         onClick={() => {
                           onBatchMoveGroup(selectedIds, '');
                           setShowMoveGroupDropdown(false);
+                          setGroupSearchQuery('');
                         }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                       >
-                        <X size={12} style={{ marginRight: 8 }} />
-                        {t('移出分组')}
+                        <X size={11} />
+                        <span>{t('移出分组')}</span>
                       </div>
                     </div>
                   )}
                 </div>
-              )}
-
-              {onBatchClone && (
-                <button
-                  onClick={() => onBatchClone(selectedIds)}
-                  className="btn-batch-action"
-                  disabled={selectedIds.length === 0}
-                >
-                  <Copy size={14} />
-                  {t('批量克隆')}
-                </button>
               )}
 
               {onBatchExport && (

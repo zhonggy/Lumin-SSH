@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "wybrane",
   "批量打开": "Otwieranie wsadowe",
   "移动分组": "Przenieś grupę",
-  "批量克隆": "Klonowanie wsadowe",
   "副本": "kopia",
   "连接失败": "Połączenie nie powiodło się",
   "上传成功": "Przesyłanie powiodło się",

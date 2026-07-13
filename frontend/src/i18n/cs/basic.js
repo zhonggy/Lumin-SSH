@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "Vybráno",
   "批量打开": "Hromadné otevření",
   "移动分组": "Přesunout skupinu",
-  "批量克隆": "Hromadné klonování",
   "副本": "Kopie",
   "连接失败": "Připojení se nezdařilo",
   "上传成功": "Nahrání proběhlo úspěšně",

@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "Selectat",
   "批量打开": "Deschidere în masă",
   "移动分组": "Mutare grup",
-  "批量克隆": "Clonare în masă",
   "副本": "Copiere",
   "连接失败": "Conexiunea a eșuat",
   "上传成功": "Încărcare reușită",

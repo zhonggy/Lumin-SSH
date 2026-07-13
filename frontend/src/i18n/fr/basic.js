@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "sélectionné",
   "批量打开": "Ouvrir en lot",
   "移动分组": "Déplacer le groupe",
-  "批量克隆": "Cloner en lot",
   "副本": "copie",
   "连接失败": "La connexion a échoué",
   "上传成功": "Téléchargement réussi",

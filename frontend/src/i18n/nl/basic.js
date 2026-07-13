@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "Geselecteerd",
   "批量打开": "Batch openen",
   "移动分组": "Groep verplaatsen",
-  "批量克隆": "Batch klonen",
   "副本": "Kopiëren",
   "连接失败": "Verbinding mislukt",
   "上传成功": "Uploaden gelukt",

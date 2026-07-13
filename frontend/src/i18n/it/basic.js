@@ -113,7 +113,6 @@ export default {
   "已选择服务器": "selezionato",
   "批量打开": "Apri in batch",
   "移动分组": "Sposta gruppo",
-  "批量克隆": "Clonazione batch",
   "副本": "copia",
   "连接失败": "Connessione non riuscita",
   "上传成功": "Caricamento riuscito",
