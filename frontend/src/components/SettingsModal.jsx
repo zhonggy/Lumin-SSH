@@ -332,6 +332,8 @@ export default function SettingsModal({
   const [terminalColorTheme, setTerminalColorTheme] = useState(localStorage.getItem('terminalColorTheme') || 'lumin');
   const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') === 'true');
   const [terminalTimestamps, setTerminalTimestamps] = useState(localStorage.getItem('terminalTimestamps') === 'true');
+  const [commandBlockBar, setCommandBlockBar] = useState(localStorage.getItem('commandBlockBar') !== 'false');
+  const [commandBlockAutoColor, setCommandBlockAutoColor] = useState(localStorage.getItem('commandBlockAutoColor') === 'true');
   const [rememberWindowSize, setRememberWindowSize] = useState(localStorage.getItem('rememberWindowSize') !== 'false');
   const [programFonts, setProgramFonts] = useState([]);
   const [programFontSearchQuery, setProgramFontSearchQuery] = useState('');
@@ -475,6 +477,18 @@ export default function SettingsModal({
     setTerminalTimestamps(enabled);
     localStorage.setItem('terminalTimestamps', String(enabled));
     window.dispatchEvent(new CustomEvent('terminal-timestamps-changed', { detail: enabled }));
+  };
+
+  const handleCommandBlockBarChange = (enabled) => {
+    setCommandBlockBar(enabled);
+    localStorage.setItem('commandBlockBar', String(enabled));
+    window.dispatchEvent(new CustomEvent('command-block-bar-changed', { detail: enabled }));
+  };
+
+  const handleCommandBlockAutoColorChange = (enabled) => {
+    setCommandBlockAutoColor(enabled);
+    localStorage.setItem('commandBlockAutoColor', String(enabled));
+    window.dispatchEvent(new CustomEvent('command-block-auto-color-changed', { detail: enabled }));
   };
 
   const handleTermBgUpload = (e) => {
@@ -1285,6 +1299,10 @@ export default function SettingsModal({
                 onTerminalLocalEchoChange={handleTerminalLocalEchoChange}
                 terminalTimestamps={terminalTimestamps}
                 onTerminalTimestampsChange={handleTerminalTimestampsChange}
+                commandBlockBar={commandBlockBar}
+                onCommandBlockBarChange={handleCommandBlockBarChange}
+                commandBlockAutoColor={commandBlockAutoColor}
+                onCommandBlockAutoColorChange={handleCommandBlockAutoColorChange}
                 terminalColorTheme={terminalColorTheme}
                 onTerminalColorThemeChange={(key) => { setTerminalColorTheme(key); localStorage.setItem('terminalColorTheme', key); window.dispatchEvent(new CustomEvent('terminal-theme-changed', { detail: key })); }}
                 themeMode={themeMode}

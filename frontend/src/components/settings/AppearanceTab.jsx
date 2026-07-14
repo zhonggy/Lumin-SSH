@@ -20,6 +20,8 @@ export default function AppearanceTab({
   terminalFontSize, onTerminalFontSizeChange,
   terminalLocalEcho, onTerminalLocalEchoChange,
   terminalTimestamps, onTerminalTimestampsChange,
+  commandBlockBar, onCommandBlockBarChange,
+  commandBlockAutoColor, onCommandBlockAutoColorChange,
   terminalColorTheme, onTerminalColorThemeChange,
   themeMode, onThemeChange,
   probePanelPosition, onProbePanelPositionChange,
@@ -219,6 +221,26 @@ export default function AppearanceTab({
             </div>
             <ToggleSwitch checked={terminalTimestamps} onChange={() => onTerminalTimestampsChange(!terminalTimestamps)} />
           </div>
+          <div className="divider" style={{ margin: '12px 0', borderTop: '1px solid var(--border)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>{$t('命令块色条')}</div>
+              <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('在终端左侧按命令分段显示彩色竖条，右键可折叠/复制')}</div>
+            </div>
+            <ToggleSwitch checked={commandBlockBar} onChange={() => onCommandBlockBarChange(!commandBlockBar)} />
+          </div>
+          {commandBlockBar && (
+            <>
+              <div className="divider" style={{ margin: '12px 0', borderTop: '1px solid var(--border)' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>{$t('命令块自动染色')}</div>
+                  <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('新命令块自动叠加淡色背景，便于在长输出中定位')}</div>
+                </div>
+                <ToggleSwitch checked={commandBlockAutoColor} onChange={() => onCommandBlockAutoColorChange(!commandBlockAutoColor)} />
+              </div>
+            </>
+          )}
         </div>
       </div>
 

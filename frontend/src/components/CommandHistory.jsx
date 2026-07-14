@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as AppGo from '../../wailsjs/go/main/App.js';
+import { feedCommandBlockInput } from '../utils/command-blocks/index.js';
 import { useTranslation } from '../i18n.js';
 import { ScrollText, Keyboard, Clipboard, Trash2, Rocket } from 'lucide-react';
 
@@ -121,6 +122,8 @@ export default function CommandHistory({ sessionId, historyServerId, addToast })
     window.dispatchEvent(new CustomEvent('ssh-command-history', {
       detail: { sessionId, command: cmd, time: new Date().toISOString(), source: 'input' }
     }));
+    // Host-driven WriteTerminal bypasses term.onData — open a command block.
+    feedCommandBlockInput(sessionId, '\r');
     AppGo.WriteTerminal(sessionId, cmd + '\r').catch((err) => {
       console.error('WriteTerminal failed:', err);
     });

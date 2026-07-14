@@ -15,6 +15,13 @@ import {
   normalizeQuickCommandItems,
   normalizeRemoteAbsolutePath,
 } from '../utils/terminalCommandAutocomplete.js';
+import {
+  createCommandBlockTracker,
+  createFoldStore,
+  registerCommandBlockTracker,
+  feedCommandBlockInput,
+} from '../utils/command-blocks/index.js';
+import CommandBlockOverlay from './CommandBlockOverlay.jsx';
 import QuickCommands from './QuickCommands.jsx';
 import Tiptop from './Tiptop.jsx';
 import '@xterm/xterm/css/xterm.css';
@@ -197,6 +204,12 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   const localEchoRef = useRef(localStorage.getItem('terminalLocalEcho') === 'true');
   const timestampsEnabledRef = useRef(localStorage.getItem('terminalTimestamps') === 'true');
   const [timestampsVisible, setTimestampsVisible] = useState(localStorage.getItem('terminalTimestamps') === 'true');
+  // Command blocks: default ON (only explicit "false" disables), auto-color default OFF
+  const [commandBlockBar, setCommandBlockBar] = useState(localStorage.getItem('commandBlockBar') !== 'false');
+  const [commandBlockAutoColor, setCommandBlockAutoColor] = useState(localStorage.getItem('commandBlockAutoColor') === 'true');
+  const blockTrackerRef = useRef(null);
+  const foldStoreRef = useRef(null);
+  const [blockRuntime, setBlockRuntime] = useState({ term: null, tracker: null, foldStore: null });
   // Ring buffer 时间戳：用 xterm marker 跟随 scrollback 裁剪，避免 buffer 行号复用后错位
   const TS_POOL = 6000;
   const tsRingRef = useRef(null);
@@ -425,8 +438,25 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     window.__luminTerminalSnapshots = window.__luminTerminalSnapshots || {};
     window.__luminTerminalSnapshots[sessionId] = () => getTerminalBufferSnapshotText(termRef.current || term);
 
+    // Command blocks: tracker marks Enter in normal buffer; foldStore owns real
+    // buffer-splice fold/unfold. Host-driven WriteTerminal paths must call
+    // tracker.feedInput('\r') themselves (see executeCommand).
+    const blockTracker = createCommandBlockTracker(term);
+    const foldStore = createFoldStore(term, blockTracker);
+    blockTrackerRef.current = blockTracker;
+    foldStoreRef.current = foldStore;
+    registerCommandBlockTracker(sessionId, blockTracker);
+    setBlockRuntime({ term, tracker: blockTracker, foldStore });
+
     const fitTimer = setTimeout(() => {
-      try { fitAddon.fit(); } catch (_) {}
+      try {
+        // Unfold before geometry change so saved fold lines match current cols.
+        const proposed = fitAddon.proposeDimensions?.();
+        if (proposed && (proposed.cols !== term.cols || proposed.rows !== term.rows)) {
+          foldStore.unfoldAll();
+        }
+        fitAddon.fit();
+      } catch (_) {}
     }, 100);
 
     // ── 自定义快捷键 ──────────────────────────────────────────────
@@ -760,6 +790,12 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
       if (window.__luminTerminalSnapshots?.[sessionId]) {
         delete window.__luminTerminalSnapshots[sessionId];
       }
+      try { foldStore.dispose(); } catch (_) {}
+      try { blockTracker.dispose(); } catch (_) {}
+      registerCommandBlockTracker(sessionId, null);
+      blockTrackerRef.current = null;
+      foldStoreRef.current = null;
+      setBlockRuntime({ term: null, tracker: null, foldStore: null });
       termRef.current     = null;
       fitAddonRef.current = null;
       try { term.dispose(); } catch (_) {}
@@ -771,6 +807,8 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
   useEffect(() => {
     const handleFontSizeChange = (e) => {
       if (termRef.current) {
+        // Unfold before geometry change so saved fold lines match current cols.
+        foldStoreRef.current?.unfoldAll();
         termRef.current.options.fontSize = e.detail;
         if (fitAddonRef.current) {
           try { fitAddonRef.current.fit(); } catch (_) {}
@@ -805,6 +843,11 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         const rect = containerRef.current.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
         try {
+          const proposed = fitAddonRef.current.proposeDimensions?.();
+          if (proposed && termRef.current
+              && (proposed.cols !== termRef.current.cols || proposed.rows !== termRef.current.rows)) {
+            foldStoreRef.current?.unfoldAll();
+          }
           fitAddonRef.current.fit();
           const { cols, rows } = termRef.current;
           AppGo.ResizeTerminal(sessionId, cols, rows);
@@ -933,11 +976,19 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         requestAnimationFrame(() => syncGutter());
       }
     };
+    const handleCommandBlockBarChange = (e) => {
+      setCommandBlockBar(e.detail !== false);
+    };
+    const handleCommandBlockAutoColorChange = (e) => {
+      setCommandBlockAutoColor(e.detail === true);
+    };
     const handleProgramFontSettingsChange = (e) => {
       const nextFontFamily = typeof e?.detail?.terminalFontFamily === 'string' && e.detail.terminalFontFamily.trim()
         ? e.detail.terminalFontFamily
         : getResolvedProgramFontPreferences().terminalFontFamily;
       if (termRef.current) {
+        // Unfold before geometry change so saved fold lines match current cols.
+        foldStoreRef.current?.unfoldAll();
         termRef.current.options.fontFamily = nextFontFamily;
         if (fitAddonRef.current) {
           try { fitAddonRef.current.fit(); } catch (_) {}
@@ -948,11 +999,15 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     window.addEventListener('app-shortcuts-changed', handleShortcutsChange);
     window.addEventListener('terminal-local-echo-changed', handleLocalEchoChange);
     window.addEventListener('terminal-timestamps-changed', handleTimestampsChange);
+    window.addEventListener('command-block-bar-changed', handleCommandBlockBarChange);
+    window.addEventListener('command-block-auto-color-changed', handleCommandBlockAutoColorChange);
     window.addEventListener('program-font-settings-changed', handleProgramFontSettingsChange);
     return () => {
       window.removeEventListener('app-shortcuts-changed', handleShortcutsChange);
       window.removeEventListener('terminal-local-echo-changed', handleLocalEchoChange);
       window.removeEventListener('terminal-timestamps-changed', handleTimestampsChange);
+      window.removeEventListener('command-block-bar-changed', handleCommandBlockBarChange);
+      window.removeEventListener('command-block-auto-color-changed', handleCommandBlockAutoColorChange);
       window.removeEventListener('program-font-settings-changed', handleProgramFontSettingsChange);
     };
   }, []);
@@ -1153,6 +1208,9 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
     const cmd = directCmd || cmdInput;
     if (!isConnected) return;
     const text = (cmd ?? '').trim();
+    // Host-driven path bypasses term.onData — feed the tracker so command
+    // blocks open for bottom-bar / history / quick-command executions too.
+    feedCommandBlockInput(sessionId, '\r');
     AppGo.WriteTerminal(sessionId, text + '\r').catch((err) => {
       console.error('WriteTerminal failed:', err);
     });
@@ -1521,7 +1579,7 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
         </div>
       </div>
 
-      {/* ── xterm 渲染层 + 时间轴 ── */}
+      {/* ── xterm 渲染层 + 时间轴 + 命令块色条 ── */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <div ref={gutterRef} style={{
           display: timestampsVisible ? 'block' : 'none',
@@ -1531,15 +1589,34 @@ export default function Terminal({ sessionId, serverId, historyServerId, status,
           overflow: 'hidden',
           boxSizing: 'border-box',
         }} />
-        <div
-          ref={containerRef}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            padding: '0',
-            background: 'transparent',
-          }}
-        />
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <div
+            ref={containerRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              padding: '0',
+              background: 'transparent',
+            }}
+          />
+          <CommandBlockOverlay
+            term={blockRuntime.term}
+            tracker={blockRuntime.tracker}
+            foldStore={blockRuntime.foldStore}
+            containerEl={containerRef.current}
+            enabled={commandBlockBar}
+            autoColor={commandBlockAutoColor}
+            onSendToAi={(text) => {
+              window.dispatchEvent(new CustomEvent('ai-terminal-send-to-assistant', {
+                detail: {
+                  sessionId: serverIdRef.current,
+                  terminalId: sessionId,
+                  text,
+                },
+              }));
+            }}
+          />
+        </div>
       </div>
 
       {/* ── 底部命令输入栏 ── */}
