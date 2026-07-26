@@ -23,6 +23,13 @@ import defaultTermBg from '../assets/term_bg.png';
 import { Z } from '../constants/zIndex';
 import { getTerminalTheme, getAppThemeMode, isDarkTerminalSurface } from '../utils/theme.js';
 import { getResolvedProgramFontPreferences } from '../utils/programFonts.js';
+import CommandBlockOverlay from './CommandBlockOverlay.jsx';
+import {
+  createCommandBlockTracker,
+  createFoldStore,
+  registerCommandBlockTracker,
+  feedCommandBlockInput,
+} from '../utils/command-blocks/index.js';
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -472,6 +479,16 @@ export default function Terminal({
   // 命令块：左侧折叠钮 + 树线，可收起输出
   const commandBlocksEnabledRef = useRef(localStorage.getItem('terminalCommandBlocks') === 'true');
   const [commandBlocksVisible, setCommandBlocksVisible] = useState(localStorage.getItem('terminalCommandBlocks') === 'true');
+  // 彩色命令块（xterm-command-blocks）：与上面的「命令块边框」相互独立
+  const [colorBlocksEnabled, setColorBlocksEnabled] = useState(localStorage.getItem('commandBlockBar') === 'true');
+  const [blockTracker, setBlockTracker] = useState(null);
+  const [blockFoldStore, setBlockFoldStore] = useState(null);
+  const [blockTermInstance, setBlockTermInstance] = useState(null);
+  const [blockContainerEl, setBlockContainerEl] = useState(null);
+  const blockFoldStoreRef = useRef(null);
+  // 下面的全局设置监听 effect 依赖数组为 []，直接闭包 sessionId 会读到首次值
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
   const [alternateBufferActive, setAlternateBufferActive] = useState(false);
   const alternateBufferActiveRef = useRef(false);
   // Ring buffer 时间戳：用 xterm marker 跟随 scrollback 裁剪，避免 buffer 行号复用后错位
@@ -1184,6 +1201,16 @@ export default function Terminal({
     alternateBufferActiveRef.current = false;
     setAlternateBufferActive(false);
 
+    // ── 彩色命令块：tracker 与折叠存储随终端生命周期 ──────────────
+    const cbTracker = createCommandBlockTracker(term);
+    const cbFoldStore = createFoldStore(term, cbTracker);
+    registerCommandBlockTracker(sessionId, cbTracker);
+    blockFoldStoreRef.current = cbFoldStore;
+    setBlockTracker(cbTracker);
+    setBlockFoldStore(cbFoldStore);
+    setBlockTermInstance(term);
+    setBlockContainerEl(containerRef.current);
+
     // ── 智能写入：用户手动滚动上时保持位置 ─────────────────────────
     let userPinned = false; // 用户手动往上滚后锁定
     const onTermScroll = () => {
@@ -1690,6 +1717,14 @@ export default function Terminal({
       if (wsRef.current === ws) wsRef.current = null;
       tsClear(); // 清理时间戳
       cbClear(); // 清理命令块边框
+      registerCommandBlockTracker(sessionId, null);
+      blockFoldStoreRef.current = null;
+      setBlockTracker(null);
+      setBlockFoldStore(null);
+      setBlockTermInstance(null);
+      setBlockContainerEl(null);
+      cbFoldStore.dispose();
+      cbTracker.dispose();
       if (window.__luminTerminalSnapshots?.[sessionId]) {
         delete window.__luminTerminalSnapshots[sessionId];
       }
@@ -1714,6 +1749,8 @@ export default function Terminal({
       if (termRef.current) {
         termRef.current.options.fontSize = e.detail;
         if (fitAddonRef.current) {
+          // 列宽/行数变化前必须展开，否则折叠时存的 savedLines 列宽会错位
+          blockFoldStoreRef.current?.unfoldAll();
           try { fitAddonRef.current.fit(); } catch (_) {}
         }
         scheduleGutterSync();
@@ -1746,6 +1783,7 @@ export default function Terminal({
         const rect = containerRef.current.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
         try {
+          blockFoldStoreRef.current?.unfoldAll();
           fitAddonRef.current.fit();
           const { cols, rows } = termRef.current;
           AppGo.ResizeTerminal(sessionId, cols, rows);
@@ -1770,6 +1808,7 @@ export default function Terminal({
       try {
         const rect = containerRef.current?.getBoundingClientRect();
         if (rect && rect.width > 0 && rect.height > 0) {
+          blockFoldStoreRef.current?.unfoldAll();
           fitAddonRef.current.fit();
           const { cols, rows } = termRef.current;
           AppGo.ResizeTerminal(sessionId, cols, rows);
@@ -1896,6 +1935,21 @@ export default function Terminal({
         requestAnimationFrame(() => scheduleGutterSync());
       }
     };
+    const handleColorBlocksChange = (e) => {
+      const enabled = e.detail !== false;
+      // 关闭前先展开，否则 buffer 里会残留被折叠隐藏的行
+      if (!enabled) blockFoldStoreRef.current?.unfoldAll();
+      setColorBlocksEnabled(enabled);
+      // 色条占 12px padding-left，宽度变了必须重算列数，否则换行位置错位
+      requestAnimationFrame(() => {
+        if (!termRef.current || !fitAddonRef.current) return;
+        try {
+          fitAddonRef.current.fit();
+          const { cols, rows } = termRef.current;
+          AppGo.ResizeTerminal(sessionIdRef.current, cols, rows);
+        } catch (_) {}
+      });
+    };
     const handleProgramFontSettingsChange = (e) => {
       const nextFontFamily = typeof e?.detail?.terminalFontFamily === 'string' && e.detail.terminalFontFamily.trim()
         ? e.detail.terminalFontFamily
@@ -1903,6 +1957,7 @@ export default function Terminal({
       if (termRef.current) {
         termRef.current.options.fontFamily = nextFontFamily;
         if (fitAddonRef.current) {
+          blockFoldStoreRef.current?.unfoldAll();
           try { fitAddonRef.current.fit(); } catch (_) {}
         }
         scheduleGutterSync();
@@ -1912,12 +1967,14 @@ export default function Terminal({
     window.addEventListener('terminal-local-echo-changed', handleLocalEchoChange);
     window.addEventListener('terminal-timestamps-changed', handleTimestampsChange);
     window.addEventListener('terminal-command-blocks-changed', handleCommandBlocksChange);
+    window.addEventListener('command-block-bar-changed', handleColorBlocksChange);
     window.addEventListener('program-font-settings-changed', handleProgramFontSettingsChange);
     return () => {
       window.removeEventListener('app-shortcuts-changed', handleShortcutsChange);
       window.removeEventListener('terminal-local-echo-changed', handleLocalEchoChange);
       window.removeEventListener('terminal-timestamps-changed', handleTimestampsChange);
       window.removeEventListener('terminal-command-blocks-changed', handleCommandBlocksChange);
+      window.removeEventListener('command-block-bar-changed', handleColorBlocksChange);
       window.removeEventListener('program-font-settings-changed', handleProgramFontSettingsChange);
     };
   }, []);
@@ -2292,6 +2349,8 @@ export default function Terminal({
       : multiLineWrapEnabled && lineCount > 1
         ? buildWrappedMultiLineCommand(normalizedText)
         : text + '\r';
+    // 宿主路径不走 term.onData，需手动告知 tracker 开新块
+    feedCommandBlockInput(sessionId, finalPayload);
     AppGo.WriteTerminal(sessionId, finalPayload).catch((err) => {
       console.error('WriteTerminal failed:', err);
     });
@@ -2863,6 +2922,16 @@ export default function Terminal({
               overflow: 'hidden',
               zIndex: 2,
             }}
+          />
+          {/* 彩色命令块左侧色条（绝对定位在 xterm 容器内） */}
+          <CommandBlockOverlay
+            term={blockTermInstance}
+            tracker={blockTracker}
+            foldStore={blockFoldStore}
+            containerEl={blockContainerEl}
+            enabled={colorBlocksEnabled}
+            autoColor={false}
+            t={t}
           />
           </div>
       </div>

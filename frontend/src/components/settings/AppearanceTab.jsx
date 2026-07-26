@@ -23,6 +23,7 @@ export default function AppearanceTab({
   terminalLocalEcho, onTerminalLocalEchoChange,
   terminalTimestamps, onTerminalTimestampsChange,
   terminalCommandBlocks, onTerminalCommandBlocksChange,
+  commandBlockBar, onCommandBlockBarChange,
   themePackages,
   themePackageSettings,
   themeMode, onThemeChange,
@@ -260,6 +261,15 @@ export default function AppearanceTab({
               <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('左侧显示可折叠命令块，点击收起输出')}</div>
             </div>
             <ToggleSwitch checked={terminalCommandBlocks} onChange={() => onTerminalCommandBlocksChange(!terminalCommandBlocks)} />
+          </div>
+          <div className="divider" style={{ margin: '12px 0', borderTop: '1px solid var(--border)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>{$t('彩色命令块')}</div>
+              <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('每条命令左侧一根彩色竖条，右键可折叠/复制文本或图片')}</div>
+              <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('与「命令块边框」互斥，开启后会自动关闭它')}</div>
+            </div>
+            <ToggleSwitch checked={commandBlockBar} onChange={() => onCommandBlockBarChange(!commandBlockBar)} />
           </div>
         </div>
       </div>

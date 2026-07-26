@@ -346,6 +346,7 @@ export default function SettingsModal({
   const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') === 'true');
   const [terminalTimestamps, setTerminalTimestamps] = useState(localStorage.getItem('terminalTimestamps') === 'true');
   const [terminalCommandBlocks, setTerminalCommandBlocks] = useState(localStorage.getItem('terminalCommandBlocks') === 'true');
+  const [commandBlockBar, setCommandBlockBar] = useState(localStorage.getItem('commandBlockBar') === 'true');
   const [rememberWindowSize, setRememberWindowSize] = useState(localStorage.getItem('rememberWindowSize') !== 'false');
   const [showThemeQuickEntry, setShowThemeQuickEntry] = useState(localStorage.getItem('showThemeQuickEntry') !== 'false');
   const [programFonts, setProgramFonts] = useState([]);
@@ -617,7 +618,22 @@ export default function SettingsModal({
   const handleTerminalCommandBlocksChange = (enabled) => {
     setTerminalCommandBlocks(enabled);
     localStorage.setItem('terminalCommandBlocks', String(enabled));
+    if (enabled && localStorage.getItem('commandBlockBar') === 'true') {
+      setCommandBlockBar(false);
+      localStorage.setItem('commandBlockBar', 'false');
+      window.dispatchEvent(new CustomEvent('command-block-bar-changed', { detail: false }));
+    }
     window.dispatchEvent(new CustomEvent('terminal-command-blocks-changed', { detail: enabled }));
+  };
+
+  const handleCommandBlockBarChange = (enabled) => {
+    setCommandBlockBar(enabled);
+    localStorage.setItem('commandBlockBar', String(enabled));
+    window.dispatchEvent(new CustomEvent('command-block-bar-changed', { detail: enabled }));
+    // 两套命令块折叠时都会重写同一份 buffer，同时开启会互相破坏状态
+    if (enabled && terminalCommandBlocks) {
+      handleTerminalCommandBlocksChange(false);
+    }
   };
 
   const handleTermBgUpload = (e) => {
@@ -1853,6 +1869,8 @@ export default function SettingsModal({
                 onTerminalTimestampsChange={handleTerminalTimestampsChange}
                 terminalCommandBlocks={terminalCommandBlocks}
                 onTerminalCommandBlocksChange={handleTerminalCommandBlocksChange}
+                commandBlockBar={commandBlockBar}
+                onCommandBlockBarChange={handleCommandBlockBarChange}
                 themePackages={themePackages}
                 themePackageSettings={themePackageSettings}
                 themeMode={forceDarkTheme ? 'dark' : themeMode}

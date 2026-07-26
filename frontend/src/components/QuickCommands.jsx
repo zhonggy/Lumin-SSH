@@ -6,6 +6,7 @@ import { useTranslation } from '../i18n.js';
 import Tiptop from './Tiptop.jsx';
 import { Z } from '../constants/zIndex';
 import { getThemeComponentTheme } from '../utils/theme.js';
+import { feedCommandBlockInput } from '../utils/command-blocks/index.js';
 
 // ── 加载命令数据（从 Go 后端文件）────────────────────
 async function loadCommands() {
@@ -846,12 +847,14 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
 
     if (sendTarget === 'all' && connectedSessions.length > 0) {
       connectedSessions.forEach(s => {
+        feedCommandBlockInput(s.id, finalCmd);
         AppGo.WriteTerminal(s.id, finalCmd).catch((err) => {
           console.error('WriteTerminal failed:', err);
         });
       });
       if (addToast) addToast(t('已发送到 ') + connectedSessions.length + t(' 个会话'), 'info', 2000);
     } else {
+      feedCommandBlockInput(sessionId, finalCmd);
       AppGo.WriteTerminal(sessionId, finalCmd).catch((err) => {
         console.error('WriteTerminal failed:', err);
       });
@@ -866,11 +869,15 @@ const QuickCommands = forwardRef(function QuickCommands({ sessionId, addToast, c
     if (!text) return;
     const finalCmd = cmdEditorAddCR ? (text + '\r') : text;
     if (sendTarget === 'all' && connectedSessions.length > 0) {
-      connectedSessions.forEach(s => AppGo.WriteTerminal(s.id, finalCmd).catch((err) => {
-        console.error('WriteTerminal failed:', err);
-      }));
+      connectedSessions.forEach(s => {
+        feedCommandBlockInput(s.id, finalCmd);
+        AppGo.WriteTerminal(s.id, finalCmd).catch((err) => {
+          console.error('WriteTerminal failed:', err);
+        });
+      });
       if (addToast) addToast(t('已发送到 ') + connectedSessions.length + t(' 个会话'), 'info', 2000);
     } else {
+      feedCommandBlockInput(sessionId, finalCmd);
       AppGo.WriteTerminal(sessionId, finalCmd).catch((err) => {
         console.error('WriteTerminal failed:', err);
       });
