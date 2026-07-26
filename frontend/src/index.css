@@ -413,8 +413,17 @@ body.global-wallpaper .app-layout {
   background-position: center;
   background-repeat: no-repeat;
 }
-body.global-wallpaper .main-area,
-body.global-wallpaper .dashboard-container { background: transparent; }
+/* 主区域内把 --surface-base 改成透明，让所有用它做底的容器（包括 JSX 内联样式）
+   一次性透出壁纸；变量会自动继承给所有后代。 */
+body.global-wallpaper .main-area {
+  --surface-base: transparent;
+  background: transparent;
+}
+/* 侧边栏等 raised 面板改为半透明，否则会遮住大片壁纸 */
+body.global-wallpaper .dashboard-left,
+body.global-wallpaper .topbar {
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+}
 
 /* ── 顶栏 ───────────────────────────────────────────────────── */
 .topbar {
