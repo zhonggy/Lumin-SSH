@@ -6,6 +6,7 @@ import { AlertTriangle } from 'lucide-react';
 import './index.css';
 import { applyProgramFontPreferences } from './utils/programFonts.js';
 import { applyStoredThemePackage, loadThemePackages } from './utils/theme.js';
+import { applyGlobalWallpaper } from './utils/globalWallpaper.js';
 // favicon 与 UI logo 共用同一源，避免 public/favicon.png 再拷一份
 import logoFavicon from './assets/logo.png';
 
@@ -61,6 +62,10 @@ class ErrorBoundary extends React.Component {
 
 // Load initial theme package synchronously from localStorage to avoid startup flash
 applyStoredThemePackage();
+
+// 全局壁纸：启动时应用，并跟随终端壁纸变更
+applyGlobalWallpaper();
+window.addEventListener('terminal-bg-changed', applyGlobalWallpaper);
 
 // 禁用浏览器默认右键菜单（完全拦截，以便使用统一的自定义玻璃菜单）
 document.addEventListener('contextmenu', (e) => e.preventDefault());

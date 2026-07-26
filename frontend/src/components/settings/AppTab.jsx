@@ -91,7 +91,7 @@ async function loadContributors() {
   return data;
 }
 
-export default function AppTab({ CURRENT_VERSION, BUILD_TIME, updateInfo, checkingUpdate, downloadProgress, onCheckUpdate, onApplyUpdate }) {
+export default function AppTab({ CURRENT_VERSION, BUILD_TIME }) {
   const [contributors, setContributors] = useState(() => getFreshContributorsCache() || []);
   const [contributorsLoading, setContributorsLoading] = useState(() => !getFreshContributorsCache());
   const [showRefreshedLogo, setShowRefreshedLogo] = useState(false);
@@ -227,73 +227,6 @@ export default function AppTab({ CURRENT_VERSION, BUILD_TIME, updateInfo, checki
             {BUILD_TIME && (
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
                 {BUILD_TIME}
-              </span>
-            )}
-            <button
-              onClick={onCheckUpdate}
-              disabled={checkingUpdate}
-              style={{
-                marginLeft: 4,
-                background: 'var(--surface-overlay)',
-                color: 'var(--text-secondary)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: '6px 14px',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: checkingUpdate ? 'not-allowed' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.2s',
-                opacity: checkingUpdate ? 0.7 : 1,
-                flexShrink: 0
-              }}
-              onMouseEnter={(e) => { if(!checkingUpdate) { e.currentTarget.style.background = 'var(--surface-sunken)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
-              onMouseLeave={(e) => { if(!checkingUpdate) { e.currentTarget.style.background = 'var(--surface-overlay)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
-            >
-              <svg className={checkingUpdate ? 'spin' : ''} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
-              {checkingUpdate
-                 ? $t('检查中...')
-                 : $t('检查更新')}
-            </button>
-            {(updateInfo?.hasUpdate || downloadProgress >= 0) && (
-              <span
-                onClick={onApplyUpdate}
-                style={{
-                  background: downloadProgress >= 0 ? 'var(--accent-dim)' : 'rgba(var(--success-rgb), 0.12)',
-                  color: downloadProgress >= 0 ? 'var(--accent)' : 'var(--success)',
-                  borderRadius: 12,
-                  padding: '2px 8px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: downloadProgress >= 0 ? 'default' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  boxShadow: 'none',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  minWidth: 80,
-                  justifyContent: 'center'
-                }}
-              >
-                {downloadProgress >= 0 && (
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, background: 'rgba(var(--accent-rgb), 0.22)', width: `${downloadProgress}%`, transition: 'width 0.2s ease-out' }}></div>
-                )}
-                <span style={{ position: 'relative', zIndex: Z.CONTENT, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {downloadProgress >= 0 ? (
-                    <>
-                      <svg className="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
-                      {Math.round(downloadProgress)}%
-                    </>
-                  ) : (
-                    <>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                      {updateInfo.latestVersion} {$t('立即更新')}
-                    </>
-                  )}
-                </span>
               </span>
             )}
           </div>

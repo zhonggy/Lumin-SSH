@@ -26,15 +26,13 @@ import GlobalContextMenu from './components/GlobalContextMenu.jsx';
 import { clampPanelWidth } from './components/probeFormatting.js';
 import { useTranslation } from './i18n.js';
 import { getTerminalTheme, hexToRgb } from './utils/theme.js';
-import { useUpdateChecker } from './hooks/useUpdateChecker.js';
 import ConnectingCard from './components/ConnectingCard.jsx';
-import UpdateModal from './components/UpdateModal.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import ImportExportDialog from './components/ImportExportDialog.jsx';
 import ExportSelectedDialog from './components/ExportSelectedDialog.jsx';
 import Tiptop from './components/Tiptop.jsx';
 import { restoreAIChatTool } from './components/ai/aiChatBridge.js';
-import { Bot, Settings, House, Minus, Square, X, Plus, Monitor, RefreshCw, Folder, ScrollText, Cpu, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, Globe, Rocket, Copy, PenLine, Sun, Moon } from 'lucide-react';
+import { Bot, Settings, House, Minus, Square, X, Plus, Monitor, RefreshCw, Folder, ScrollText, Cpu, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search, Globe, Copy, PenLine, Sun, Moon } from 'lucide-react';
 import { Z } from './constants/zIndex';
 
 import logoImg from './assets/logo.png';
@@ -894,13 +892,6 @@ export default function App() {
     }
   }, [activeSessionId, rememberSessionActiveTerminal, resolveSessionRootTerminalId, sessions, terminalPaneLayouts]);
   
-  // ── 新增自动检测更新状态 ──────────────────────────────
-  const [startupUpdateInfo, setStartupUpdateInfo] = useState(null);
-  const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
-  const [showUpdateBubble, setShowUpdateBubble] = useState(false);
-  const updateBubbleTimeoutRef = useRef(null);
-  const updateBubbleRemainingRef = useRef(4000);
-  const updateBubbleStartedAtRef = useRef(0);
   const [syncFailed, setSyncFailed] = useState(null); // { provider, error }
   
   // ── 新增分屏拖拽大小控制状态与逻辑 ──────────────────────
@@ -1905,107 +1896,6 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
     return () => mq.removeEventListener('change', applyTheme);
   }, [activeAIDevilMode]);
 
-  // ── 自动检测更新机制 ────────────────────────────────────
-  const { checkUpdate, applyUpdate, downloadProgress } = useUpdateChecker({
-    onResult: (result) => {
-      if (result.hasUpdate) {
-        setStartupUpdateInfo({
-          version: 'v' + result.latestVersion,
-          url: result.url,
-          filename: result.filename,
-        });
-      }
-    }
-  });
-
-  useEffect(() => {
-    // 延迟 2.5 秒触发检测，避免阻塞应用首次极速渲染
-    const timer = setTimeout(checkUpdate, 2500);
-    return () => clearTimeout(timer);
-  }, [checkUpdate]);
-
-  useEffect(() => {
-    const clearBubbleTimer = () => {
-      if (updateBubbleTimeoutRef.current) {
-        clearTimeout(updateBubbleTimeoutRef.current);
-        updateBubbleTimeoutRef.current = null;
-      }
-    };
-
-    const pauseBubbleTimer = () => {
-      if (!updateBubbleTimeoutRef.current || !updateBubbleStartedAtRef.current) {
-        return;
-      }
-      const elapsed = Date.now() - updateBubbleStartedAtRef.current;
-      updateBubbleRemainingRef.current = Math.max(0, updateBubbleRemainingRef.current - elapsed);
-      updateBubbleStartedAtRef.current = 0;
-      clearBubbleTimer();
-    };
-
-    const startBubbleTimer = () => {
-      if (updateBubbleTimeoutRef.current) {
-        return;
-      }
-      if (!startupUpdateInfo || updateBubbleRemainingRef.current <= 0) {
-        setShowUpdateBubble(false);
-        return;
-      }
-      if (document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus())) {
-        return;
-      }
-      updateBubbleStartedAtRef.current = Date.now();
-      updateBubbleTimeoutRef.current = window.setTimeout(() => {
-        updateBubbleTimeoutRef.current = null;
-        updateBubbleStartedAtRef.current = 0;
-        updateBubbleRemainingRef.current = 0;
-        setShowUpdateBubble(false);
-      }, updateBubbleRemainingRef.current);
-    };
-
-    if (!startupUpdateInfo) {
-      clearBubbleTimer();
-      updateBubbleRemainingRef.current = 4000;
-      updateBubbleStartedAtRef.current = 0;
-      setShowUpdateBubble(false);
-      return undefined;
-    }
-
-    clearBubbleTimer();
-    updateBubbleRemainingRef.current = 4000;
-    updateBubbleStartedAtRef.current = 0;
-    setShowUpdateBubble(true);
-    startBubbleTimer();
-
-    const handleFocus = () => startBubbleTimer();
-    const handleBlur = () => pauseBubbleTimer();
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        pauseBubbleTimer();
-        return;
-      }
-      startBubbleTimer();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearBubbleTimer();
-      updateBubbleStartedAtRef.current = 0;
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [startupUpdateInfo]);
-
-  const handleApplyStartupUpdate = async () => {
-    try {
-      await applyUpdate(startupUpdateInfo);
-    } catch (err) {
-      addToast(`${t('自动更新失败')}: ${err}`, 'error', 5000);
-    }
-  };
 
   // ── 刷新延迟 ────────────────────────────────────────────
   const handleRefreshPing = async () => {
@@ -5666,59 +5556,6 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
                 </button>
               </Tiptop>
             )}
-            {startupUpdateInfo && (
-              <Tiptop text={`${t('发现新版本')} ${startupUpdateInfo.version}`} placement="bottom">
-                <div className="update-entry no-drag" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <div
-                    className={`update-bubble${showUpdateBubble ? ' visible' : ''}`}
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 10px)',
-                      right: -4,
-                      opacity: showUpdateBubble ? 1 : 0,
-                      transform: `translateY(${showUpdateBubble ? '0' : '-8px'}) scale(${showUpdateBubble ? '1' : '0.94'})`,
-                      pointerEvents: 'none',
-                      zIndex: Z.POPOVER,
-                    }}
-                  >
-                    <span className="update-bubble-pulse" />
-                    <span className="update-bubble-dot" />
-                    <div className="update-bubble-content">
-                      <span className="update-bubble-pill">{t('发现新版本')}</span>
-                      <span className="update-bubble-text">{startupUpdateInfo.version}</span>
-                    </div>
-                  </div>
-                  <button
-                    className={`btn btn-ghost btn-icon no-drag update-entry-button${isUpdateModalVisible ? ' active' : ''}`}
-                    onClick={() => {
-                      setShowUpdateBubble(false);
-                      setIsUpdateModalVisible(true);
-                    }}
-                    aria-label={`${t('发现新版本')} ${startupUpdateInfo.version}`}
-                    style={{
-                      color: isUpdateModalVisible ? 'var(--accent)' : 'var(--text-secondary)',
-                      position: 'relative',
-                      overflow: 'visible',
-                    }}
-                  >
-                    <Rocket size={16} />
-                    <span
-                      className="update-entry-badge"
-                      style={{
-                        position: 'absolute',
-                        top: 6,
-                        right: 6,
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        background: 'var(--danger)',
-                        boxShadow: '0 0 0 2px var(--surface-base)',
-                      }}
-                    />
-                  </button>
-                </div>
-              </Tiptop>
-            )}
             <Tiptop text={t('设置')} placement="bottom">
               <button
                 className="btn btn-ghost btn-icon no-drag"
@@ -6862,15 +6699,6 @@ const getFileManagerDockConfirmRect = useCallback((target) => {
       <GlobalDialog />
 
 
-      {/* ── 自动更新弹窗 ──────────────────────────────── */}
-      <UpdateModal
-        visible={isUpdateModalVisible}
-        updateInfo={startupUpdateInfo}
-        downloadProgress={downloadProgress}
-        t={t}
-        onClose={() => setIsUpdateModalVisible(false)}
-        onUpdate={handleApplyStartupUpdate}
-      />
 
       {/* ── 云端同步失败弹窗 ──────────────────────────── */}
       {syncFailed && (() => {

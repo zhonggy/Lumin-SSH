@@ -4,7 +4,6 @@ import { getAvailableLanguages, setLanguage as setGlobalLanguage, t as $t } from
 import { getModKey } from '../utils/platform.js';
 import logoImg from '../assets/logo.png';
 import { APP_BUILD_TIME, APP_VERSION } from '../config.js';
-import { useUpdateChecker } from '../hooks/useUpdateChecker.js';
 import { Sun, Monitor, Moon, Keyboard, Cloud, Info, Database, Folder, X, RefreshCw, Globe, Palette, Lock, SlidersHorizontal } from 'lucide-react';
 import { Z } from '../constants/zIndex';
 import { EventsOn, WindowSetSize, WindowUnmaximise } from '../../wailsjs/runtime/runtime.js';
@@ -234,40 +233,6 @@ export default function SettingsModal({
 }) {
   const CURRENT_VERSION = APP_VERSION;
   const CURRENT_BUILD_TIME = APP_BUILD_TIME;
-  const [updateInfo, setUpdateInfo] = useState(null);
-
-  const { checking: checkingUpdate, downloadProgress, checkUpdate, applyUpdate } = useUpdateChecker({
-    onResult: (result) => {
-      if (result.hasUpdate) {
-        setUpdateInfo({
-          hasUpdate: true,
-          latestVersion: 'v' + result.latestVersion,
-          url: result.url,
-          filename: result.filename,
-        });
-        addToast($t('发现新版本: v') + result.latestVersion, 'success');
-        return;
-      }
-      setUpdateInfo(null);
-      // 远端 tag 已更新但本平台安装包尚未上传（如 Windows 仍在打包）
-      if (result?.reason === 'asset_pending') {
-        addToast($t('新版本安装包尚未就绪，请稍后再试'), 'info');
-        return;
-      }
-      addToast($t('当前已是最新版本'), 'info');
-    },
-    onError: (err) => {
-      addToast($t('检查更新失败: ') + (err?.message || err), 'error');
-    },
-  });
-
-  const handleCheckUpdate = () => { checkUpdate(); };
-
-  const handleApplyUpdate = () => {
-    applyUpdate(updateInfo).catch((err) => {
-      addToast($t('更新失败: ') + err, 'error');
-    });
-  };
 
   const [activeTab, setActiveTab] = useState(initialTab || 'general');
 
@@ -377,6 +342,7 @@ export default function SettingsModal({
   const [terminalFontSize, setTerminalFontSize] = useState(parseInt(localStorage.getItem('terminalFontSize') || '13', 10));
   const [termBgImage, setTermBgImage] = useState(localStorage.getItem('termBgImage') || '');
   const [termBgOpacity, setTermBgOpacity] = useState(parseFloat(localStorage.getItem('termBgOpacity') || '0.15'));
+  const [termBgGlobal, setTermBgGlobal] = useState(localStorage.getItem('termBgGlobal') === 'true');
   const [terminalLocalEcho, setTerminalLocalEcho] = useState(localStorage.getItem('terminalLocalEcho') === 'true');
   const [terminalTimestamps, setTerminalTimestamps] = useState(localStorage.getItem('terminalTimestamps') === 'true');
   const [terminalCommandBlocks, setTerminalCommandBlocks] = useState(localStorage.getItem('terminalCommandBlocks') === 'true');
@@ -687,6 +653,14 @@ export default function SettingsModal({
     setTermBgOpacity(val);
     localStorage.setItem('termBgOpacity', String(val));
     window.dispatchEvent(new CustomEvent('terminal-bg-changed'));
+  };
+
+  const handleToggleTermBgGlobal = () => {
+    const next = !termBgGlobal;
+    setTermBgGlobal(next);
+    localStorage.setItem('termBgGlobal', String(next));
+    window.dispatchEvent(new CustomEvent('terminal-bg-changed'));
+    addToast(next ? $t('壁纸已应用到全局') : $t('已取消全局壁纸'), 'success');
   };
 
   const handleToggleRememberWindowSize = () => {
@@ -1758,11 +1732,6 @@ export default function SettingsModal({
               <AppTab
                 CURRENT_VERSION={CURRENT_VERSION}
                 BUILD_TIME={CURRENT_BUILD_TIME}
-                updateInfo={updateInfo}
-                checkingUpdate={checkingUpdate}
-                downloadProgress={downloadProgress}
-                onCheckUpdate={handleCheckUpdate}
-                onApplyUpdate={handleApplyUpdate}
               />
             )}
 
@@ -1906,6 +1875,8 @@ export default function SettingsModal({
                 onTermBgReset={handleTermBgReset}
                 termBgOpacity={termBgOpacity}
                 onTermBgOpacityChange={handleTermBgOpacityChange}
+                termBgGlobal={termBgGlobal}
+                onToggleTermBgGlobal={handleToggleTermBgGlobal}
                 rememberWindowSize={rememberWindowSize}
                 onToggleRememberWindowSize={handleToggleRememberWindowSize}
                 onResetWindowSize={handleResetWindowSize}

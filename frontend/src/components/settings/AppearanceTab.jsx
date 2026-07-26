@@ -39,6 +39,7 @@ export default function AppearanceTab({
   probePanelPosition, onProbePanelPositionChange,
   termBgImage, onTermBgUpload, onTermBgReset,
   termBgOpacity, onTermBgOpacityChange,
+  termBgGlobal, onToggleTermBgGlobal,
   rememberWindowSize, onToggleRememberWindowSize, onResetWindowSize,
 }) {
   const fontMap = new Map((Array.isArray(programFonts) ? programFonts : []).map((font) => [font.fileName, font]));
@@ -415,6 +416,14 @@ export default function AppearanceTab({
               />
               <span style={{ fontSize: 13, width: 32, textAlign: 'right', color: 'var(--text-primary)' }}>{Math.round(termBgOpacity * 100)}%</span>
             </div>
+          </div>
+          <div className="divider" style={{ margin: '12px 0', borderTop: '1px solid var(--border)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontSize: 13 }}>{$t('应用到全局')}</div>
+              <div style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{$t('将壁纸作为整个应用的背景，而不仅限于终端')}</div>
+            </div>
+            <ToggleSwitch checked={!!termBgGlobal} onChange={onToggleTermBgGlobal} />
           </div>
         </div>
       </div>
